@@ -6626,6 +6626,7 @@
   const MIS_POS_SCALE=65536;
   const THREE_MODULE_URL = "https://esm.sh/three@0.152.2";
   const GLTF_LOADER_URL = "https://esm.sh/three@0.152.2/examples/jsm/loaders/GLTFLoader.js";
+  const GLB_Y_UP_TO_EDITOR_Z_UP_PITCH_DEG = 90;
   // OpenNova-style positional conversion: scale only (no fixed translation offset).
   function rawToWorld(v, axis='z'){
     const n=(Number(v)||0)/MIS_POS_SCALE;
@@ -7342,9 +7343,14 @@
       rawToWorld(it.y,'y'),
       getItemWorldZ(it)
     );
-    // Apply toolbar compensation only to the rendered GLB; MIS attributes stay untouched.
+    // Convert GLB's Y-up basis to the editor's Z-up basis on the rendered instance only.
+    // MIS orientation and optional toolbar compensation remain independent and unchanged.
     const yawRad = ((Number(it.heading) || 0) + renderUiState.glbYawCompensation) * Math.PI / 180;
-    const pitchRad = ((Number(it.pitch) || 0) + renderUiState.glbPitchCompensation) * Math.PI / 180;
+    const pitchRad = (
+      (Number(it.pitch) || 0)
+      + renderUiState.glbPitchCompensation
+      + GLB_Y_UP_TO_EDITOR_Z_UP_PITCH_DEG
+    ) * Math.PI / 180;
     obj.rotation.order = "ZXY";
     obj.rotation.z = yawRad;
     obj.rotation.x = pitchRad;
