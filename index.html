@@ -7743,10 +7743,22 @@
             shininess: Number.isFinite(m.shininess) ? m.shininess : 24,
             transparent: !!m.transparent,
             opacity: Number.isFinite(m.opacity) ? m.opacity : 1,
+            alphaMap: m.alphaMap || null,
+            alphaTest: m.alphaTest || 0,
+            depthTest: m.depthTest !== false,
+            depthWrite: m.depthWrite !== false,
+            blending: m.blending,
+            blendSrc: m.blendSrc,
+            blendDst: m.blendDst,
+            blendEquation: m.blendEquation,
+            blendSrcAlpha: m.blendSrcAlpha,
+            blendDstAlpha: m.blendDstAlpha,
+            blendEquationAlpha: m.blendEquationAlpha,
+            premultipliedAlpha: !!m.premultipliedAlpha,
+            alphaToCoverage: !!m.alphaToCoverage,
             // Os itens do MED usam muitos planos abertos; renderize ambas as faces
             // mesmo quando o material de origem do GLB não estiver como doubleSided.
             side: state.glb.THREE.DoubleSide,
-            alphaTest: m.alphaTest || 0,
             vertexColors: !!m.vertexColors,
             flatShading: !!m.flatShading,
                 });
