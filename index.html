@@ -7570,26 +7570,45 @@
     return hasMesh;
   }
 
+  function parseNamedLodLevel(node, root){
+    if (!topLevelObjectHasMesh(node)) return null;
+    const name=String(node?.name || '').trim();
+    const match=name.match(/^(.*?)(?:[._\-\s]+)?LOD(?:[._\-\s]*)?(\d+)$/i);
+    if (!match) return null;
+    const level=Number(match[2]);
+    if (!Number.isSafeInteger(level) || level < 0) return null;
+    const fallback=String(root?.name || 'GLB_ROOT').trim() || 'GLB_ROOT';
+    const baseName=String(match[1] || '').replace(/[._\-\s]+$/g,'').trim() || fallback;
+    return { node, level, baseName };
+  }
+
   function convertNamedTopLevelObjectsToLodGroups(root){
     if (!root || !root.children?.length || !state.glb.THREE) return;
     const { THREE } = state.glb;
-    const orderedNodes = Array.from(root.children).filter((child) => topLevelObjectHasMesh(child));
-    if (orderedNodes.length < 2) return;
-
-    const levelEntries = orderedNodes.map((obj, level) => [level, obj]);
-    const allowedEntries = collectAllowedLodEntries(levelEntries);
-    if (allowedEntries.length < 2) return;
-
-    const baseName = String(orderedNodes[0]?.name || 'GLB_ROOT').trim() || 'GLB_ROOT';
-    const lod = new THREE.LOD();
-    lod.name = `${baseName}__LOD_GROUP_ORDERED`;
-    for (const [level, obj] of allowedEntries){
-      lod.addLevel(obj, lodDistanceForLevel(level));
+    const groups=new Map();
+    for(const child of Array.from(root.children)){
+      const entry=parseNamedLodLevel(child,root);
+      if(!entry)continue;
+      const key=entry.baseName.toLowerCase();
+      if(!groups.has(key))groups.set(key,{baseName:entry.baseName,entries:[]});
+      groups.get(key).entries.push(entry);
     }
-    for (const obj of orderedNodes){
-      if (obj.parent === root) root.remove(obj);
+
+    for(const {baseName,entries} of groups.values()){
+      const levels=new Set(entries.map(entry=>entry.level));
+      if(levels.size<2 || levels.size!==entries.length)continue;
+      const levelEntries=entries.map(entry=>[entry.level,entry.node]).sort((a,b)=>a[0]-b[0]);
+      const allowedEntries=collectAllowedLodEntries(levelEntries);
+      if(!allowedEntries.length)continue;
+
+      const lod=new THREE.LOD();
+      lod.name=`${baseName}__LOD_GROUP`;
+      for(const [level,obj] of allowedEntries)lod.addLevel(obj,lodDistanceForLevel(level));
+      for(const {node} of entries){
+        if(node.parent===root)root.remove(node);
+      }
+      root.add(lod);
     }
-    root.add(lod);
   }
 
   async function ensureGlbRendererReady(){
