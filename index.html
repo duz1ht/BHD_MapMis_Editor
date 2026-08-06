@@ -7318,9 +7318,8 @@
       rawToWorld(it.y,'y'),
       getItemWorldZ(it)
     );
-    // GLBs are authored 180° off-axis. Keep this visual correction on the rendered
-    // object only; the item's MIS heading remains unchanged.
-    const yawRad = ((Number(it.heading) || 0) + 180) * Math.PI / 180;
+    // Render the orientation exactly as stored in the MIS, without visual offsets.
+    const yawRad = (Number(it.heading) || 0) * Math.PI / 180;
     const pitchRad = (Number(it.pitch) || 0) * Math.PI / 180;
     obj.rotation.order = "ZXY";
     obj.rotation.z = yawRad;
