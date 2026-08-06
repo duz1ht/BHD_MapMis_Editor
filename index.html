@@ -7756,9 +7756,7 @@
             blendEquationAlpha: m.blendEquationAlpha,
             premultipliedAlpha: !!m.premultipliedAlpha,
             alphaToCoverage: !!m.alphaToCoverage,
-            // Os itens do MED usam muitos planos abertos; renderize ambas as faces
-            // mesmo quando o material de origem do GLB não estiver como doubleSided.
-            side: state.glb.THREE.DoubleSide,
+            side: m.side,
             vertexColors: !!m.vertexColors,
             flatShading: !!m.flatShading,
                 });
