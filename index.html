@@ -215,6 +215,7 @@
     .gridVal{min-width:64px;display:inline-block;text-align:left}
     .tbCtl{font-size:12px; display:flex; align-items:center; gap:4px}
     #topbar input[type="range"]{ width:120px; }
+    #topbar .glbCompInput{ width:64px; }
 
     #status{
       margin-left:auto;
@@ -1214,6 +1215,8 @@
       <label class="tbCtl">TRN Mesh step <select id="step"><option>1</option><option>2</option><option selected>4</option><option>8</option><option>16</option></select></label>
       <label class="tbCtl"><input id="showStats" type="checkbox" checked> Map Info (I):</label>
       <label class="tbCtl"><input id="showGlbWireframe" type="checkbox"> Wireframe mode (F)</label>
+      <label class="tbCtl">GLB Yaw <input id="glbYawCompensation" class="glbCompInput" type="number" step="1" value="0" title="Visual yaw compensation in degrees for all GLB items">°</label>
+      <label class="tbCtl">GLB Pitch <input id="glbPitchCompensation" class="glbCompInput" type="number" step="1" value="0" title="Visual pitch compensation in degrees for all GLB items">°</label>
       <label class="tbCtl"><input id="showAnchorPoints" type="checkbox" checked> Anchor points (H)</label>
       <button id="exportBtn" type="button" class="modeBtn">Go to</button>
       <div id="status">No file loaded.</div>
@@ -2133,6 +2136,13 @@
   const showSectorsEl = document.getElementById("showSectors");
   const showStatsEl = document.getElementById("showStats");
   const showAnchorPointsEl = document.getElementById("showAnchorPoints");
+  const glbYawCompensationEl = document.getElementById("glbYawCompensation");
+  const glbPitchCompensationEl = document.getElementById("glbPitchCompensation");
+
+  function parseVisualAngleInput(el){
+    const value = Number(el?.value);
+    return Number.isFinite(value) ? value : 0;
+  }
 
   const renderUiState = {
     speedLevel: Math.max(1, Math.min(8, Math.round(parseFloat(speedLevelEl?.value || '4') || 4))),
@@ -2144,6 +2154,8 @@
     showSectors: !!showSectorsEl?.checked,
     showStats: showStatsEl?.checked !== false,
     showAnchorPoints: showAnchorPointsEl?.checked !== false,
+    glbYawCompensation: parseVisualAngleInput(glbYawCompensationEl),
+    glbPitchCompensation: parseVisualAngleInput(glbPitchCompensationEl),
   };
 
   function syncRenderUiState(){
@@ -2156,11 +2168,23 @@
     renderUiState.showSectors = !!showSectorsEl?.checked;
     renderUiState.showStats = showStatsEl?.checked !== false;
     renderUiState.showAnchorPoints = showAnchorPointsEl?.checked !== false;
+    renderUiState.glbYawCompensation = parseVisualAngleInput(glbYawCompensationEl);
+    renderUiState.glbPitchCompensation = parseVisualAngleInput(glbPitchCompensationEl);
   }
 
   for (const el of [speedLevelEl, speedScalarEl, groundClampEl, clearanceEl, radiusEl, mainAreaEl, showSectorsEl, showStatsEl, showAnchorPointsEl]){
     el?.addEventListener('input', syncRenderUiState);
     el?.addEventListener('change', syncRenderUiState);
+  }
+
+  function updateGlbVisualCompensation(){
+    syncRenderUiState();
+    markAllItemTransformsDirty();
+    requestRender();
+  }
+  for (const el of [glbYawCompensationEl, glbPitchCompensationEl]){
+    el?.addEventListener('input', updateGlbVisualCompensation);
+    el?.addEventListener('change', updateGlbVisualCompensation);
   }
 
   const ui = {
@@ -7318,9 +7342,9 @@
       rawToWorld(it.y,'y'),
       getItemWorldZ(it)
     );
-    // Render the orientation exactly as stored in the MIS, without visual offsets.
-    const yawRad = (Number(it.heading) || 0) * Math.PI / 180;
-    const pitchRad = (Number(it.pitch) || 0) * Math.PI / 180;
+    // Apply toolbar compensation only to the rendered GLB; MIS attributes stay untouched.
+    const yawRad = ((Number(it.heading) || 0) + renderUiState.glbYawCompensation) * Math.PI / 180;
+    const pitchRad = ((Number(it.pitch) || 0) + renderUiState.glbPitchCompensation) * Math.PI / 180;
     obj.rotation.order = "ZXY";
     obj.rotation.z = yawRad;
     obj.rotation.x = pitchRad;
