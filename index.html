@@ -8037,10 +8037,56 @@
     const { renderer, scene } = state.glb;
     applyThreeCameraFromPV(P, V);
     updateSelectedGlbVisual();
+    updateGlbTransparentRenderOrder(scene, state.glb.camera);
 
     renderer.resetState();
     renderer.render(scene, state.glb.camera);
     renderer.resetState();
+  }
+
+  function updateGlbTransparentRenderOrder(scene, camera){
+    if (!scene || !camera || !state.glb.THREE) return;
+    const { THREE } = state.glb;
+    const transparentMeshes = [];
+    const center = new THREE.Vector3();
+
+    // GLB primitives commonly share the same object origin even when their
+    // geometry is in a different place. Three.js sorts transparency by that
+    // origin, so use each primitive's actual geometry center instead.
+    scene.updateMatrixWorld(true);
+    scene.traverse((obj) => {
+      if (!obj.isMesh || !obj.geometry || !obj.material) return;
+      if (!Object.prototype.hasOwnProperty.call(obj.userData, "_glbBaseRenderOrder")){
+        obj.userData._glbBaseRenderOrder = obj.renderOrder;
+      }
+
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      const isTransparent = materials.some((material) => (
+        material?.transparent === true && material.opacity > 0
+      ));
+      if (!isTransparent){
+        obj.renderOrder = obj.userData._glbBaseRenderOrder;
+        return;
+      }
+
+      if (!obj.geometry.boundingBox) obj.geometry.computeBoundingBox();
+      if (!obj.geometry.boundingBox || obj.geometry.boundingBox.isEmpty()) return;
+      obj.geometry.boundingBox.getCenter(center);
+      center.applyMatrix4(obj.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
+      transparentMeshes.push({ obj, cameraZ: center.z, stableId: obj.id });
+    });
+
+    // Camera space points in front of the camera have negative Z. Render the
+    // most negative (farthest) primitives first and the nearest ones last.
+    transparentMeshes.sort((a, b) => (
+      a.cameraZ - b.cameraZ || a.stableId - b.stableId
+    ));
+    const count = transparentMeshes.length;
+    for (let index = 0; index < count; index++){
+      // Keep GLB transparency below selection outlines (renderOrder 20), while
+      // assigning a unique order so Three.js cannot fall back to shared origins.
+      transparentMeshes[index].obj.renderOrder = index - count;
+    }
   }
 
   function applyThreeCameraFromPV(P, V){
