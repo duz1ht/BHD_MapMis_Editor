@@ -7693,6 +7693,61 @@
   }
 
 
+  function convertGlbMaterialToPhong(material){
+    if (!material) return material;
+    const { THREE } = state.glb;
+
+    if (material.map) material.map.colorSpace = THREE.SRGBColorSpace;
+    if (material.emissiveMap) material.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+
+    // Evita shaders PBR complexos que falham em alguns drivers WebGL1.
+    // Preserve the GLTFLoader alpha/depth state: blended surfaces must not hide
+    // geometry behind them by writing opaque values into the depth buffer.
+    const emissiveBase = material.emissive
+      ? material.emissive.clone()
+      : new THREE.Color(0x000000);
+    if (emissiveBase.r < 0.02 && emissiveBase.g < 0.02 && emissiveBase.b < 0.02){
+      emissiveBase.setRGB(0.02, 0.02, 0.02);
+    }
+
+    return new THREE.MeshPhongMaterial({
+      map: material.map || null,
+      alphaMap: material.alphaMap || null,
+      color: material.color ? material.color.clone() : new THREE.Color(0xffffff),
+      emissive: emissiveBase,
+      emissiveMap: material.emissiveMap || null,
+      normalMap: material.normalMap || null,
+      normalScale: material.normalScale ? material.normalScale.clone() : undefined,
+      aoMap: material.aoMap || null,
+      aoMapIntensity: Number.isFinite(material.aoMapIntensity) ? material.aoMapIntensity : 1,
+      lightMap: material.lightMap || null,
+      lightMapIntensity: Number.isFinite(material.lightMapIntensity) ? material.lightMapIntensity : 1,
+      specularMap: material.specularMap || null,
+      envMap: material.envMap || null,
+      envMapIntensity: Number.isFinite(material.envMapIntensity) ? material.envMapIntensity : 1,
+      shininess: Number.isFinite(material.shininess) ? material.shininess : 24,
+      transparent: !!material.transparent,
+      opacity: Number.isFinite(material.opacity) ? material.opacity : 1,
+      side: material.side,
+      alphaTest: material.alphaTest || 0,
+      alphaToCoverage: !!material.alphaToCoverage,
+      premultipliedAlpha: !!material.premultipliedAlpha,
+      depthTest: material.depthTest !== false,
+      depthWrite: material.depthWrite !== false,
+      colorWrite: material.colorWrite !== false,
+      blending: material.blending,
+      blendSrc: material.blendSrc,
+      blendDst: material.blendDst,
+      blendEquation: material.blendEquation,
+      blendSrcAlpha: material.blendSrcAlpha,
+      blendDstAlpha: material.blendDstAlpha,
+      blendEquationAlpha: material.blendEquationAlpha,
+      vertexColors: !!material.vertexColors,
+      flatShading: !!material.flatShading,
+    });
+  }
+
+
   async function loadGraphicTemplate(graphic){
     const key = String(graphic || "").trim();
     if (!key) return null;
@@ -7716,38 +7771,7 @@
         if (!obj.isMesh) return;
         const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
         const converted = mats.map((m) => {
-          if (!m) return m;
-          if (m.map) m.map.colorSpace = state.glb.THREE.SRGBColorSpace;
-          if (m.emissiveMap) m.emissiveMap.colorSpace = state.glb.THREE.SRGBColorSpace;
-
-          // Evita shaders PBR complexos que falham em alguns drivers WebGL1.
-          // Preferimos Phong para manter resposta especular e reduzir faces "apagadas".
-          const emissiveBase = m.emissive ? m.emissive.clone() : new state.glb.THREE.Color(0x000000);
-          if (emissiveBase.r < 0.02 && emissiveBase.g < 0.02 && emissiveBase.b < 0.02){
-            emissiveBase.setRGB(0.02, 0.02, 0.02);
-          }
-          return new state.glb.THREE.MeshPhongMaterial({
-            map: m.map || null,
-            color: m.color ? m.color.clone() : new state.glb.THREE.Color(0xffffff),
-            emissive: emissiveBase,
-            emissiveMap: m.emissiveMap || null,
-            normalMap: m.normalMap || null,
-            normalScale: m.normalScale ? m.normalScale.clone() : undefined,
-            aoMap: m.aoMap || null,
-            aoMapIntensity: Number.isFinite(m.aoMapIntensity) ? m.aoMapIntensity : 1,
-            lightMap: m.lightMap || null,
-            lightMapIntensity: Number.isFinite(m.lightMapIntensity) ? m.lightMapIntensity : 1,
-            specularMap: m.specularMap || null,
-            envMap: m.envMap || null,
-            envMapIntensity: Number.isFinite(m.envMapIntensity) ? m.envMapIntensity : 1,
-            shininess: Number.isFinite(m.shininess) ? m.shininess : 24,
-            transparent: !!m.transparent,
-            opacity: Number.isFinite(m.opacity) ? m.opacity : 1,
-            side: m.side,
-            alphaTest: m.alphaTest || 0,
-            vertexColors: !!m.vertexColors,
-            flatShading: !!m.flatShading,
-                });
+          return convertGlbMaterialToPhong(m);
         });
 
         obj.material = Array.isArray(obj.material) ? converted : converted[0];
