@@ -178,7 +178,7 @@
     .globalMenuContent{
       display:flex;
       align-items:center;
-      justify-content:space-between;
+      justify-content:flex-start;
       gap:12px;
     }
     #appLayout{
@@ -810,7 +810,22 @@
       position:relative;
       z-index:5;
       flex-wrap:wrap;
-      flex:1;
+      flex:0 1 auto;
+    }
+    .orientationCompensation{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .orientationCompensation label{
+      display:flex;
+      align-items:center;
+      gap:4px;
+    }
+    .orientationCompensation input{
+      width:58px;
     }
     .menuRoot{ position:relative; }
     .menuRootBtn{
@@ -1168,6 +1183,14 @@
   <div id="globalMenuWrap">
     <div class="globalMenuContent">
       <div class="menuBar" id="menuBar"></div>
+      <div class="orientationCompensation" aria-label="3D item orientation compensation">
+        <label for="yawCompensation">Yaw compensation
+          <input id="yawCompensation" type="number" step="1" value="0" title="Yaw compensation in degrees" />
+        </label>
+        <label for="pitchCompensation">Pitch compensation
+          <input id="pitchCompensation" type="number" step="1" value="0" title="Pitch compensation in degrees" />
+        </label>
+      </div>
     </div>
   </div>
 
@@ -1860,6 +1883,7 @@
     transformSnapEnabled: false,
     translationSnap: 1,
     rotationSnap: 15,
+    orientationCompensation: { yaw: 0, pitch: 0 },
     hoveredGizmoHandle: null,
 
     gameStrings: new Map(),
@@ -6367,6 +6391,34 @@
   }
 
   const menuBar = document.getElementById("menuBar");
+  const yawCompensationInput = document.getElementById("yawCompensation");
+  const pitchCompensationInput = document.getElementById("pitchCompensation");
+
+  function readOrientationCompensation(key){
+    const value = Number(localStorage.getItem(key));
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  state.orientationCompensation.yaw = readOrientationCompensation("dz.yawCompensation");
+  state.orientationCompensation.pitch = readOrientationCompensation("dz.pitchCompensation");
+  yawCompensationInput.value = String(state.orientationCompensation.yaw);
+  pitchCompensationInput.value = String(state.orientationCompensation.pitch);
+
+  function updateOrientationCompensation(axis, input, storageKey){
+    const parsed = Number(input.value);
+    const value = Number.isFinite(parsed) ? parsed : 0;
+    state.orientationCompensation[axis] = value;
+    localStorage.setItem(storageKey, String(value));
+    markAllItemTransformsDirty();
+    requestRender();
+  }
+
+  yawCompensationInput.addEventListener("input", () => {
+    updateOrientationCompensation("yaw", yawCompensationInput, "dz.yawCompensation");
+  });
+  pitchCompensationInput.addEventListener("input", () => {
+    updateOrientationCompensation("pitch", pitchCompensationInput, "dz.pitchCompensation");
+  });
 
   function showNotImplemented(label){
     statusEl.textContent = `Command '${label}' is not implemented in the web editor yet.`;
@@ -7527,8 +7579,8 @@
       rawToWorld(it.y,'y'),
       getItemWorldZ(it)
     );
-    const yawRad = (Number(it.heading) || 0) * Math.PI / 180;
-    const pitchRad = (Number(it.pitch) || 0) * Math.PI / 180;
+    const yawRad = ((Number(it.heading) || 0) + state.orientationCompensation.yaw) * Math.PI / 180;
+    const pitchRad = ((Number(it.pitch) || 0) + state.orientationCompensation.pitch) * Math.PI / 180;
     obj.rotation.order = "ZXY";
     obj.rotation.z = yawRad;
     obj.rotation.x = pitchRad;
