@@ -7527,10 +7527,8 @@
       rawToWorld(it.y,'y'),
       getItemWorldZ(it)
     );
-    // OpenNova-style orientation correction: sign-flip yaw/pitch and apply a +180° yaw phase shift.
-    const yawRad = ((-(Number(it.heading) || 0)) + 180) * Math.PI / 180;
-    const pitchCalibratedDeg = (-(Number(it.pitch) || 0)) + 90;
-    const pitchRad = pitchCalibratedDeg * Math.PI / 180;
+    const yawRad = (Number(it.heading) || 0) * Math.PI / 180;
+    const pitchRad = (Number(it.pitch) || 0) * Math.PI / 180;
     obj.rotation.order = "ZXY";
     obj.rotation.z = yawRad;
     obj.rotation.x = pitchRad;
