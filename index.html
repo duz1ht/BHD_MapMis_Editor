@@ -1247,22 +1247,22 @@
       <div id="canvasShowPanel" aria-hidden="true">
         <div id="canvasShowPanelList">
           <label><input type="checkbox" id="showCharTiles"> Char Tiles</label>
-          <label><input type="checkbox" id="showFoliage"> Foliage</label>
-          <label><input type="checkbox" id="showVehicles"> Vehicles</label>
-          <label><input type="checkbox" id="showPeople"> People</label>
-          <label><input type="checkbox" id="showBuildings"> Buildings</label>
-          <label><input type="checkbox" id="showObjects"> Objects</label>
-          <label><input type="checkbox" id="showDecorations"> Decorations</label>
-          <label><input type="checkbox" id="showMarkers"> Markers</label>
+          <label><input type="checkbox" id="showFoliage" checked> Foliage</label>
+          <label><input type="checkbox" id="showVehicles" checked> Vehicles</label>
+          <label><input type="checkbox" id="showPeople" checked> People</label>
+          <label><input type="checkbox" id="showBuildings" checked> Buildings</label>
+          <label><input type="checkbox" id="showObjects" checked> Objects</label>
+          <label><input type="checkbox" id="showDecorations" checked> Decorations</label>
+          <label><input type="checkbox" id="showMarkers" checked> Markers</label>
           <label><input type="checkbox" id="showWpDistance"> WP Distance</label>
           <label><input type="checkbox" id="showFovCones"> FOV Cones</label>
           <label><input type="checkbox" id="showAreaTriggers"> Area Triggers</label>
-          <label><input type="checkbox" id="showWater"> Water</label>
-          <label><input type="checkbox" id="showTeamBlue"> Team Blue</label>
-          <label><input type="checkbox" id="showTeamRed"> Team Red</label>
-          <label><input type="checkbox" id="showTeamGreen"> Team Green</label>
-          <label><input type="checkbox" id="showCollisionModels"> Colision Models</label>
-          <label><input type="checkbox" id="showAbsoluteMode"> Absolute Mode</label>
+          <label><input type="checkbox" id="showWater" checked> Water</label>
+          <label><input type="checkbox" id="showTeamBlue" checked> Team Blue</label>
+          <label><input type="checkbox" id="showTeamRed" checked> Team Red</label>
+          <label><input type="checkbox" id="showTeamGreen" checked> Team Green</label>
+          <label title="Not implemented"><input type="checkbox" id="showCollisionModels" disabled> Collision Models</label>
+          <label title="Not implemented"><input type="checkbox" id="showAbsoluteMode" disabled> Absolute Mode</label>
         </div>
       </div>
 
@@ -2171,6 +2171,11 @@
   const showSectorsEl = document.getElementById("showSectors");
   const showStatsEl = document.getElementById("showStats");
   const showAnchorPointsEl = document.getElementById("showAnchorPoints");
+  const showOptionEls = Object.fromEntries([
+    'showCharTiles', 'showFoliage', 'showVehicles', 'showPeople', 'showBuildings',
+    'showObjects', 'showDecorations', 'showMarkers', 'showWpDistance', 'showFovCones',
+    'showAreaTriggers', 'showWater', 'showTeamBlue', 'showTeamRed', 'showTeamGreen',
+  ].map((id) => [id, document.getElementById(id)]));
 
   const renderUiState = {
     speedLevel: Math.max(1, Math.min(8, Math.round(parseFloat(speedLevelEl?.value || '4') || 4))),
@@ -2182,6 +2187,7 @@
     showSectors: !!showSectorsEl?.checked,
     showStats: showStatsEl?.checked !== false,
     showAnchorPoints: showAnchorPointsEl?.checked !== false,
+    show: Object.fromEntries(Object.entries(showOptionEls).map(([id, el]) => [id, !!el?.checked])),
   };
 
   function syncRenderUiState(){
@@ -2194,11 +2200,20 @@
     renderUiState.showSectors = !!showSectorsEl?.checked;
     renderUiState.showStats = showStatsEl?.checked !== false;
     renderUiState.showAnchorPoints = showAnchorPointsEl?.checked !== false;
+    for (const [id, el] of Object.entries(showOptionEls)) renderUiState.show[id] = !!el?.checked;
   }
 
   for (const el of [speedLevelEl, speedScalarEl, groundClampEl, clearanceEl, radiusEl, mainAreaEl, showSectorsEl, showStatsEl, showAnchorPointsEl]){
     el?.addEventListener('input', syncRenderUiState);
     el?.addEventListener('change', syncRenderUiState);
+  }
+  for (const el of Object.values(showOptionEls)){
+    el?.addEventListener('change', () => {
+      syncRenderUiState();
+      state.glb.structureDirty = true;
+      requestRender();
+      syncGlbItems();
+    });
   }
 
   const ui = {
@@ -4026,6 +4041,38 @@
     const num = Number(rawLayer);
     if (!Number.isFinite(num) || num < 0 || num > 31) return true;
     return getLayerVisibility(String(Math.trunc(num)));
+  }
+
+  function getShowItemCategory(it){
+    const def = getDefForItem(it);
+    const type = String(def?.type || it?.kv?.type || '').trim().toLowerCase();
+    const name = String(def?.name || it?.kv?.name || '').trim().toLowerCase();
+    if (type === 'marker' && name === 'area trigger') return 'areaTrigger';
+    if (type === 'person' || type === 'people') return 'people';
+    if (type === 'building') return 'buildings';
+    if (type === 'vehicle') return 'vehicles';
+    if (type === 'foliage') return 'foliage';
+    if (type === 'decoration') return 'decorations';
+    if (type === 'marker') return 'markers';
+    if (type === 'object') return 'objects';
+    return 'unknown';
+  }
+
+  function isItemShown(it){
+    if (!isItemLayerVisible(it)) return false;
+    const optionByCategory = {
+      areaTrigger: 'showAreaTriggers', foliage: 'showFoliage', vehicles: 'showVehicles',
+      people: 'showPeople', buildings: 'showBuildings', objects: 'showObjects',
+      decorations: 'showDecorations', markers: 'showMarkers',
+    };
+    const option = optionByCategory[getShowItemCategory(it)];
+    if (option && !renderUiState.show[option]) return false;
+
+    const team = Math.trunc(Number(it?.kv?.team));
+    if (team === 1 && !renderUiState.show.showTeamBlue) return false;
+    if (team === 2 && !renderUiState.show.showTeamRed) return false;
+    if (team === 3 && !renderUiState.show.showTeamGreen) return false;
+    return true;
   }
 
   function renderLayerVisibilityPanel(){
@@ -7298,6 +7345,40 @@
     }
   }
 
+  function appendCircleLineData(posArr, colorArr, cx, cy, radius, z, color, segments=32){
+    const r = Math.max(0.25, Math.abs(Number(radius) || 0));
+    for (let i=0; i<segments; i++){
+      const a0=(i/segments)*Math.PI*2, a1=((i+1)/segments)*Math.PI*2;
+      posArr.push(cx+Math.cos(a0)*r, cy+Math.sin(a0)*r, z, cx+Math.cos(a1)*r, cy+Math.sin(a1)*r, z);
+      colorArr.push(...color, ...color);
+    }
+  }
+
+  function appendShowItemOverlays(posArr, colorArr){
+    for (const it of state.items || []){
+      if (!isItemShown(it)) continue;
+      const x=rawToWorld(it.x,'x'), y=rawToWorld(it.y,'y'), z=getItemWorldZ(it)+0.35;
+      const wpDistance=Number(it.kv?.wpdistance ?? it.kv?.waypoint_distance);
+      if (renderUiState.show.showWpDistance && Number.isFinite(wpDistance) && wpDistance>0){
+        appendCircleLineData(posArr, colorArr, x, y, wpDistance, z, [1,0.82,0.15]);
+      }
+      const fov=Number(it.kv?.fov);
+      if (renderUiState.show.showFovCones && Number.isFinite(fov) && fov>0){
+        const distance=Math.max(4, Number(it.kv?.max_attack_distance)||wpDistance||16);
+        const heading=(Number(it.heading)||0)*Math.PI/180;
+        const half=Math.min(179, fov)*Math.PI/360;
+        for (const angle of [heading-half, heading+half]){
+          posArr.push(x,y,z, x+Math.sin(angle)*distance,y+Math.cos(angle)*distance,z);
+          colorArr.push(1,0.42,0.1, 1,0.42,0.1);
+        }
+      }
+      if (renderUiState.show.showAreaTriggers && getShowItemCategory(it)==='areaTrigger'){
+        const radius=Number(it.kv?.radius ?? it.kv?.length ?? it.kv?.wpdistance) || 10;
+        appendCircleLineData(posArr, colorArr, x, y, radius, z, [0.9,0.2,1]);
+      }
+    }
+  }
+
   function drawOverlaysThree(P, V, forward){
     if (!ensureThreeOverlaysReady()) return;
     if (!sectors || !Number.isFinite(sectorCount) || sectorCount <= 0){
@@ -7318,7 +7399,7 @@
 
     const waterRender = getRenderWaterHeightRaw();
     const nextWaterKeys = new Set();
-    if(waterRender.raw!==null&&Number.isFinite(waterRender.raw)){
+    if(renderUiState.show.showWater && waterRender.raw!==null&&Number.isFinite(waterRender.raw)){
       let waterTiles=0;
       for (const tile of tilesForSector){
         if(waterTiles>=MAX_WATER_TILES_PER_FRAME) break;
@@ -7388,6 +7469,18 @@
         appendRectLineData(rectPos, rectColors, ox, oy, spanX, spanY, 0.25, [1,0,0]);
       }
     }
+    if(renderUiState.show.showCharTiles){
+      const tileSize=32;
+      const minX=ox+overlayI0*SECTOR_STRIDE, maxX=ox+(overlayI1+1)*SECTOR_STRIDE;
+      const minY=oy+overlayJ0*SECTOR_STRIDE, maxY=oy+(overlayJ1+1)*SECTOR_STRIDE;
+      for(let x=Math.ceil(minX/tileSize)*tileSize, n=0; x<=maxX && n<512; x+=tileSize,n++){
+        rectPos.push(x,minY,0.3, x,maxY,0.3); rectColors.push(0.25,0.75,0.35, 0.25,0.75,0.35);
+      }
+      for(let y=Math.ceil(minY/tileSize)*tileSize, n=0; y<=maxY && n<512; y+=tileSize,n++){
+        rectPos.push(minX,y,0.3, maxX,y,0.3); rectColors.push(0.25,0.75,0.35, 0.25,0.75,0.35);
+      }
+    }
+    appendShowItemOverlays(rectPos, rectColors);
     updateThreeLineGeometry(overlays.rectLines, new Float32Array(rectPos), new Float32Array(rectColors));
 
     applyThreeCameraFromPV(P, V);
@@ -7402,7 +7495,7 @@
     if (!renderUiState.showAnchorPoints){
       return { enabled: false, normalBuf: null, normalLen: 0, waypointBuf: null, waypointLen: 0, selectedBuf: null, selectedLen: 0, pasteBuf: null, pasteLen: 0 };
     }
-    const items = getFilteredItems().filter((it) => isItemLayerVisible(it));
+    const items = getFilteredItems().filter((it) => isItemShown(it));
     if (!items.length && !(state.pastePlacementActive && state.pastePreviewWorld && state.itemClipboardItems.length)){
       return { enabled: true, normalBuf: null, normalLen: 0, waypointBuf: null, waypointLen: 0, selectedBuf: null, selectedLen: 0, pasteBuf: null, pasteLen: 0 };
     }
@@ -7454,7 +7547,7 @@
   function collectWaypointLineData(){
     const groups = new Map();
     for (const [sourceIndex, it] of (state.items || []).entries()){
-      if (!isItemLayerVisible(it)) continue;
+      if (!isItemShown(it)) continue;
       const waypointId = getItemWaypointId(it);
       if (waypointId == null || getWaypointColorHexForItem(it) == null) continue;
       if (!groups.has(waypointId)) groups.set(waypointId, []);
@@ -7731,7 +7824,7 @@
     };
 
     for (const it of state.items || []){
-      if (!isItemLayerVisible(it)) continue;
+      if (!isItemShown(it)) continue;
       const typeId = String(it?.kv?.type_id || "").trim();
       const def = getDefForItem(it);
       const defGraphic = String(def?.graphic || "").trim();
@@ -8272,7 +8365,7 @@
       const itemId = getItemIdFromObject3D(hit.object);
       if (itemId == null) continue;
       const it = state.items.find(x => x.id === itemId) || null;
-      if (it) return it;
+      if (it && isItemShown(it)) return it;
     }
     return null;
   }
@@ -8307,7 +8400,7 @@
   }
   function selectedTransformItems(){
     const ids=state.multiSelectedIds.size?Array.from(state.multiSelectedIds):[state.selectedId];
-    return ids.map(id=>getItemByIdFast(id)).filter(Boolean);
+    return ids.map(id=>getItemByIdFast(id)).filter((it)=>it && isItemShown(it));
   }
   function gizmoPivot(items=selectedTransformItems()){
     const active=getSelected();
@@ -8408,7 +8501,7 @@
     scheduleRenderList();
   }
 
-  function pickItemAt(sx,sy){ const world=screenToWorld(sx,sy,0); const size=Math.max(64, Number(state.spatialIndex.cellSize)||2048); const candidates=getSpatialCandidatesByWorldRect(world.x-size,world.y-size,world.x+size,world.y+size); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); let best=null,bestD2=Infinity; for(const it of candidates){ if(!filteredSet.has(it.id)) continue; if(!isItemLayerVisible(it)) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(!p.visible) continue; const dx=p.sx-sx,dy=p.sy-sy,d2=dx*dx+dy*dy; if(d2<bestD2){bestD2=d2;best=it;} } return (best&&bestD2<14*14)?best:null; }
+  function pickItemAt(sx,sy){ const world=screenToWorld(sx,sy,0); const size=Math.max(64, Number(state.spatialIndex.cellSize)||2048); const candidates=getSpatialCandidatesByWorldRect(world.x-size,world.y-size,world.x+size,world.y+size); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); let best=null,bestD2=Infinity; for(const it of candidates){ if(!filteredSet.has(it.id)) continue; if(!isItemShown(it)) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(!p.visible) continue; const dx=p.sx-sx,dy=p.sy-sy,d2=dx*dx+dy*dy; if(d2<bestD2){bestD2=d2;best=it;} } return (best&&bestD2<14*14)?best:null; }
 
   const FOG_PRESET_BASE_DISTANCE = 128;
   const FOG_PRESET_DEFAULTS = {
