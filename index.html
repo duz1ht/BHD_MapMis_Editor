@@ -821,6 +821,19 @@
       text-align:left;
       background:var(--panel-alt);
     }
+    .orientationCompensation{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      margin-left:4px;
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .orientationCompensation input{
+      width:64px;
+      height:26px;
+      padding:2px 5px;
+    }
     .menuDropdown{
       position:absolute;
       top:100%;
@@ -1860,6 +1873,8 @@
     transformSnapEnabled: false,
     translationSnap: 1,
     rotationSnap: 15,
+    modelYawCompensation: 180,
+    modelPitchCompensation: 90,
     hoveredGizmoHandle: null,
 
     gameStrings: new Map(),
@@ -6692,6 +6707,29 @@
       menuBar.appendChild(root);
     }
 
+    const compensationControls = document.createElement("div");
+    compensationControls.className = "orientationCompensation";
+    compensationControls.innerHTML = `
+      <label for="modelYawCompensation">Yaw comp.</label>
+      <input id="modelYawCompensation" type="number" step="1" value="${state.modelYawCompensation}" title="Automatic yaw compensation applied to 3D models, in degrees">
+      <label for="modelPitchCompensation">Pitch comp.</label>
+      <input id="modelPitchCompensation" type="number" step="1" value="${state.modelPitchCompensation}" title="Automatic pitch compensation applied to 3D models, in degrees">
+    `;
+    const updateCompensation = (key, input) => {
+      const value = Number(input.value);
+      if (!Number.isFinite(value)) {
+        input.value = String(state[key]);
+        return;
+      }
+      state[key] = value;
+      markAllItemTransformsDirty();
+    };
+    const yawInput = compensationControls.querySelector("#modelYawCompensation");
+    const pitchInput = compensationControls.querySelector("#modelPitchCompensation");
+    yawInput.addEventListener("change", () => updateCompensation("modelYawCompensation", yawInput));
+    pitchInput.addEventListener("change", () => updateCompensation("modelPitchCompensation", pitchInput));
+    menuBar.appendChild(compensationControls);
+
     const menuRoots = Array.from(menuBar.querySelectorAll(".menuRoot"));
     menuRoots.forEach(root => {
       const btn = root.querySelector(".menuRootBtn");
@@ -7527,9 +7565,9 @@
       rawToWorld(it.y,'y'),
       getItemWorldZ(it)
     );
-    // OpenNova-style orientation correction: sign-flip yaw/pitch and apply a +180° yaw phase shift.
-    const yawRad = ((-(Number(it.heading) || 0)) + 180) * Math.PI / 180;
-    const pitchCalibratedDeg = (-(Number(it.pitch) || 0)) + 90;
+    // OpenNova-style orientation correction: sign-flip yaw/pitch and apply the configurable phase shifts.
+    const yawRad = ((-(Number(it.heading) || 0)) + state.modelYawCompensation) * Math.PI / 180;
+    const pitchCalibratedDeg = (-(Number(it.pitch) || 0)) + state.modelPitchCompensation;
     const pitchRad = pitchCalibratedDeg * Math.PI / 180;
     obj.rotation.order = "ZXY";
     obj.rotation.z = yawRad;
