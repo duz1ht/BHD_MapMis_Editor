@@ -1,0 +1,859 @@
+{
+  "source": {
+    "exe": "dfbhdmed(20260808-203736).exe",
+    "mis": "SPBHD_03(20260808-203742).mis",
+    "method": "static reverse engineering of the executable plus cross-check against the supplied MIS"
+  },
+  "limits": {
+    "events": 256,
+    "triggers_per_event": 20,
+    "actions_per_event": 20,
+    "event_name_ui_chars_approx": 59
+  },
+  "event": {
+    "attrib_bits": {
+      "0x01": "Reset after enabled",
+      "0x02": "Pre Mission Event",
+      "0x04": "Post Mission Event"
+    },
+    "preserve_unknown_attrib_bits": true,
+    "tags": [
+      "name",
+      "attrib",
+      "reset_value",
+      "delay_value",
+      "begin triggers",
+      "begin actions"
+    ],
+    "zero_numeric_tags_are_omitted_by_med": true
+  },
+  "trigger_file_row": {
+    "field_order": [
+      "flags",
+      "trigger_type",
+      "condition",
+      "var1",
+      "var2",
+      "var3",
+      "var4",
+      "reserved7"
+    ],
+    "flags": {
+      "0x01": "False when set; True when clear",
+      "0x02": "OR",
+      "0x04": "XOR",
+      "default_logic": "AND when neither OR nor XOR bit is set"
+    },
+    "types": {
+      "0": "NULL",
+      "1": "GROUP",
+      "2": "SINGLE",
+      "3": "EVENT",
+      "4": "MISSION_VARIABLE",
+      "5": "SECOND_TIME",
+      "6": "TEAMMATES",
+      "7": "PLAYER"
+    },
+    "types_selectable_in_this_med": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "conditions": {
+      "GROUP": {
+        "0": "NULL",
+        "1": "SAW_GROUP",
+        "2": "TARGETED_GROUP",
+        "3": "CONDITION_RED",
+        "4": "ALL_DESTROYED",
+        "5": "ANY_ALIVE",
+        "6": "LOST_X_UNITS",
+        "7": "REACHED_WAYPOINT",
+        "8": "UNKNOWN",
+        "9": "ALL_INTACT",
+        "10": "AREA_TRIGGER",
+        "11": "HOLDS_ITEM",
+        "12": "HAS_X_UNITS",
+        "13": "SHOT_GROUP",
+        "14": "CONDITION_YELLOW",
+        "15": "TARGETED_SINGLE",
+        "16": "SAW_SINGLE",
+        "17": "SHOT_SINGLE"
+      },
+      "SINGLE": {
+        "0": "NULL",
+        "1": "SAW_GROUP",
+        "2": "TARGETED_GROUP",
+        "3": "CONDITION_RED",
+        "4": "DEAD",
+        "5": "ALIVE",
+        "6": "LOST_X_HP",
+        "7": "REACHED_WAYPOINT",
+        "8": "UNKNOWN",
+        "9": "FULL_HP",
+        "10": "AREA_TRIGGER",
+        "11": "HOLDS_ITEM",
+        "12": "HAS_X_HP",
+        "13": "SHOT_GROUP",
+        "14": "CONDITION_YELLOW",
+        "15": "TARGETED_SINGLE",
+        "16": "SAW_SINGLE",
+        "17": "SHOT_SINGLE"
+      },
+      "MISSION_VARIABLE": {
+        "0": "NULL",
+        "1": "EQUALS",
+        "2": "LESS_THAN",
+        "3": "GREATER_THAN",
+        "4": "LESS_THAN_EQUAL",
+        "5": "GREATER_THAN_EQUAL"
+      },
+      "TEAMMATES": {
+        "0": "NULL",
+        "1": "TEAMMATE_ENABLED",
+        "2": "TEAMMATE_MEDIC",
+        "3": "TEAMMATE_EVAC"
+      },
+      "PLAYER": {
+        "0": "NULL",
+        "18": "PLAYER_BERSERK_TEST",
+        "19": "PLAYER_1STPERSON_TEST",
+        "20": "PLAYER_3RDPERSON_TEST",
+        "21": "PLAYER_COCKPITVIEW_TEST",
+        "34": "PLAYER_DLGDONE_TEST",
+        "35": "PLAYER_DLGFINISHED_TEST",
+        "36": "PLAYER_AWOL_TEST",
+        "37": "PLAYER_SATCHEL_TEST"
+      }
+    },
+    "conditions_selectable_in_this_med": {
+      "0": [
+        0
+      ],
+      "1": [
+        0,
+        2,
+        13,
+        3,
+        14,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12,
+        15,
+        17
+      ],
+      "2": [
+        0,
+        2,
+        13,
+        3,
+        14,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12,
+        15,
+        17
+      ],
+      "3": [
+        0
+      ],
+      "4": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "5": [
+        0
+      ],
+      "6": [
+        0,
+        3
+      ]
+    },
+    "variable_labels": {
+      "1": {
+        "0": [],
+        "1": [
+          "GROUP1",
+          "GROUP2"
+        ],
+        "2": [
+          "GROUP1",
+          "GROUP2"
+        ],
+        "3": [
+          "GROUP1"
+        ],
+        "4": [
+          "GROUP1"
+        ],
+        "5": [
+          "GROUP1"
+        ],
+        "6": [
+          "GROUP1",
+          "NUM_UNITS"
+        ],
+        "7": [
+          "GROUP1",
+          "WAYPOINT_LIST",
+          "WAYPOINT_NUMBER"
+        ],
+        "8": [],
+        "9": [
+          "GROUP1"
+        ],
+        "10": [
+          "GROUP",
+          "AREA"
+        ],
+        "11": [
+          "GROUP",
+          "ITEM_GROUP"
+        ],
+        "12": [
+          "GROUP1",
+          "NUM_UNITS"
+        ],
+        "13": [
+          "GROUP1",
+          "GROUP2"
+        ],
+        "14": [
+          "GROUP1"
+        ],
+        "15": [
+          "GROUP1",
+          "SINGLE2"
+        ],
+        "16": [
+          "GROUP1",
+          "SINGLE2"
+        ],
+        "17": [
+          "GROUP1",
+          "SINGLE2"
+        ]
+      },
+      "2": {
+        "0": [],
+        "1": [
+          "SINGLE1",
+          "GROUP2"
+        ],
+        "2": [
+          "SINGLE1",
+          "GROUP2"
+        ],
+        "3": [
+          "SINGLE1"
+        ],
+        "4": [
+          "SINGLE1"
+        ],
+        "5": [
+          "SINGLE1"
+        ],
+        "6": [
+          "SINGLE1",
+          "NUM_HITS"
+        ],
+        "7": [
+          "SINGLE1",
+          "WAYPOINT_LIST",
+          "WAYPOINT_NUMBER"
+        ],
+        "8": [],
+        "9": [
+          "SINGLE1"
+        ],
+        "10": [
+          "SINGLE",
+          "AREA"
+        ],
+        "11": [
+          "SINGLE",
+          "ITEM_GROUP"
+        ],
+        "12": [
+          "SINGLE1",
+          "NUM_HITS"
+        ],
+        "13": [
+          "SINGLE1",
+          "GROUP2"
+        ],
+        "14": [
+          "SINGLE1"
+        ],
+        "15": [
+          "SINGLE1",
+          "SINGLE2"
+        ],
+        "16": [
+          "SINGLE1",
+          "SINGLE2"
+        ],
+        "17": [
+          "SINGLE1",
+          "SINGLE2"
+        ]
+      },
+      "3": {
+        "0": [
+          "EVENT_NUMBER"
+        ]
+      },
+      "4": {
+        "0": [
+          "MISSION_VARIABLE",
+          "VALUE"
+        ],
+        "1": [
+          "MISSION_VARIABLE",
+          "VALUE"
+        ],
+        "2": [
+          "MISSION_VARIABLE",
+          "VALUE"
+        ],
+        "3": [
+          "MISSION_VARIABLE",
+          "VALUE"
+        ],
+        "4": [
+          "MISSION_VARIABLE",
+          "VALUE"
+        ],
+        "5": [
+          "MISSION_VARIABLE",
+          "VALUE"
+        ]
+      },
+      "5": {
+        "0": []
+      },
+      "6": {
+        "0": [],
+        "1": [],
+        "2": [],
+        "3": []
+      },
+      "7": {
+        "0": [],
+        "18": [],
+        "19": [],
+        "20": [],
+        "21": [],
+        "34": [
+          "WAV_LIST_NUMBER"
+        ],
+        "35": [
+          "WAV_LIST_NUMBER"
+        ],
+        "36": [
+          "TIME_SEC"
+        ],
+        "37": [
+          "AREA"
+        ]
+      },
+      "0": {
+        "0": []
+      }
+    },
+    "preserve_unknown_bits_and_reserved_fields": true
+  },
+  "action_file_row": {
+    "critical_field_order": [
+      "reserved0",
+      "action_type",
+      "var1",
+      "var2",
+      "var3",
+      "var4",
+      "subtype_or_ai_action",
+      "reserved7"
+    ],
+    "note": "The in-memory MED struct stores subtype before var1, but the MIS writer serializes subtype as the 7th integer. Parse the file in the order above.",
+    "types": {
+      "0": "NULL",
+      "1": "REDIRECT_GROUP_TO",
+      "2": "KILL_GROUP",
+      "3": "CHANGE_GROUP_AI",
+      "4": "VAPORIZE_GROUP",
+      "5": "MISVAR_CHANGE",
+      "6": "OUTPUT_TEXT",
+      "7": "PLAY_WAVLIST",
+      "8": "BLUE_WIN",
+      "9": "RED_WIN",
+      "10": "GREEN_WIN",
+      "11": "GROUP_VELOCITY",
+      "12": "AREA_AI_RED",
+      "13": "AREA_AI_BLUE",
+      "14": "SUB_GOAL_WON",
+      "15": "SUB_GOAL_LOST",
+      "16": "CHANGE_GTEAM_ACTION",
+      "17": "CHANGE_GROUP_ACTION",
+      "18": "GROUP_TELEPORT_ACTION",
+      "19": "REDIRECT_SINGLE_TO",
+      "20": "KILL_SINGLE",
+      "21": "CHANGE_SINGLE_AI",
+      "22": "VAPORIZE_SINGLE",
+      "23": "SINGLE_VELOCITY",
+      "24": "CHANGE_STEAM_ACTION",
+      "25": "SINGLE_CHANGE_GROUP",
+      "26": "SINGLE_TELEPORT_ACTION",
+      "27": "PARTICLE_EFFECT_ACTION",
+      "28": "UNKNOWN",
+      "29": "UNKNOWN",
+      "30": "GROUP_OPEN_DOOR_ACTION",
+      "31": "GROUP_CLOSE_DOOR_ACTION",
+      "32": "GROUP_RESET_HASVISITED",
+      "33": "SINGLE_RESET_HASVISITED",
+      "34": "RESET_EVENT",
+      "35": "SHOW_WIN_SUBGOAL",
+      "36": "SHOW_LOSE_SUBGOAL",
+      "37": "ATTACH_TO_EMPLACED",
+      "38": "SET_LIGHT_STATE",
+      "39": "TEAMMATES",
+      "40": "SHOW_WAYPOINTS",
+      "41": "EXECUTE_WAC",
+      "42": "SSN_TARGET_SSN_PRI",
+      "43": "SSN_TARGET_SSN_EXC",
+      "44": "SSN_TARGET_GROUP_PRI",
+      "45": "SSN_TARGET_GROUP_EXC",
+      "46": "GROUP_TARGET_SSN_PRI",
+      "47": "GROUP_TARGET_SSN_EXC",
+      "48": "GROUP_TARGET_GROUP_PRI",
+      "49": "GROUP_TARGET_GROUP_EXC"
+    },
+    "types_selectable_in_this_med": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      8,
+      9,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      24,
+      25,
+      26,
+      27,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49
+    ],
+    "variable_labels": {
+      "0": [],
+      "1": [
+        "GROUP",
+        "WAYPOINT_LIST",
+        "WAYPOINT_NUMBER"
+      ],
+      "2": [
+        "GROUP"
+      ],
+      "3": [
+        "GROUP",
+        "AI_PARAM_1",
+        "AI_PARAM_2",
+        "AI_PARAM_3"
+      ],
+      "4": [
+        "GROUP"
+      ],
+      "5": [
+        "MISSION_VARIABLE",
+        "VALUE"
+      ],
+      "6": [
+        "TEXT_ID"
+      ],
+      "7": [
+        "WAV_LIST_NUMBER",
+        "PLAY_AFTER_END"
+      ],
+      "8": [],
+      "9": [],
+      "10": [],
+      "11": [
+        "GROUP",
+        "VELOCITY_KPH"
+      ],
+      "12": [
+        "AREA_ID",
+        "AI_PARAM_1",
+        "AI_PARAM_2",
+        "AI_PARAM_3"
+      ],
+      "13": [
+        "AREA_ID",
+        "AI_PARAM_1",
+        "AI_PARAM_2",
+        "AI_PARAM_3"
+      ],
+      "14": [
+        "SUB_GOAL_NUMBER"
+      ],
+      "15": [
+        "SUB_GOAL_NUMBER"
+      ],
+      "16": [
+        "GROUP",
+        "TEAM"
+      ],
+      "17": [
+        "GROUP",
+        "GROUP"
+      ],
+      "18": [
+        "GROUP",
+        "TELEPORT_TARGET_NUM"
+      ],
+      "19": [
+        "SINGLE",
+        "WAYPOINT_LIST",
+        "WAYPOINT_NUMBER"
+      ],
+      "20": [
+        "SINGLE"
+      ],
+      "21": [
+        "SINGLE",
+        "AI_PARAM_1",
+        "AI_PARAM_2",
+        "AI_PARAM_3"
+      ],
+      "22": [
+        "SINGLE"
+      ],
+      "23": [
+        "SINGLE",
+        "VELOCITY_KPH"
+      ],
+      "24": [
+        "SINGLE",
+        "TEAM"
+      ],
+      "25": [
+        "SINGLE",
+        "GROUP"
+      ],
+      "26": [
+        "SINGLE",
+        "TELEPORT_TARGET_NUM"
+      ],
+      "27": [
+        "TELEPORT_TARGET_NUM"
+      ],
+      "28": [],
+      "29": [],
+      "30": [
+        "GROUP"
+      ],
+      "31": [
+        "GROUP"
+      ],
+      "32": [
+        "GROUP"
+      ],
+      "33": [
+        "SINGLE"
+      ],
+      "34": [
+        "EVENT_NUMBER_STRING"
+      ],
+      "35": [
+        "SUB_GOAL_NUMBER"
+      ],
+      "36": [
+        "SUB_GOAL_NUMBER"
+      ],
+      "37": [
+        "SINGLE"
+      ],
+      "38": [
+        "VARIABLE_NUMBER_STRING",
+        "VARIABLE_STATUS"
+      ],
+      "39": [
+        "TEAMMATES",
+        "CONTEXT_TARGET"
+      ],
+      "40": [
+        "SHOW_WAYPOINTS"
+      ],
+      "41": [],
+      "42": [
+        "PERSON",
+        "SINGLE"
+      ],
+      "43": [
+        "PERSON",
+        "SINGLE"
+      ],
+      "44": [
+        "PERSON",
+        "GROUP"
+      ],
+      "45": [
+        "PERSON",
+        "GROUP"
+      ],
+      "46": [
+        "GROUP",
+        "SINGLE"
+      ],
+      "47": [
+        "GROUP",
+        "SINGLE"
+      ],
+      "48": [
+        "GROUP",
+        "GROUP"
+      ],
+      "49": [
+        "GROUP",
+        "GROUP"
+      ]
+    },
+    "subtypes": {
+      "CHANGE_GROUP_AI/CHANGE_SINGLE_AI": {
+        "0": "NULL",
+        "1": "UNKNOWN",
+        "2": "GUARDER",
+        "3": "UNKNOWN",
+        "4": "UNKNOWN",
+        "5": "RED_ALERT",
+        "6": "GREEN_ALERT",
+        "7": "UNKNOWN",
+        "8": "ACCURACY",
+        "9": "UNKNOWN",
+        "10": "UNKNOWN",
+        "11": "UNKNOWN",
+        "12": "UNKNOWN",
+        "13": "UNKNOWN",
+        "14": "UNKNOWN",
+        "15": "BLIND",
+        "16": "BERSERK",
+        "17": "CLIMBER",
+        "18": "UNKNOWN",
+        "19": "UNKNOWN",
+        "20": "UNKNOWN",
+        "21": "COWARD",
+        "22": "YELLOW_ALERT",
+        "23": "UNKNOWN",
+        "24": "UNKNOWN",
+        "25": "UNKNOWN",
+        "26": "DRIVESKILL",
+        "27": "AIMSKILL",
+        "28": "AISETSTATE",
+        "29": "COMBATSPEED",
+        "30": "PATROLSPEED",
+        "31": "FIND_AND_USE",
+        "32": "AIUSEWPZ",
+        "33": "AICLEARWPZ",
+        "34": "PLAYPARTANIM",
+        "35": "UNKNOWN",
+        "36": "UNKNOWN",
+        "37": "UNKNOWN",
+        "38": "UNKNOWN",
+        "39": "UNKNOWN",
+        "40": "AINODEPATH",
+        "41": "ATTACKDISTANCE",
+        "42": "ENGAGEDISTANCE",
+        "43": "INDESTRUCTABLE",
+        "44": "TARGETSSN",
+        "45": "STARTFIRING",
+        "46": "FIRING_ANGLE"
+      },
+      "MISVAR_CHANGE": {
+        "0": "NULL",
+        "1": "SET_VARIABLE",
+        "2": "ADD_VARIABLE",
+        "3": "SUB_VARIABLE",
+        "4": "INCREMENT_VARIABLE",
+        "5": "DECREMENT_VARIABLE"
+      },
+      "TEAMMATES": {
+        "0": "NULL",
+        "1": "TEAMMATE_CALL_MEDIC",
+        "2": "TEAMMATE_CALL_EVAC_TT",
+        "3": "TEAMMATE_CALL_EVAC_AT"
+      }
+    },
+    "ai_values_selectable_in_this_med": [
+      0,
+      2,
+      5,
+      22,
+      6,
+      8,
+      15,
+      16,
+      17,
+      21,
+      26,
+      27,
+      28,
+      29,
+      30,
+      44,
+      32,
+      33,
+      41,
+      42,
+      43,
+      31,
+      45,
+      46
+    ],
+    "ai_parameter_labels": {
+      "2": [
+        "GUARD_BIT"
+      ],
+      "8": [
+        "ACCURACY_100"
+      ],
+      "15": [
+        "BLIND_BIT"
+      ],
+      "16": [
+        "BERSERK_BIT"
+      ],
+      "17": [
+        "CLIMBER_BIT"
+      ],
+      "21": [
+        "COWARD_BIT"
+      ],
+      "26": [
+        "SKILL"
+      ],
+      "27": [
+        "SKILL"
+      ],
+      "28": [
+        "AISTATE"
+      ],
+      "29": [
+        "SPEEDKMH"
+      ],
+      "30": [
+        "SPEEDKMH"
+      ],
+      "31": [
+        "TARGETSSN"
+      ],
+      "34": [
+        "ANIMNUM",
+        "ANIMPLAYTYPE",
+        "ANIMTIME"
+      ],
+      "37": [
+        "HUDITEM",
+        "TICKS"
+      ],
+      "39": [
+        "TMATESTATUS"
+      ],
+      "40": [
+        "AINODEPATH_BIT"
+      ],
+      "41": [
+        "ATTACKDISTANCE_VALUE"
+      ],
+      "42": [
+        "ENGAGEDISTANCE_MINVALUE",
+        "ENGAGEDISTANCE_MAXVALUE"
+      ],
+      "43": [
+        "INDESTRUCTABLE_BIT"
+      ],
+      "44": [
+        "TARGETSSN"
+      ],
+      "45": [
+        "STARTFIRING_BIT"
+      ],
+      "46": [
+        "FIRING_ANGLE"
+      ]
+    },
+    "misvar_values_selectable_in_this_med": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "teammate_values_selectable_in_this_med": [
+      0,
+      2,
+      3
+    ],
+    "preserve_reserved_and_unexposed_values": true
+  },
+  "reference_update_rules": {
+    "insert_event_at_index_i": [
+      "Increment EVENT trigger var1 when >= i",
+      "Increment RESET_EVENT action var1 when >= i",
+      "Increment waypoint wp_adv_trigger when >= i"
+    ],
+    "swap_events_i_j": [
+      "Swap complete event blocks",
+      "Swap references equal to i/j in EVENT triggers",
+      "Swap references equal to i/j in RESET_EVENT actions",
+      "Swap references equal to i/j in wp_adv_trigger"
+    ],
+    "delete_event_i": [
+      "Delete EVENT trigger rows whose var1 == i",
+      "Decrement EVENT trigger var1 when > i",
+      "For RESET_EVENT action var1 >= i, decrement it; an exact reference is not deleted",
+      "For wp_adv_trigger > i decrement; for == i set -1 after warning"
+    ]
+  }
+}
