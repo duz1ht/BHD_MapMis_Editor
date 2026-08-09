@@ -2126,6 +2126,8 @@
       waterPool: [],
       waterMap: new Map(),
       gridLines: null,
+      gridMinorLines: null,
+      gridAxisLines: null,
       rectLines: null,
       ready: false,
     },
@@ -8610,12 +8612,34 @@
     overlays.waterPool = [];
     overlays.waterMap = new Map();
 
-    const gridGeom = new THREE.BufferGeometry();
-    gridGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
-    const gridMat = new THREE.LineBasicMaterial({ color: 0x000000, depthTest: false, depthWrite: false, transparent: false, fog: false });
-    overlays.gridLines = new THREE.LineSegments(gridGeom, gridMat);
-    overlays.gridLines.frustumCulled = false;
-    overlays.scene.add(overlays.gridLines);
+    function createGridLines(color, opacity, renderOrder){
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
+      const material = new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity,
+        depthTest: true,
+        depthWrite: false,
+        fog: false,
+      });
+      const lines = new THREE.LineSegments(geometry, material);
+      lines.frustumCulled = false;
+      lines.renderOrder = renderOrder;
+      overlays.scene.add(lines);
+      return lines;
+    }
+    overlays.gridMinorLines = createGridLines(0x7d8792, 0.22, 1);
+    overlays.gridLines = createGridLines(0x252b33, 0.55, 2);
+
+    const axisGeom = new THREE.BufferGeometry();
+    axisGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
+    axisGeom.setAttribute('color', new THREE.BufferAttribute(new Float32Array(0), 3));
+    const axisMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85, depthTest: true, depthWrite: false, fog: false });
+    overlays.gridAxisLines = new THREE.LineSegments(axisGeom, axisMat);
+    overlays.gridAxisLines.frustumCulled = false;
+    overlays.gridAxisLines.renderOrder = 3;
+    overlays.scene.add(overlays.gridAxisLines);
 
     const rectGeom = new THREE.BufferGeometry();
     rectGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
@@ -8674,6 +8698,8 @@
     if (!ensureThreeOverlaysReady()) return;
     if (!sectors || !Number.isFinite(sectorCount) || sectorCount <= 0){
       updateThreeLineGeometry(state.threeOverlays.gridLines, new Float32Array(0));
+      updateThreeLineGeometry(state.threeOverlays.gridMinorLines, new Float32Array(0));
+      updateThreeLineGeometry(state.threeOverlays.gridAxisLines, new Float32Array(0), new Float32Array(0));
       updateThreeLineGeometry(state.threeOverlays.rectLines, new Float32Array(0), new Float32Array(0));
       for (const mesh of state.threeOverlays.waterMap.values()) state.threeOverlays.scene.remove(mesh);
       state.threeOverlays.waterMap.clear();
@@ -8721,6 +8747,9 @@
     }
 
     const gridPositions = [];
+    const gridMinorPositions = [];
+    const gridAxisPositions = [];
+    const gridAxisColors = [];
     if(renderUiState.showGrid){
       const gridSize=gridSizeMeters();
       if(gridSize>0){
@@ -8737,11 +8766,33 @@
         const firstY=oy + Math.ceil((gridMinY-oy)/gridSize)*gridSize;
         const countX=Math.max(0, Math.floor((gridMaxX-firstX)/gridSize)+1);
         const countY=Math.max(0, Math.floor((gridMaxY-firstY)/gridSize)+1);
-        for(let i=0;i<countX;i++){ const x=firstX+i*gridSize; gridPositions.push(x, gridMinY, 0.2, x, gridMaxY, 0.2); }
-        for(let i=0;i<countY;i++){ const y=firstY+i*gridSize; gridPositions.push(gridMinX, y, 0.2, gridMaxX, y, 0.2); }
+        const gridZ=0.35;
+        const majorInterval=8;
+        for(let i=0;i<countX;i++){
+          const x=firstX+i*gridSize;
+          const gridIndex=Math.round((x-ox)/gridSize);
+          if(gridIndex===0){
+            gridAxisPositions.push(x, gridMinY, gridZ, x, gridMaxY, gridZ);
+            gridAxisColors.push(0.2, 0.78, 0.35, 0.2, 0.78, 0.35);
+          }else{
+            (gridIndex%majorInterval===0 ? gridPositions : gridMinorPositions).push(x, gridMinY, gridZ, x, gridMaxY, gridZ);
+          }
+        }
+        for(let i=0;i<countY;i++){
+          const y=firstY+i*gridSize;
+          const gridIndex=Math.round((y-oy)/gridSize);
+          if(gridIndex===0){
+            gridAxisPositions.push(gridMinX, y, gridZ, gridMaxX, y, gridZ);
+            gridAxisColors.push(0.9, 0.24, 0.2, 0.9, 0.24, 0.2);
+          }else{
+            (gridIndex%majorInterval===0 ? gridPositions : gridMinorPositions).push(gridMinX, y, gridZ, gridMaxX, y, gridZ);
+          }
+        }
       }
     }
     updateThreeLineGeometry(overlays.gridLines, new Float32Array(gridPositions));
+    updateThreeLineGeometry(overlays.gridMinorLines, new Float32Array(gridMinorPositions));
+    updateThreeLineGeometry(overlays.gridAxisLines, new Float32Array(gridAxisPositions), new Float32Array(gridAxisColors));
 
     const rectPos=[];
     const rectColors=[];
