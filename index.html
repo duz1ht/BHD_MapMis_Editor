@@ -2031,6 +2031,8 @@
     aiTextfileLabels: new Map(),
     isLocalRuntime: window.location.protocol === "file:",
     editorFolderHandle: null,
+    pendingEditorFolderHandle: null,
+    mapsFolderHandle: null,
     currentMisFileHandle: null,
     generalTerrainNames: [],
     soundGraphicFromOtherItems: "",
@@ -2151,6 +2153,69 @@
       lastEnvFogType: null,
     },
   };
+
+  const SETTINGS_DB_NAME = "bhd-mapmis-editor-settings";
+  const SETTINGS_STORE_NAME = "handles";
+  const EDITOR_FOLDER_HANDLE_KEY = "editor-folder-handle";
+  const MAPS_FOLDER_HANDLE_KEY = "maps-folder-handle";
+
+  function openSettingsDb(){
+    return new Promise((resolve, reject) => {
+      if (!window.indexedDB) return reject(new Error("IndexedDB is unavailable"));
+      const request = indexedDB.open(SETTINGS_DB_NAME, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(SETTINGS_STORE_NAME)) db.createObjectStore(SETTINGS_STORE_NAME);
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error("Could not open settings database"));
+    });
+  }
+
+  async function readStoredHandle(key){
+    const db = await openSettingsDb();
+    try{
+      return await new Promise((resolve, reject) => {
+        const request = db.transaction(SETTINGS_STORE_NAME, "readonly").objectStore(SETTINGS_STORE_NAME).get(key);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error || new Error(`Could not read ${key}`));
+      });
+    } finally {
+      db.close();
+    }
+  }
+
+  async function writeStoredHandle(key, handle){
+    const db = await openSettingsDb();
+    try{
+      await new Promise((resolve, reject) => {
+        const request = db.transaction(SETTINGS_STORE_NAME, "readwrite").objectStore(SETTINGS_STORE_NAME).put(handle, key);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error || new Error(`Could not save ${key}`));
+      });
+    } finally {
+      db.close();
+    }
+  }
+
+  async function deleteStoredHandle(key){
+    const db = await openSettingsDb();
+    try{
+      await new Promise((resolve, reject) => {
+        const request = db.transaction(SETTINGS_STORE_NAME, "readwrite").objectStore(SETTINGS_STORE_NAME).delete(key);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error || new Error(`Could not delete ${key}`));
+      });
+    } finally {
+      db.close();
+    }
+  }
+
+  async function rememberHandle(key, handle){
+    if (!handle) return;
+    try { await writeStoredHandle(key, handle); }
+    catch (err) { addLog(`[settings] Could not persist ${key}: ${err?.message || err}`); }
+  }
 
   const RENDER_BACKENDS = Object.freeze({ THREE_ONLY: 'three-only' });
 
@@ -7469,6 +7534,8 @@
     if (window.showSaveFilePicker){
       try{
         const handle = (!forcePicker && state.currentMisFileHandle) ? state.currentMisFileHandle : await window.showSaveFilePicker({
+          id: "save-mis-map",
+          ...(state.mapsFolderHandle ? { startIn: state.mapsFolderHandle } : {}),
           suggestedName: state.filename || "edited.mis",
           types: [{
             description: "Mission Files",
@@ -7479,6 +7546,8 @@
         await writable.write(out);
         await writable.close();
         state.currentMisFileHandle = handle;
+        state.mapsFolderHandle = handle;
+        await rememberHandle(MAPS_FOLDER_HANDLE_KEY, handle);
         state.filename = handle.name || state.filename;
         statusEl.textContent = "File saved.";
         return true;
@@ -7512,12 +7581,59 @@
     statusEl.textContent = "New map project created.";
   }
 
+  async function activateEditorFolder(handle, options = {}){
+    if (!handle || handle.kind !== "directory") throw new Error("The saved Editor Folder is invalid");
+    state.editorFolderHandle = handle;
+    state.pendingEditorFolderHandle = null;
+    await rememberHandle(EDITOR_FOLDER_HANDLE_KEY, handle);
+    statusEl.textContent = `Editor folder set: ${handle.name}`;
+    renderMenuBar();
+    if (!options.reloadResources) return;
+    await loadAndApplyItemCatalogs();
+    await Promise.all([loadGameStrings(), loadWeaponDefs(), loadWpNames(), loadAiTextfileCatalog(), preloadEnvironmentFiles()]);
+    await refreshGeneralTerrainOptions();
+    renderMenuBar();
+  }
+
+  async function restoreFolderHandles(){
+    try{
+      const mapsHandle = await readStoredHandle(MAPS_FOLDER_HANDLE_KEY);
+      if (mapsHandle?.kind === "file" || mapsHandle?.kind === "directory") state.mapsFolderHandle = mapsHandle;
+      else if (mapsHandle) await deleteStoredHandle(MAPS_FOLDER_HANDLE_KEY);
+    } catch (err){
+      addLog(`[settings] Could not restore the maps folder: ${err?.message || err}`);
+    }
+
+    try{
+      const handle = await readStoredHandle(EDITOR_FOLDER_HANDLE_KEY);
+      if (!handle) return;
+      if (handle.kind !== "directory"){
+        await deleteStoredHandle(EDITOR_FOLDER_HANDLE_KEY);
+        return;
+      }
+      const permission = await handle.queryPermission({ mode: "read" });
+      if (permission === "granted"){
+        await activateEditorFolder(handle);
+        addLog(`[settings] Restored Editor Folder: ${handle.name}`);
+        return;
+      }
+      state.pendingEditorFolderHandle = handle;
+      statusEl.textContent = `Click File > Set Editor Folder to reconnect: ${handle.name}`;
+      addLog(`[settings] Saved Editor Folder requires permission: ${handle.name}`);
+    } catch (err){
+      addLog(`[settings] Could not restore the Editor Folder: ${err?.message || err}`);
+      try { await deleteStoredHandle(EDITOR_FOLDER_HANDLE_KEY); } catch (_) {}
+    }
+  }
+
   const menuHandlers = {
     "file.new": async () => handleNewProject(),
     "file.open": async () => {
       if (window.showOpenFilePicker){
         try{
           const [handle] = await window.showOpenFilePicker({
+            id: "open-mis-map",
+            ...(state.mapsFolderHandle ? { startIn: state.mapsFolderHandle } : {}),
             multiple: false,
             types: [{
               description: "Mission Files",
@@ -7525,6 +7641,8 @@
             }]
           });
           if (!handle) return;
+          state.mapsFolderHandle = handle;
+          await rememberHandle(MAPS_FOLDER_HANDLE_KEY, handle);
           const file = await handle.getFile();
           await loadMisFile(file, handle);
           return;
@@ -7547,13 +7665,17 @@
         return;
       }
       try{
-        const handle = await window.showDirectoryPicker({ mode: "read" });
-        state.editorFolderHandle = handle;
-        statusEl.textContent = `Editor folder set: ${handle.name}`;
-        await loadAndApplyItemCatalogs();
-        await Promise.all([loadGameStrings(), loadWeaponDefs(), loadWpNames(), loadAiTextfileCatalog(), preloadEnvironmentFiles()]);
-        await refreshGeneralTerrainOptions();
-        renderMenuBar();
+        let handle = state.pendingEditorFolderHandle;
+        if (handle){
+          const permission = await handle.requestPermission({ mode: "read" });
+          if (permission !== "granted"){
+            statusEl.textContent = "Access to the saved Editor Folder was not granted.";
+            return;
+          }
+        } else {
+          handle = await window.showDirectoryPicker({ mode: "read" });
+        }
+        await activateEditorFolder(handle, { reloadResources: true });
       } catch (err){
         if (err?.name === "AbortError") return;
         statusEl.textContent = "Failed to set editor folder (see Logs).";
@@ -10506,6 +10628,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     initTheme();
     addLog("Editor boot started.");
     setRenderBackend(resolveInitialRenderBackend(), { force: true });
+    await restoreFolderHandles();
     try{
       await loadAndApplyItemCatalogs();
     } catch (err){
@@ -10517,9 +10640,10 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     await preloadEnvironmentFiles();
     await loadAiTextfileCatalog();
 
-    if (state.isLocalRuntime){
+    if (state.isLocalRuntime && !state.editorFolderHandle){
       addLog("Local runtime detected (file://). Waiting for 'Set Editor Folder'.");
-      statusEl.textContent = "Local mode detected: open File > Set Editor Folder to load catalogs.";
+      if (!state.pendingEditorFolderHandle)
+        statusEl.textContent = "Local mode detected: open File > Set Editor Folder to load catalogs.";
       defStatusEl.textContent = "";
     } else {
       await Promise.all([loadGameStrings(), loadWeaponDefs(), loadWpNames()]);
