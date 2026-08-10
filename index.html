@@ -1249,17 +1249,17 @@
     .eventViewToolbar .spacer{ flex:1; }
     .eventViewToolbar label{ display:flex; align-items:center; gap:4px; color:var(--text-subtle); }
     .eventViewToolbar button.active{ background:#2b3d8f; color:#fff; }
-    #eventGraphPanel{ display:none; grid-template-rows:auto minmax(0,1fr); min-height:0; }
+    #eventGraphPanel{ display:none; grid-template-rows:auto minmax(0,1fr); grid-template-columns:minmax(0,1fr) 280px; min-height:0; gap:8px; }
     #eventEditorMock.graph-mode{ grid-template-rows:auto minmax(0,1fr) auto; }
     #sectionWindow:has(#eventEditorMock.graph-mode){ width:min(1100px,100%); }
     #eventEditorMock.graph-mode .eventTopFields,#eventEditorMock.graph-mode .eventGrid{ display:none; }
     #eventEditorMock.graph-mode #eventGraphPanel{ display:grid; }
-    .eventGraphSummary{ display:flex; gap:12px; padding:4px 2px 8px; color:var(--text-subtle); }
+    .eventGraphSummary{ grid-column:1/-1; display:flex; gap:12px; padding:4px 2px; color:var(--text-subtle); }
     .eventGraphSummary .error{ color:#ff8b8b; }.eventGraphSummary .warning{ color:#ffd166; }
     #eventGraphCanvas{ position:relative; overflow:auto; min-height:420px; border:1px solid var(--line); background:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px),var(--surface); background-size:20px 20px; }
     #eventGraphEdges{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
-    .eventGraphNodes{ position:relative; display:grid; grid-template-columns:repeat(4,190px); gap:24px 48px; padding:24px; width:max-content; min-width:100%; box-sizing:border-box; }
-    .eventNode{ position:relative; z-index:1; width:190px; min-height:108px; padding:0; border:1px solid #5865f2; border-radius:5px; background:var(--panel-muted); color:var(--text); text-align:left; overflow:hidden; box-shadow:var(--shadow-sm); cursor:pointer; }
+    .eventGraphNodes{ position:relative; min-width:100%; min-height:100%; box-sizing:border-box; }
+    .eventNode{ position:absolute; z-index:1; width:220px; min-height:108px; padding:0; border:1px solid #5865f2; border-radius:5px; background:var(--panel-muted); color:var(--text); text-align:left; overflow:hidden; box-shadow:var(--shadow-sm); cursor:pointer; }
     .eventNode:hover,.eventNode.active{ outline:2px solid var(--accent-glow-strong); }.eventNode.error{ border-color:#ff6565; }.eventNode.warning{ border-color:#d8a72d; }
     .eventNodeHead{ display:flex; justify-content:space-between; gap:6px; padding:6px 8px; background:#26336f; font-weight:700; }.eventNodeBody{ padding:6px 8px; display:grid; gap:3px; }.eventNodeLine{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-subtle); }.eventNodeDiagnostic{ color:#ffd166; }
     .eventGraphEdge{ fill:none; stroke-width:2; opacity:.9; }.eventGraphEdge.dependency{ stroke:#70a1ff; }.eventGraphEdge.negative-dependency{ stroke:#ffd166; stroke-dasharray:8 4; }.eventGraphEdge.reset{ stroke:#ff8f70; stroke-width:2.5; stroke-dasharray:7 4; }.eventGraphEdge.inferred{ stroke:#d4a5ff; stroke-dasharray:2 5; opacity:.55; }.eventGraphEdge.invalid{ stroke:#ff6565; stroke-width:2.5; stroke-dasharray:3 3; }
@@ -1268,6 +1268,10 @@
     .eventGraphPin.input{ fill:var(--panel-muted); }
     .eventLogicBadge rect{ fill:var(--panel-muted); stroke:var(--line-strong); }.eventLogicBadge text{ fill:var(--text); font:700 9px sans-serif; text-anchor:middle; dominant-baseline:middle; }
     .eventNode.missing{ border-color:#ff6565; border-style:dashed; cursor:default; }.eventNode.missing .eventNodeHead{ background:#6c2929; }
+    .eventNodeTitle{ color:#fff; font-weight:600; }.eventNodeSection{ display:block; margin-top:4px; color:#9fb9ff; font-weight:700; font-size:10px; }.eventNodeMore{ color:#8fb8ff; }
+    #eventGraphInspector{ border:1px solid var(--line); background:var(--surface); padding:10px; overflow:auto; min-height:0; }.eventInspectorTitle{ font-size:15px; font-weight:700; margin-bottom:4px; }.eventInspectorSummary{ color:var(--text-subtle); margin-bottom:10px; }.eventInspectorSection{ margin-top:10px; }.eventInspectorSection b{ display:block; margin-bottom:4px; }.eventInspectorSection ol,.eventInspectorSection ul{ margin:0; padding-left:20px; }.eventInspectorActions{ display:grid; gap:6px; margin-top:12px; }
+    .eventNode.dimmed{ opacity:.18; }.eventNode.focused{ outline:2px solid #ddf7ff; }.eventGraphEdge.dimmed{ opacity:.08; }
+    .eventGraphEdge{ marker-end:url(#eventGraphArrow); }
     .eventGraphLegend{ display:flex; gap:10px; flex-wrap:wrap; }.eventGraphLegend i{ display:inline-block; width:18px; border-top:2px solid; margin-right:4px; vertical-align:middle; }.eventGraphEmpty{ padding:28px; color:var(--text-subtle); }
     .eventListItem{ width:100%; border:0; text-align:left; color:inherit; }
     .eventNestedRow{ display:block; padding:3px 5px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1691,9 +1695,12 @@
               <div class="eventViewToolbar">
                 <button id="eventListViewBtn" type="button" class="active">List Editor</button>
                 <button id="eventGraphViewBtn" type="button">Event Graph</button>
+                <select id="eventGraphMode" aria-label="Graph detail mode"><option value="simple">Simple Flow</option><option value="debug">Debug Graph</option></select>
+                <button id="eventGraphFocusBtn" type="button">Focus selected</button>
+                <button id="eventGraphShowAllBtn" type="button">Show all</button>
                 <span class="spacer"></span>
                 <label><input id="eventGraphHideEmpty" type="checkbox" /> Hide empty</label>
-                <label><input id="eventGraphShowInferred" type="checkbox" /> Inferred links</label>
+                <label><input id="eventGraphShowInferred" type="checkbox" disabled /> Inferred links</label>
               </div>
               <div class="eventTopFields">
                 <div class="eventNameField"><div class="inlineLabel">Name</div><input id="eventNameInput" maxlength="59" /></div>
@@ -1714,6 +1721,7 @@
               <div id="eventGraphPanel" aria-label="Event dependency graph">
                 <div class="eventGraphSummary" id="eventGraphSummary"></div>
                 <div id="eventGraphCanvas"><svg id="eventGraphEdges" aria-hidden="true"></svg><div class="eventGraphNodes" id="eventGraphNodes"></div></div>
+                <aside id="eventGraphInspector" aria-live="polite"><div class="eventInspectorSummary">Select an Event to understand what triggers it and what happens next.</div></aside>
               </div>
               <div class="eventFooterBtns"><button id="eventDeleteBtn">Delete Event</button><button id="eventCopyBtn">Copy Event</button><button id="eventPasteBtn">Paste Event</button><button id="eventPrintBtn">Print Event</button><button id="eventPrintAllBtn">Print All Events</button><button id="eventOkBtn">OK</button></div>
             </div>
@@ -5436,7 +5444,7 @@
     46:["Firing Angle"]
   };
   const EVENT_ROW_LABELS = { trigger:["Flags","Trigger Type","Trigger Condition","Variable 1","Variable 2","Variable 3","Variable 4","Reserved"], action:["Reserved","Action Type","Variable 1","Variable 2","Variable 3","Variable 4","Action / AI","Reserved"] };
-  const eventUi = { selectedTrigger:-1, selectedAction:-1, editKind:null, editIndex:-1, triggerClipboard:null, actionClipboard:null, eventClipboard:null, view:"list" };
+  const eventUi = { selectedTrigger:-1, selectedAction:-1, editKind:null, editIndex:-1, triggerClipboard:null, actionClipboard:null, eventClipboard:null, view:"list", graphMode:"simple", focus:false, expanded:new Set() };
 
   function parseEventData(sec){
     const data = { triggers:[], actions:[] };
@@ -5569,8 +5577,8 @@
     });
     const edges=[],missing=new Set();
     for(const node of nodes){
-      for(const row of node.data.triggers)if(row[1]===3){const exists=numbers.has(row[3]);if(!exists)missing.add(row[3]);edges.push({from:row[3],to:node.number,type:exists?((row[0]&1)?"negative-dependency":"dependency"):"invalid",label:triggerDescription(row),logic:(row[0]&4)?"XOR":(row[0]&2)?"OR":"AND",showLogic:node.data.triggers.length>1});}
-      for(const row of node.data.actions)if(row[1]===34){const exists=numbers.has(row[2]);if(!exists)missing.add(row[2]);edges.push({from:node.number,to:row[2],type:exists?"reset":"invalid",label:actionDescription(row)});}
+      node.data.triggers.forEach((row,index)=>{if(row[1]===3){const exists=numbers.has(row[3]);if(!exists)missing.add(row[3]);edges.push({from:row[3],to:node.number,type:exists?((row[0]&1)?"negative-dependency":"dependency"):"invalid",label:triggerDescription(row),logic:(row[0]&4)?"XOR":(row[0]&2)?"OR":"AND",showLogic:node.data.triggers.length>1,rowKind:"trigger",rowIndex:index});}});
+      node.data.actions.forEach((row,index)=>{if(row[1]===34){const exists=numbers.has(row[2]);if(!exists)missing.add(row[2]);edges.push({from:node.number,to:row[2],type:exists?"reset":"invalid",label:actionDescription(row),rowKind:"action",rowIndex:index});}});
     }
     for(const number of missing)nodes.push({sec:null,number,missing:true,data:{triggers:[],actions:[]},attr:0,diagnostics:[{level:"error",text:`Missing Event ${number}`}],resources:{reads:new Set(),writes:new Set()},itemRefs:[]});
     const adjacency=new Map(nodes.map(n=>[n.number,[]]));
@@ -5585,10 +5593,39 @@
       if(!incoming&&!(node.attr&2)&&node.data.triggers.some(r=>r[1]===3))node.diagnostics.push({level:"warning",text:"No reachable event input"});
       node.itemRefs=getEventAdvancementReferences(node.number);
     }
-    if(document.getElementById('eventGraphShowInferred')?.checked){
+    if(eventUi.graphMode==='debug'&&document.getElementById('eventGraphShowInferred')?.checked){
       for(const source of nodes)for(const target of nodes){if(source===target)continue;const shared=[...source.resources.writes].filter(x=>target.resources.reads.has(x));if(shared.length&&!edges.some(e=>e.from===source.number&&e.to===target.number))edges.push({from:source.number,to:target.number,type:"inferred",label:`Shared ${shared.join(', ')}`});}
     }
     return {nodes,edges};
+  }
+  function eventGraphTitle(node){
+    const name=getEventName(node.sec),generic=!name||new RegExp(`^event\\s*${node.number}$`,'i').test(name);
+    if(!generic)return name;
+    const trigger=node.data.triggers[0],action=node.data.actions[0];
+    if(trigger?.[1]===3)return `After Event ${trigger[3]}`;
+    if(trigger?.[1]===1&&trigger?.[2]===10)return `Group ${trigger[3]} enters Area ${trigger[4]}`;
+    if(action?.[1]===34)return `Reset Event ${action[2]}`;
+    if(action?.[1]===6)return `Show message ${action[2]}`;
+    return `${node.data.triggers.length} conditions → ${node.data.actions.length} actions`;
+  }
+  function layoutEventGraph(nodes,edges){
+    const real=nodes.filter(n=>!n.missing),incoming=new Map(real.map(n=>[n.number,[]]));
+    edges.filter(e=>['dependency','negative-dependency'].includes(e.type)).forEach(e=>incoming.get(e.to)?.push(e.from));
+    const levels=new Map(real.map(n=>[n.number,0]));
+    for(let pass=0;pass<real.length;pass++){let changed=false;for(const n of real){const parents=incoming.get(n.number)||[],next=parents.length?Math.min(real.length,Math.max(...parents.map(p=>levels.get(p)||0))+1):0;if(next>levels.get(n.number)){levels.set(n.number,next);changed=true;}}if(!changed)break;}
+    const max=Math.max(0,...levels.values());for(const [number,level] of levels)if(level>=real.length)levels.set(number,max);
+    const columns=new Map();for(const n of nodes){const level=n.missing?max+1:(levels.get(n.number)||0);if(!columns.has(level))columns.set(level,[]);columns.get(level).push(n);}
+    let height=0;for(const [level,list] of columns){list.sort((a,b)=>a.number-b.number);list.forEach((n,i)=>{n.x=28+level*290;n.y=45+i*230;});height=Math.max(height,45+list.length*230);}
+    return {width:Math.max(760,80+(Math.max(...columns.keys(),0)+1)*290),height:Math.max(430,height)};
+  }
+  function focusedEventNumbers(model){
+    const sec=selectedEvent(),start=getEventNumber(sec);if(!eventUi.focus||!Number.isFinite(start))return null;const seen=new Set([start]);let changed=true;while(changed){changed=false;for(const e of model.edges.filter(x=>x.type!=='inferred'))if(seen.has(e.from)||seen.has(e.to)){if(!seen.has(e.from)){seen.add(e.from);changed=true;}if(!seen.has(e.to)){seen.add(e.to);changed=true;}}}return seen;
+  }
+  function renderEventInspector(model){
+    const el=document.getElementById('eventGraphInspector'),node=model.nodes.find(n=>n.sec?.id===state.sectionSelectedId);if(!el)return;if(!node){el.innerHTML='<div class="eventInspectorSummary">Select an Event to understand what triggers it and what happens next.</div>';return;}
+    const previous=model.edges.filter(e=>e.to===node.number&&e.type!=='reset').map(e=>`Event ${e.from}`),next=model.edges.filter(e=>e.from===node.number&&e.type!=='reset').map(e=>`Event ${e.to}`),resets=model.edges.filter(e=>e.to===node.number&&e.type==='reset').map(e=>`Event ${e.from}`),delay=Math.trunc(Number(node.sec.kv?.delay_value))||0;
+    el.innerHTML=`<div class="eventInspectorTitle">#${node.number} ${escapeHtml(eventGraphTitle(node))}</div><div class="eventInspectorSummary">${escapeHtml(previous.length?`Waits for ${previous.join(', ')}${delay?`, then waits ${delay}s`:''}.`:'Starts from game state or mission conditions.')}</div><div class="eventInspectorSection"><b>WHEN — all conditions</b><ol>${node.data.triggers.map(r=>`<li>${escapeHtml(triggerDescription(r))}</li>`).join('')||'<li>Always / no trigger</li>'}</ol></div><div class="eventInspectorSection"><b>DO — all actions</b><ol>${node.data.actions.map(r=>`<li>${escapeHtml(actionDescription(r))}</li>`).join('')||'<li>No action</li>'}</ol></div><div class="eventInspectorSection"><b>Flow</b><div>Previous: ${escapeHtml(previous.join(', ')||'none')}</div><div>Next: ${escapeHtml(next.join(', ')||'none')}</div><div>Reset by: ${escapeHtml(resets.join(', ')||'none')}</div><div>Item references: ${node.itemRefs.length}</div></div>${node.diagnostics.length?`<div class="eventInspectorSection"><b>Diagnostics</b><ul>${node.diagnostics.map(d=>`<li>${escapeHtml(d.text)}</li>`).join('')}</ul></div>`:''}<div class="eventInspectorActions"><button id="eventInspectorOpen" type="button">Open in List Editor</button><button id="eventInspectorFocus" type="button">Focus this flow</button></div>`;
+    document.getElementById('eventInspectorOpen')?.addEventListener('click',()=>setEventView('list'));document.getElementById('eventInspectorFocus')?.addEventListener('click',()=>{eventUi.focus=true;renderEventGraph();});
   }
   function drawEventGraphEdges(model){
     const svg=document.getElementById('eventGraphEdges'),canvas=document.getElementById('eventGraphCanvas');if(!svg||!canvas)return;
@@ -5597,20 +5634,22 @@
     const outgoing=new Map(),incoming=new Map();
     for(const edge of visible){if(!outgoing.has(edge.from))outgoing.set(edge.from,[]);if(!incoming.has(edge.to))incoming.set(edge.to,[]);outgoing.get(edge.from).push(edge);incoming.get(edge.to).push(edge);}
     const pinY=(rect,index,count)=>rect.top-cr.top+canvas.scrollTop+Math.max(35,rect.height*(index+1)/(count+1));
-    svg.innerHTML=visible.map(edge=>{
+    const focus=focusedEventNumbers(model);
+    svg.innerHTML=`<defs><marker id="eventGraphArrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="context-stroke"></path></marker></defs>`+visible.map(edge=>{
       const a=document.querySelector(`.eventNode[data-number="${edge.from}"]`),b=document.querySelector(`.eventNode[data-number="${edge.to}"]`),ar=a.getBoundingClientRect(),br=b.getBoundingClientRect();
       const x1=ar.right-cr.left+canvas.scrollLeft+1,y1=pinY(ar,outgoing.get(edge.from).indexOf(edge),outgoing.get(edge.from).length),x2=br.left-cr.left+canvas.scrollLeft-1,y2=pinY(br,incoming.get(edge.to).indexOf(edge),incoming.get(edge.to).length),direction=x2>=x1?1:-1,bend=Math.max(36,Math.abs(x2-x1)*.45),c1=x1+bend*direction,c2=x2-bend*direction;
       const reason=edge.type==='dependency'?`Event ${edge.from} triggered → Event ${edge.to}`:edge.type==='negative-dependency'?`Event ${edge.from} not triggered → Event ${edge.to}`:edge.type==='reset'?`Event ${edge.from} resets Event ${edge.to}`:edge.type==='invalid'?`Broken reference involving Event ${edge.from} and Event ${edge.to}`:edge.label,badge=edge.showLogic?`<g class="eventLogicBadge" transform="translate(${x2-22} ${y2-9})"><rect width="28" height="16" rx="3"></rect><text x="14" y="8">${edge.logic}</text></g>`:'';
-      return `<g><path class="eventGraphEdge ${edge.type}" d="M ${x1} ${y1} C ${c1} ${y1}, ${c2} ${y2}, ${x2} ${y2}"><title>${escapeHtml(`${reason}: ${edge.label}`)}</title></path><circle class="eventGraphPin output ${edge.type}" cx="${x1}" cy="${y1}" r="5"><title>${escapeHtml(reason)}</title></circle><circle class="eventGraphPin input ${edge.type}" cx="${x2}" cy="${y2}" r="5"><title>${escapeHtml(reason)}</title></circle>${badge}</g>`;
+      const dim=focus&&(!focus.has(edge.from)||!focus.has(edge.to))?' dimmed':'';return `<g><path class="eventGraphEdge ${edge.type}${dim}" d="M ${x1} ${y1} C ${c1} ${y1}, ${c2} ${y2}, ${x2} ${y2}"><title>${escapeHtml(`${reason}: ${edge.label}`)}</title></path><circle class="eventGraphPin output ${edge.type}" cx="${x1}" cy="${y1}" r="5"><title>${escapeHtml(reason)}</title></circle><circle class="eventGraphPin input ${edge.type}" cx="${x2}" cy="${y2}" r="5"><title>${escapeHtml(reason)}</title></circle>${badge}</g>`;
     }).join('');
   }
   function renderEventGraph(){
     const nodesEl=document.getElementById('eventGraphNodes'),summary=document.getElementById('eventGraphSummary');if(!nodesEl||!summary)return;
-    const model=buildEventGraphModel(),hideEmpty=document.getElementById('eventGraphHideEmpty')?.checked,visible=model.nodes.filter(n=>n.missing||!hideEmpty||n.data.triggers.length||n.data.actions.length),errors=model.nodes.filter(n=>!n.missing).flatMap(n=>n.diagnostics).filter(d=>d.level==='error').length,warnings=model.nodes.flatMap(n=>n.diagnostics).filter(d=>d.level==='warning').length;
-    summary.innerHTML=`<span>${visible.filter(n=>!n.missing).length} events</span><span>${model.edges.filter(e=>e.type!=='inferred').length} direct links</span><span class="error">${errors} errors</span><span class="warning">${warnings} warnings</span><span class="eventGraphLegend"><span><i style="border-color:#70a1ff"></i>triggered</span><span><i style="border-color:#ffd166;border-style:dashed"></i>not triggered</span><span><i style="border-color:#ff8f70;border-style:dashed"></i>reset</span><span><i style="border-color:#d4a5ff;border-style:dotted"></i>inferred</span><span><i style="border-color:#ff6565;border-style:dashed"></i>broken</span></span>`;
-    nodesEl.innerHTML=visible.length?visible.map(n=>{if(n.missing)return `<div class="eventNode missing" data-number="${n.number}"><span class="eventNodeHead"><span>Missing Event #${n.number}</span><span>!</span></span><span class="eventNodeBody"><span class="eventNodeDiagnostic">⚠ Referenced but not defined</span></span></div>`;const level=n.diagnostics.some(d=>d.level==='error')?'error':n.diagnostics.length?'warning':'';return `<button type="button" class="eventNode ${level} ${n.sec.id===state.sectionSelectedId?'active':''}" data-id="${n.sec.id}" data-number="${n.number}"><span class="eventNodeHead"><span>#${n.number} ${escapeHtml(getEventName(n.sec)||`Event ${n.number}`)}</span><span>${n.data.triggers.length}→${n.data.actions.length}</span></span><span class="eventNodeBody"><span class="eventNodeLine">IF ${escapeHtml(n.data.triggers[0]?triggerDescription(n.data.triggers[0]):'Always / no trigger')}</span><span class="eventNodeLine">THEN ${escapeHtml(n.data.actions[0]?actionDescription(n.data.actions[0]):'No action')}</span>${n.itemRefs.length?`<span class="eventNodeLine">${n.itemRefs.length} item reference(s)</span>`:''}${n.diagnostics.map(d=>`<span class="eventNodeDiagnostic">⚠ ${escapeHtml(d.text)}</span>`).join('')}</span></button>`;}).join(''):'<div class="eventGraphEmpty">No events match the current filters.</div>';
+    const model=buildEventGraphModel(),simple=eventUi.graphMode==='simple',hideEmpty=simple||document.getElementById('eventGraphHideEmpty')?.checked,visible=model.nodes.filter(n=>(!simple||!n.missing)&&(n.missing||!hideEmpty||n.data.triggers.length||n.data.actions.length)),errors=model.nodes.filter(n=>!n.missing).flatMap(n=>n.diagnostics).filter(d=>d.level==='error').length,warnings=model.nodes.flatMap(n=>n.diagnostics).filter(d=>d.level==='warning').length,layout=layoutEventGraph(visible,model.edges),focus=focusedEventNumbers(model);
+    nodesEl.style.width=`${layout.width}px`;nodesEl.style.height=`${layout.height}px`;
+    summary.innerHTML=`<span>${visible.filter(n=>!n.missing).length} events</span><span>${model.edges.filter(e=>e.type!=='inferred').length} direct links</span>${simple?'':`<span class="error">${errors} errors</span><span class="warning">${warnings} warnings</span>`}<span class="eventGraphLegend"><span><i style="border-color:#70a1ff"></i>triggered</span><span><i style="border-color:#ffd166;border-style:dashed"></i>not triggered</span><span><i style="border-color:#ff8f70;border-style:dashed"></i>reset</span>${simple?'':`<span><i style="border-color:#d4a5ff;border-style:dotted"></i>inferred</span><span><i style="border-color:#ff6565;border-style:dashed"></i>broken</span>`}</span>`;
+    nodesEl.innerHTML=visible.length?visible.map(n=>{const pos=`left:${n.x}px;top:${n.y}px`;if(n.missing)return `<div class="eventNode missing" style="${pos}" data-number="${n.number}"><span class="eventNodeHead"><span>Missing Event #${n.number}</span><span>!</span></span><span class="eventNodeBody"><span class="eventNodeDiagnostic">⚠ Referenced but not defined</span></span></div>`;const level=!simple&&(n.diagnostics.some(d=>d.level==='error')?'error':n.diagnostics.length?'warning':''),expanded=eventUi.expanded.has(n.number),limit=expanded?99:3,triggers=n.data.triggers.slice(0,limit),actions=n.data.actions.slice(0,limit),dim=focus&&!focus.has(n.number)?'dimmed':focus?'focused':'';return `<button type="button" style="${pos}" class="eventNode ${level} ${dim} ${n.sec.id===state.sectionSelectedId?'active':''}" data-id="${n.sec.id}" data-number="${n.number}"><span class="eventNodeHead"><span>#${n.number} ${escapeHtml(getEventName(n.sec)||`Event ${n.number}`)}</span><span>${n.data.triggers.length}→${n.data.actions.length}</span></span><span class="eventNodeBody"><span class="eventNodeTitle">${escapeHtml(eventGraphTitle(n))}</span><span class="eventNodeSection">WHEN</span>${triggers.map(r=>`<span class="eventNodeLine">${escapeHtml(triggerDescription(r))}</span>`).join('')||'<span class="eventNodeLine">Always / game state</span>'}${n.data.triggers.length>limit?`<span class="eventNodeMore">+ ${n.data.triggers.length-limit} more</span>`:''}<span class="eventNodeSection">DO</span>${actions.map(r=>`<span class="eventNodeLine">${escapeHtml(actionDescription(r))}</span>`).join('')||'<span class="eventNodeLine">No action</span>'}${n.data.actions.length>limit?`<span class="eventNodeMore">+ ${n.data.actions.length-limit} more</span>`:''}${Number(n.sec.kv?.delay_value)?`<span class="eventNodeLine">⏱ Delay ${Number(n.sec.kv.delay_value)}s</span>`:''}</span></button>`;}).join(''):'<div class="eventGraphEmpty">No events match the current filters.</div>';
     nodesEl.querySelectorAll('.eventNode[data-id]').forEach(el=>{el.addEventListener('click',()=>{state.sectionSelectedId=Number(el.dataset.id);renderEventEditor();});el.addEventListener('dblclick',()=>{eventUi.view='list';renderEventEditor();});});
-    requestAnimationFrame(()=>drawEventGraphEdges(model));
+    nodesEl.querySelectorAll('.eventNodeMore').forEach(el=>el.addEventListener('click',event=>{event.stopPropagation();eventUi.expanded.add(Number(el.closest('.eventNode').dataset.number));renderEventGraph();}));renderEventInspector(model);requestAnimationFrame(()=>drawEventGraphEdges(model));
   }
   function setEventView(view){eventUi.view=view==='graph'?'graph':'list';renderEventEditor();}
   function renderEventEditor(){
@@ -7784,6 +7823,9 @@
   eventNameInput?.addEventListener("change", () => { if (state.sectionKind === "event") { saveEventFields(); renderEventEditor(); } });
   document.getElementById("eventListViewBtn")?.addEventListener("click",()=>setEventView("list"));
   document.getElementById("eventGraphViewBtn")?.addEventListener("click",()=>setEventView("graph"));
+  document.getElementById("eventGraphMode")?.addEventListener("change",event=>{eventUi.graphMode=event.target.value;document.getElementById('eventGraphShowInferred').disabled=eventUi.graphMode==='simple';renderEventGraph();});
+  document.getElementById("eventGraphFocusBtn")?.addEventListener("click",()=>{eventUi.focus=true;renderEventGraph();});
+  document.getElementById("eventGraphShowAllBtn")?.addEventListener("click",()=>{eventUi.focus=false;renderEventGraph();});
   document.getElementById("eventGraphHideEmpty")?.addEventListener("change",renderEventGraph);
   document.getElementById("eventGraphShowInferred")?.addEventListener("change",renderEventGraph);
   window.addEventListener("resize",()=>{if(eventUi.view==='graph'&&state.sectionEditorOpen)renderEventGraph();});
