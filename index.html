@@ -1173,7 +1173,7 @@
     #areaTrigBottomActions{ display:flex; gap:8px; justify-content:flex-end; margin-top:auto; }
     #sectionWindow[data-section-mode="areatrig"] #sectionEditor{ grid-template-rows:1fr auto; }
     #sectionWindow[data-section-mode="event"]{
-      width:min(686px,100%);
+      width:min(1120px,100%);
       height:min(720px,100%);
       max-height:min(720px,100%);
     }
@@ -1191,6 +1191,36 @@
       overflow:auto;
     }
     #sectionWindow[data-section-mode="event"] #eventEditorMock{ display:grid; grid-template-rows:auto minmax(0,1fr) auto; min-height:0; }
+    .eventViewToolbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+    .eventViewTabs{ display:flex; gap:4px; }
+    .eventViewTabs button[aria-pressed="true"]{ background:#2b3d8f; color:#fff; border-color:#6174dc; }
+    .eventViewHelp{ color:var(--text-subtle); font-size:11px; }
+    .eventFlowView{ display:none; min-height:0; overflow:hidden; }
+    #eventEditorMock.flow-mode{ grid-template-rows:auto minmax(0,1fr); }
+    #eventEditorMock.flow-mode > .eventTopFields,
+    #eventEditorMock.flow-mode > .eventGrid,
+    #eventEditorMock.flow-mode > .eventFooterBtns{ display:none; }
+    #eventEditorMock.flow-mode .eventFlowView{ display:grid; grid-template-columns:minmax(0,2fr) minmax(280px,1fr); gap:10px; }
+    .eventFlowMap{ overflow:auto; border:1px solid var(--line); background:var(--surface); padding:10px; }
+    .eventFlowMapHeader{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:var(--text-subtle); }
+    .eventFlowNodes{ display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; align-items:start; }
+    .eventFlowNode{ display:block; width:100%; border:1px solid var(--line-card); border-left:4px solid #5865f2; background:var(--surface-soft); padding:9px; text-align:left; color:inherit; cursor:pointer; min-width:0; }
+    .eventFlowNode:hover{ border-color:#7886e8; }
+    .eventFlowNode.active{ box-shadow:0 0 0 2px var(--accent-glow-strong); border-left-color:#7ae0a3; }
+    .eventFlowNodeTitle{ display:flex; gap:6px; align-items:baseline; font-weight:700; margin-bottom:6px; }
+    .eventFlowNodeNumber{ color:#91a0ff; white-space:nowrap; }
+    .eventFlowNodeMeta{ color:var(--text-subtle); font-size:11px; margin-bottom:6px; }
+    .eventFlowRule{ display:grid; grid-template-columns:42px 1fr; gap:5px; font-size:11px; margin-top:3px; }
+    .eventFlowRule strong{ color:var(--text-subtle); }
+    .eventFlowLinks{ display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
+    .eventFlowChip{ border:1px solid var(--line); border-radius:10px; padding:2px 6px; font-size:10px; background:var(--panel-muted); }
+    .eventFlowInspector{ overflow:auto; border:1px solid var(--line); background:var(--surface-soft); padding:10px; }
+    .eventFlowInspector h3{ margin:0 0 4px; font-size:15px; }
+    .eventFlowInspector h4{ margin:14px 0 5px; font-size:12px; color:var(--text-subtle); text-transform:uppercase; letter-spacing:.04em; }
+    .eventRelationList{ display:grid; gap:5px; }
+    .eventRelationBtn{ width:100%; text-align:left; padding:6px 8px; }
+    .eventRelationEmpty{ color:var(--text-subtle); font-style:italic; }
+    .eventFlowInspectorActions{ display:flex; gap:6px; margin-top:12px; }
     .eventTopFields{ display:grid; grid-template-columns:1fr auto; gap:14px; margin-bottom:6px; }
     .eventNameField{ width:50%; }
     .eventNameField input{ width:100%; }
@@ -1664,6 +1694,20 @@
               <div class="btnRow" id="sectionActions"><button id="groupSelectMembersBtn">Select Members</button><button id="groupSaveAsTextBtn">Save As Text File</button><button id="sectionDeleteBtn">Delete block</button><button id="sectionApplyBtn">Apply block</button></div>
             </div>
             <div id="eventEditorMock" aria-hidden="true">
+              <div class="eventViewToolbar">
+                <div class="eventViewTabs" role="group" aria-label="Event view">
+                  <button id="eventFlowModeBtn" type="button" aria-pressed="false">Logic Flow</button>
+                  <button id="eventClassicModeBtn" type="button" aria-pressed="true">Classic / Advanced</button>
+                </div>
+                <span class="eventViewHelp">Logic Flow explains relationships; Classic edits the original MIS values.</span>
+              </div>
+              <div class="eventFlowView" id="eventFlowView">
+                <div class="eventFlowMap">
+                  <div class="eventFlowMapHeader"><strong>Mission event flow</strong><span id="eventFlowSummary"></span></div>
+                  <div class="eventFlowNodes" id="eventFlowNodes"></div>
+                </div>
+                <aside class="eventFlowInspector" id="eventFlowInspector" aria-live="polite"></aside>
+              </div>
               <div class="eventTopFields">
                 <div class="eventNameField"><div class="inlineLabel">Name</div><input id="eventNameInput" maxlength="59" /></div>
                 <div>
@@ -5401,7 +5445,7 @@
     46:["Firing Angle"]
   };
   const EVENT_ROW_LABELS = { trigger:["Flags","Trigger Type","Trigger Condition","Variable 1","Variable 2","Variable 3","Variable 4","Reserved"], action:["Reserved","Action Type","Variable 1","Variable 2","Variable 3","Variable 4","Action / AI","Reserved"] };
-  const eventUi = { selectedTrigger:-1, selectedAction:-1, editKind:null, editIndex:-1, triggerClipboard:null, actionClipboard:null, eventClipboard:null };
+  const eventUi = { selectedTrigger:-1, selectedAction:-1, editKind:null, editIndex:-1, triggerClipboard:null, actionClipboard:null, eventClipboard:null, view:"classic" };
 
   function parseEventData(sec){
     const data = { triggers:[], actions:[] };
@@ -5510,6 +5554,77 @@
     }));
     el.querySelectorAll('.eventNestedRow:not(.eventNewRow)').forEach(row=>row.addEventListener('dblclick',()=>openEventRowEditor(kind,Number(row.dataset.index))));
   }
+  function setEventView(view){
+    eventUi.view=view==="flow"?"flow":"classic";
+    const editor=document.getElementById("eventEditorMock");
+    editor?.classList.toggle("flow-mode",eventUi.view==="flow");
+    document.getElementById("eventFlowModeBtn")?.setAttribute("aria-pressed",String(eventUi.view==="flow"));
+    document.getElementById("eventClassicModeBtn")?.setAttribute("aria-pressed",String(eventUi.view==="classic"));
+    if(eventUi.view==="flow")renderEventFlow();
+  }
+  function eventByNumber(number){ return getSortedEvents().find(sec=>getEventNumber(sec)===number)||null; }
+  function eventLabel(number){
+    const sec=eventByNumber(number);
+    return sec?`(${number}) ${getEventName(sec)||`Event ${number}`}`:`(${number}) Unknown event`;
+  }
+  function eventResourceRefs(sec){
+    const data=parseEventData(sec),refs=new Set();
+    const add=(kind,value)=>{if(Number.isFinite(value)&&value>=0)refs.add(`${kind} ${value}`);};
+    for(const row of data.triggers){
+      const type=row[1],condition=row[2],values=row.slice(3,7),labels=TRIGGER_VARIABLES[type]?.[condition]||[];
+      labels.forEach((label,index)=>{const key=String(label).toLowerCase();if(key.includes("mission variable"))add("Mission variable",values[index]);else if(key.includes("group"))add("Group",values[index]);else if(key.includes("ssn")||key.includes("single"))add("SSN",values[index]);else if(key.includes("area"))add("Area",values[index]);else if(key.includes("waypoint list"))add("Waypoint list",values[index]);});
+    }
+    for(const row of data.actions){
+      const type=row[1],values=row.slice(2,6),labels=ACTION_VARIABLES[type]||[];
+      labels.forEach((label,index)=>{const key=String(label).toLowerCase();if(key.includes("mission variable"))add("Mission variable",values[index]);else if(key.includes("group"))add("Group",values[index]);else if(key.includes("ssn")||key.includes("person"))add("SSN",values[index]);else if(key.includes("area"))add("Area",values[index]);else if(key.includes("waypoint list"))add("Waypoint list",values[index]);});
+    }
+    return refs;
+  }
+  function eventRelations(sec,events=getSortedEvents()){
+    const number=getEventNumber(sec),data=parseEventData(sec);
+    const depends=[...new Set(data.triggers.filter(row=>row[1]===3).map(row=>row[3]))];
+    const resets=[...new Set(data.actions.filter(row=>row[1]===34).map(row=>row[2]))];
+    const referencedBy=[],resetBy=[];
+    for(const other of events){
+      const otherNumber=getEventNumber(other),otherData=parseEventData(other);
+      if(otherData.triggers.some(row=>row[1]===3&&row[3]===number))referencedBy.push(otherNumber);
+      if(otherData.actions.some(row=>row[1]===34&&row[2]===number))resetBy.push(otherNumber);
+    }
+    const resources=eventResourceRefs(sec),shared=[];
+    for(const other of events){
+      if(other===sec)continue;
+      const common=[...eventResourceRefs(other)].filter(ref=>resources.has(ref));
+      if(common.length)shared.push({number:getEventNumber(other),resources:common});
+    }
+    return {depends,resets,referencedBy,resetBy,shared,waypoints:getEventAdvancementReferences(number)};
+  }
+  function eventRelationButtons(items,detail=""){
+    if(!items.length)return '<span class="eventRelationEmpty">None</span>';
+    return items.map(item=>{const number=typeof item==="number"?item:item.number,extra=typeof item==="number"?detail:item.detail||"";return `<button type="button" class="eventRelationBtn" data-event-number="${number}">${escapeHtml(eventLabel(number))}${extra?`<br><small>${escapeHtml(extra)}</small>`:""}</button>`;}).join("");
+  }
+  function bindEventFlowNavigation(root){
+    root?.querySelectorAll("[data-event-number]").forEach(button=>button.addEventListener("click",()=>{
+      const sec=eventByNumber(Number(button.dataset.eventNumber));
+      if(sec){state.sectionSelectedId=sec.id;renderEventEditor();}
+    }));
+  }
+  function renderEventFlow(){
+    const nodes=document.getElementById("eventFlowNodes"),inspector=document.getElementById("eventFlowInspector"),summary=document.getElementById("eventFlowSummary");
+    if(!nodes||!inspector)return;
+    const events=getSortedEvents(),selected=selectedEvent();
+    const directCount=events.reduce((count,sec)=>{const rel=eventRelations(sec,events);return count+rel.depends.length+rel.resets.length;},0);
+    summary.textContent=`${events.length} events · ${directCount} direct links`;
+    nodes.innerHTML=events.map(sec=>{
+      const number=getEventNumber(sec),data=parseEventData(sec),rel=eventRelations(sec,events),trigger=data.triggers[0],action=data.actions[0];
+      const chips=[...rel.depends.map(n=>`← depends on ${n}`),...rel.referencedBy.map(n=>`→ leads to ${n}`),...rel.resets.map(n=>`↻ resets ${n}`)];
+      return `<button type="button" class="eventFlowNode ${sec===selected?'active':''}" data-event-number="${number}"><span class="eventFlowNodeTitle"><span class="eventFlowNodeNumber">Event ${number}</span><span>${escapeHtml(getEventName(sec)||"")}</span></span><span class="eventFlowNodeMeta">${data.triggers.length} trigger${data.triggers.length===1?"":"s"} · ${data.actions.length} action${data.actions.length===1?"":"s"}${Number(sec.kv?.delay_value)?` · waits ${Math.trunc(Number(sec.kv.delay_value))}s`:""}</span>${trigger?`<span class="eventFlowRule"><strong>WHEN</strong><span>${escapeHtml(triggerDescription(trigger))}${data.triggers.length>1?` (+${data.triggers.length-1})`:""}</span></span>`:""}${action?`<span class="eventFlowRule"><strong>THEN</strong><span>${escapeHtml(actionDescription(action))}${data.actions.length>1?` (+${data.actions.length-1})`:""}</span></span>`:""}<span class="eventFlowLinks">${chips.map(chip=>`<span class="eventFlowChip">${escapeHtml(chip)}</span>`).join("")}</span></button>`;
+    }).join("")||'<span class="eventRelationEmpty">No events in this mission.</span>';
+    if(!selected){inspector.innerHTML='<span class="eventRelationEmpty">Select an event to inspect its relationships.</span>';return;}
+    const number=getEventNumber(selected),rel=eventRelations(selected,events),shared=rel.shared.slice(0,12).map(item=>({number:item.number,detail:`Shared: ${item.resources.join(", ")}`}));
+    inspector.innerHTML=`<h3>${escapeHtml(eventLabel(number))}</h3><div>Direct and indirect relationships for the selected event.</div><h4>Depends on</h4><div class="eventRelationList">${eventRelationButtons(rel.depends)}</div><h4>Leads to / referenced by</h4><div class="eventRelationList">${eventRelationButtons(rel.referencedBy)}</div><h4>Resets</h4><div class="eventRelationList">${eventRelationButtons(rel.resets)}</div><h4>Reset by</h4><div class="eventRelationList">${eventRelationButtons(rel.resetBy)}</div><h4>Waypoint advancement</h4><div class="eventRelationList">${rel.waypoints.length?rel.waypoints.map(item=>`<div class="eventRelationBtn">${escapeHtml(describeEventAdvancementReference(item))}</div>`).join(""):'<span class="eventRelationEmpty">None</span>'}</div><h4>Shared resources (possible indirect links)</h4><div class="eventRelationList">${eventRelationButtons(shared)}</div>${rel.shared.length>12?`<div class="eventRelationEmpty">+ ${rel.shared.length-12} more</div>`:""}<div class="eventFlowInspectorActions"><button type="button" id="eventFlowEditAdvanced">Edit in Classic / Advanced</button></div>`;
+    bindEventFlowNavigation(nodes);bindEventFlowNavigation(inspector);
+    document.getElementById("eventFlowEditAdvanced")?.addEventListener("click",()=>setEventView("classic"));
+  }
   function renderEventEditor(){
     if (!eventListBox || !eventNameInput) return;
     const events=getSortedEvents(); ensureValidSelectedEvent(events); const sec=selectedEvent();
@@ -5523,6 +5638,7 @@
     const data=parseEventData(sec); if(eventUi.selectedTrigger>=data.triggers.length) eventUi.selectedTrigger=-1; if(eventUi.selectedAction>=data.actions.length) eventUi.selectedAction=-1; renderEventRows('trigger',data.triggers); renderEventRows('action',data.actions);
     document.getElementById('eventPasteBtn').disabled=!eventUi.eventClipboard||events.length>=256; document.getElementById('eventTriggerPaste').disabled=!eventUi.triggerClipboard||data.triggers.length>=20; document.getElementById('eventActionPaste').disabled=!eventUi.actionClipboard||data.actions.length>=20;
     buildAdvancementEventOptions(ui?.advEvent?.value||"");
+    setEventView(eventUi.view);
   }
   function saveEventFields(){
     const sec=selectedEvent(); if(!sec)return; let attr=Math.trunc(Number(sec.kv?.attrib))||0; attr=(attr&~7)|(document.getElementById('eventResetEnabled').checked?1:0)|(document.getElementById('eventPreMission').checked?2:0)|(document.getElementById('eventPostMission').checked?4:0);
@@ -7677,6 +7793,8 @@
   });
   sectionSearch.addEventListener("input", renderSectionList);
   eventNameInput?.addEventListener("change", () => { if (state.sectionKind === "event") { saveEventFields(); renderEventEditor(); } });
+  document.getElementById("eventFlowModeBtn")?.addEventListener("click",()=>setEventView("flow"));
+  document.getElementById("eventClassicModeBtn")?.addEventListener("click",()=>setEventView("classic"));
   ["eventResetEnabled","eventResetValue","eventDelayValue","eventPreMission","eventPostMission"].forEach(id => document.getElementById(id)?.addEventListener("change", () => { saveEventFields(); renderEventEditor(); }));
   document.getElementById("eventDeleteBtn")?.addEventListener("click",deleteEvent);
   document.getElementById("eventCopyBtn")?.addEventListener("click",()=>{const sec=selectedEvent();if(sec){eventUi.eventClipboard=copyEventPayload(sec);renderEventEditor();}});
