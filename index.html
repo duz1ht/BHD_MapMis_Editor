@@ -1192,7 +1192,25 @@
       padding:10px;
       overflow:auto;
     }
-    #sectionWindow[data-section-mode="event"] #eventEditorMock{ display:grid; grid-template-rows:auto minmax(0,1fr) auto; min-height:0; }
+    #sectionWindow[data-section-mode="event"] #eventEditorMock{ display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; min-height:0; }
+    .eventViewTabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:-2px 0 8px}
+    .eventViewTab{border:1px solid transparent;border-bottom:0;border-radius:5px 5px 0 0;background:transparent;color:var(--text-subtle);padding:6px 12px;cursor:pointer}
+    .eventViewTab.active{border-color:var(--line);background:var(--surface);color:var(--text)}
+    #eventTreeView{display:none;min-height:0;border:1px solid var(--line-muted);background:var(--surface);overflow:auto;padding:10px}
+    #eventEditorMock[data-event-view="tree"] .eventTopFields,#eventEditorMock[data-event-view="tree"] .eventGrid{display:none}
+    #eventEditorMock[data-event-view="tree"]{grid-template-rows:auto minmax(0,1fr) auto}
+    #eventEditorMock[data-event-view="tree"] #eventTreeView{display:block}
+    .eventTreeSummary{color:var(--text-subtle);margin-bottom:10px}
+    .eventTree,.eventTree ul{list-style:none;margin:0;padding-left:20px}
+    .eventTree{padding-left:0}
+    .eventTree li{position:relative;padding:3px 0 3px 17px}
+    .eventTree li::before{content:"";position:absolute;left:2px;top:0;bottom:0;border-left:1px solid var(--line-strong)}
+    .eventTree li::after{content:"";position:absolute;left:2px;top:16px;width:12px;border-top:1px solid var(--line-strong)}
+    .eventTree li:last-child::before{bottom:calc(100% - 17px)}
+    .eventTreeNode{display:inline-flex;align-items:center;gap:7px;max-width:100%;border:1px solid var(--line);border-left:3px solid #b78cff;border-radius:4px;background:var(--surface-soft);color:var(--text);padding:5px 8px;text-align:left;cursor:pointer}
+    .eventTreeNode:hover{background:rgba(183,140,255,.12)}.eventTreeNode.active{box-shadow:0 0 0 1px #b78cff;background:rgba(183,140,255,.18)}
+    .eventTreeNode.missing{border-left-color:#ff6b6b;color:#ffaaaa;cursor:default}.eventTreeNode.reference{border-left-color:#6cb7ff}
+    .eventTreeMeta{color:var(--text-subtle);font-size:10px;white-space:nowrap}.eventTreeEdge{color:var(--text-subtle);font-size:10px;margin-right:2px}
     .eventTopFields{ display:grid; grid-template-columns:1fr auto; gap:14px; margin-bottom:6px; }
     .eventNameField{ width:50%; }
     .eventNameField input{ width:100%; }
@@ -1702,6 +1720,10 @@
               <div class="btnRow" id="sectionActions"><button id="groupSelectMembersBtn">Select Members</button><button id="groupSaveAsTextBtn">Save As Text File</button><button id="sectionDeleteBtn">Delete block</button><button id="sectionApplyBtn">Apply block</button></div>
             </div>
             <div id="eventEditorMock" aria-hidden="true">
+              <div class="eventViewTabs" role="tablist" aria-label="Event view mode">
+                <button id="eventEditModeTab" class="eventViewTab active" type="button" role="tab" aria-selected="true">Edit Mode</button>
+                <button id="eventTreeModeTab" class="eventViewTab" type="button" role="tab" aria-selected="false">Tree View Mode</button>
+              </div>
               <div class="eventTopFields">
                 <div class="eventNameField"><div class="inlineLabel">Name</div><input id="eventNameInput" maxlength="59" /></div>
                 <div>
@@ -1718,6 +1740,7 @@
                   <div class="eventGroup"><div class="eventLegend">THEN ( Actions )</div><div class="eventGroupBody"><div class="eventNestedList" id="eventActionList"></div><div class="eventSideBtns"><button id="eventActionDelete">Delete</button><button id="eventActionCopy">Copy</button><button id="eventActionPaste">Paste</button></div></div></div>
                 </div>
               </div>
+              <div id="eventTreeView" role="tabpanel" aria-label="Tree View Mode"></div>
               <div class="eventFooterBtns"><button id="eventDeleteBtn">Delete Event</button><button id="eventCopyBtn">Copy Event</button><button id="eventPasteBtn">Paste Event</button><button id="eventPrintBtn">Print Event</button><button id="eventPrintAllBtn">Print All Events</button><button id="eventOkBtn">OK</button></div>
             </div>
           </div>
@@ -2428,6 +2451,10 @@
   const layerOkBtn = document.getElementById("layerOkBtn");
   const eventNameInput = document.getElementById("eventNameInput");
   const eventListBox = document.getElementById("eventListBox");
+  const eventEditorMockEl = document.getElementById("eventEditorMock");
+  const eventEditModeTab = document.getElementById("eventEditModeTab");
+  const eventTreeModeTab = document.getElementById("eventTreeModeTab");
+  const eventTreeViewEl = document.getElementById("eventTreeView");
 
   const giMissionName = document.getElementById("giMissionName");
   const giDesigner = document.getElementById("giDesigner");
@@ -5467,7 +5494,7 @@
     46:["Firing Angle"]
   };
   const EVENT_ROW_LABELS = { trigger:["Flags","Trigger Type","Trigger Condition","Variable 1","Variable 2","Variable 3","Variable 4","Reserved"], action:["Reserved","Action Type","Variable 1","Variable 2","Variable 3","Variable 4","Action / AI","Reserved"] };
-  const eventUi = { selectedTrigger:-1, selectedAction:-1, editKind:null, editIndex:-1, triggerClipboard:null, actionClipboard:null, eventClipboard:null };
+  const eventUi = { selectedTrigger:-1, selectedAction:-1, editKind:null, editIndex:-1, triggerClipboard:null, actionClipboard:null, eventClipboard:null, viewMode:'edit' };
 
   function parseEventData(sec){
     const data = { triggers:[], actions:[] };
@@ -5759,12 +5786,65 @@
     }));
     el.querySelectorAll('.eventNestedRow:not(.eventNewRow)').forEach(row=>row.addEventListener('dblclick',()=>openEventRowEditor(kind,Number(row.dataset.index))));
   }
+
+  function setEventViewMode(mode){
+    eventUi.viewMode=mode==='tree'?'tree':'edit';
+    eventEditorMockEl?.setAttribute('data-event-view',eventUi.viewMode);
+    const tree=eventUi.viewMode==='tree';
+    eventEditModeTab?.classList.toggle('active',!tree); eventEditModeTab?.setAttribute('aria-selected',tree?'false':'true');
+    eventTreeModeTab?.classList.toggle('active',tree); eventTreeModeTab?.setAttribute('aria-selected',tree?'true':'false');
+    if(tree)renderEventTree(getSortedEvents());
+  }
+
+  function renderEventTree(events){
+    if(!eventTreeViewEl)return;
+    if(!events.length){eventTreeViewEl.innerHTML='<div class="eventTreeSummary">No events are available.</div>';return;}
+    const byNumber=new Map(events.map(sec=>[getEventNumber(sec),sec])), children=new Map(), indegree=new Map(events.map(sec=>[getEventNumber(sec),0]));
+    const addEdge=(from,to,label)=>{
+      if(!Number.isFinite(from)||!Number.isFinite(to))return;
+      if(!children.has(from))children.set(from,new Map());
+      const targets=children.get(from), labels=targets.get(to)||[];
+      if(!labels.includes(label))labels.push(label);
+      targets.set(to,labels);
+      if(byNumber.has(from)&&byNumber.has(to))indegree.set(to,(indegree.get(to)||0)+1);
+    };
+    events.forEach(sec=>{
+      const number=getEventNumber(sec), data=parseEventData(sec);
+      data.triggers.forEach((row,index)=>eventLogicReferences('trigger',row).filter(ref=>ref.kind==='event').forEach(ref=>addEdge(ref.value,number,`Condition ${index+1}`)));
+      data.actions.forEach((row,index)=>eventLogicReferences('action',row).filter(ref=>ref.kind==='event').forEach(ref=>addEdge(number,ref.value,`Action ${index+1}`)));
+    });
+    const rendered=new Set();
+    const branch=(number,path=new Set(),edgeLabels=[])=>{
+      const sec=byNumber.get(number), edge=edgeLabels.length?`<span class="eventTreeEdge">${escapeHtml(edgeLabels.join(', '))} →</span>`:'';
+      if(!sec)return `<li>${edge}<span class="eventTreeNode missing">Missing Event ${escapeHtml(String(number))}</span></li>`;
+      const name=getEventName(sec)||`Event ${number}`, data=parseEventData(sec), isCycle=path.has(number), isReference=rendered.has(number);
+      if(isCycle||isReference)return `<li>${edge}<button type="button" class="eventTreeNode reference${sec.id===state.sectionSelectedId?' active':''}" data-event-id="${sec.id}" title="${isCycle?'Cycle':'Event already shown in another branch'}">(${number}) ${escapeHtml(name)} <span class="eventTreeMeta">${isCycle?'cycle':'reference'}</span></button></li>`;
+      rendered.add(number);
+      const nextPath=new Set(path);nextPath.add(number);
+      const targets=[...(children.get(number)||new Map())].sort((a,b)=>a[0]-b[0]);
+      const nested=targets.length?`<ul>${targets.map(([target,labels])=>branch(target,nextPath,labels)).join('')}</ul>`:'';
+      return `<li>${edge}<button type="button" class="eventTreeNode${sec.id===state.sectionSelectedId?' active':''}" data-event-id="${sec.id}"><strong>(${number}) ${escapeHtml(name)}</strong><span class="eventTreeMeta">${data.triggers.length} conditions · ${data.actions.length} actions</span></button>${nested}</li>`;
+    };
+    const roots=events.map(getEventNumber).filter(number=>(indegree.get(number)||0)===0).sort((a,b)=>a-b);
+    const html=roots.map(number=>branch(number)).join('')+events.map(getEventNumber).filter(number=>!rendered.has(number)).map(number=>branch(number)).join('');
+    const relationCount=[...children.values()].reduce((sum,targets)=>sum+targets.size,0);
+    eventTreeViewEl.innerHTML=`<div class="eventTreeSummary">${events.length} events · ${relationCount} event relationships. Select an event to inspect it; double-click to edit.</div><ul class="eventTree">${html}</ul>`;
+    eventTreeViewEl.querySelectorAll('[data-event-id]').forEach(node=>{
+      node.addEventListener('click',()=>{
+        state.sectionSelectedId=Number(node.dataset.eventId)||null;
+        eventTreeViewEl.querySelectorAll('[data-event-id]').forEach(other=>other.classList.toggle('active',other.dataset.eventId===node.dataset.eventId));
+      });
+      node.addEventListener('dblclick',()=>{state.sectionSelectedId=Number(node.dataset.eventId)||null;setEventViewMode('edit');renderEventEditor();});
+    });
+  }
+
   function renderEventEditor(){
     if (!eventListBox || !eventNameInput) return;
     const events=getSortedEvents(); ensureValidSelectedEvent(events); const sec=selectedEvent();
     eventListBox.innerHTML=events.map(e=>{const n=getEventNumber(e), name=getEventName(e)||`Event ${n}`; return `<button type="button" class="eventListItem ${e.id===state.sectionSelectedId?'active':''}" data-id="${e.id}">${escapeHtml(`(${n}) ${name}`)}</button>`}).join('')+(events.length<256?'<button type="button" class="eventListItem eventNewRow" data-new="1">&lt;&lt; New Event &gt;&gt;</button>':'');
     eventListBox.querySelectorAll('[data-id]').forEach(el=>el.addEventListener('click',()=>selectSectionBlock(Number(el.dataset.id))));
     eventListBox.querySelector('[data-new]')?.addEventListener('click',()=>createEvent());
+    if(eventUi.viewMode==='tree')renderEventTree(events);
     const disabled=!sec; [eventNameInput,document.getElementById('eventResetEnabled'),document.getElementById('eventResetValue'),document.getElementById('eventDelayValue'),document.getElementById('eventPreMission'),document.getElementById('eventPostMission')].forEach(x=>x.disabled=disabled);
     if(!sec){ eventNameInput.value=''; renderEventRows('trigger',[]); renderEventRows('action',[]); return; }
     const attr=Math.trunc(Number(sec.kv?.attrib))||0;
@@ -7953,6 +8033,8 @@
   });
   sectionSearch.addEventListener("input", renderSectionList);
   eventNameInput?.addEventListener("change", () => { if (state.sectionKind === "event") { saveEventFields(); renderEventEditor(); } });
+  eventEditModeTab?.addEventListener('click',()=>setEventViewMode('edit'));
+  eventTreeModeTab?.addEventListener('click',()=>setEventViewMode('tree'));
   ["eventResetEnabled","eventResetValue","eventDelayValue","eventPreMission","eventPostMission"].forEach(id => document.getElementById(id)?.addEventListener("change", () => { saveEventFields(); renderEventEditor(); }));
   document.getElementById("eventDeleteBtn")?.addEventListener("click",deleteEvent);
   document.getElementById("eventCopyBtn")?.addEventListener("click",()=>{const sec=selectedEvent();if(sec){eventUi.eventClipboard=copyEventPayload(sec);renderEventEditor();}});
