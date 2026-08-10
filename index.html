@@ -1246,7 +1246,21 @@
     .eventFooterBtns{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr auto; gap:14px; margin-top:8px; }
     .eventFooterBtns button{ min-height:34px; }
     .eventListItem{ width:100%; border:0; text-align:left; color:inherit; }
-    .eventNestedRow{ display:block; padding:3px 5px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .eventNestedRow{ display:flex; align-items:center; gap:6px; padding:3px 5px; cursor:pointer; white-space:nowrap; overflow:hidden; }
+    .eventRowDescription{ overflow:hidden; text-overflow:ellipsis; }
+    .eventMapReferences{ display:inline-flex; gap:4px; margin-left:auto; }
+    .eventMapReference{
+      border:1px solid var(--line);
+      border-radius:3px;
+      background:var(--surface-soft);
+      color:var(--text);
+      padding:1px 5px;
+      font:inherit;
+      cursor:pointer;
+    }
+    .eventMapReference:hover{ border-color:var(--accent); background:rgba(255,255,255,0.1); }
+    .eventNestedRow.active .eventMapReference{ border-color:rgba(255,255,255,0.55); background:rgba(0,0,0,0.18); color:#fff; }
+    .eventMapReference:focus-visible{ box-shadow:var(--focus-ring); outline:none; }
     .eventNestedRow.active{ background:#2b3d8f; color:#fff; }
     .eventNewRow{ color:var(--text-subtle); font-style:italic; }
     .eventFlags{ display:flex; gap:6px; align-items:center; margin-top:4px; }
@@ -5502,9 +5516,72 @@
     if(simple[type])return medFormat(simple[type][0],simple[type][1]);
     return EVENT_ACTION_TYPES[type]||medFormat("INVALID_ACTION",[],`Unknown ${type}`);
   }
+  function getEventRowMapReferences(kind,row){
+    let labels=[];
+    let values=[];
+    if(kind==='trigger'){
+      labels=TRIGGER_VARIABLES[row[1]]?.[row[2]]||[];
+      values=row.slice(3,7);
+    }else{
+      const type=row[1],subtype=row[6];
+      labels=(type===3||type===21)
+        ? [ACTION_VARIABLES[type][0],...(AI_ACTION_VARIABLES[subtype]||[])]
+        : (ACTION_VARIABLES[type]||[]);
+      values=row.slice(2,6);
+    }
+    const references=[];
+    labels.forEach((label,index)=>{
+      const value=Math.trunc(Number(values[index]));
+      if(!Number.isFinite(value)||value<=0)return;
+      const key=String(label).toLowerCase().replace(/[^a-z0-9]+/g,'');
+      let refKind='';
+      if(key==='area'||key==='areaid')refKind='area';
+      else if(key.includes('waypointlist'))refKind='waypoint';
+      else if(key==='group'||key.startsWith('group')||key==='itemgroup')refKind='group';
+      else if(key.includes('ssn')||key==='single'||key.startsWith('single')||key==='person'||key==='teleporttarget'||key==='targetssn')refKind='ssn';
+      else if(key==='contexttarget'&&kind==='action'&&row[1]===39)refKind=row[6]===3?'area':row[6]===2?'ssn':'';
+      if(!refKind)return;
+      const id=`${refKind}:${value}`;
+      if(!references.some(reference=>reference.id===id))references.push({id,kind:refKind,value,label});
+    });
+    return references;
+  }
+  function eventMapReferenceLabel(reference){
+    const names={group:'Group',ssn:'SSN',waypoint:'Waypoint',area:'Area'};
+    return `${names[reference.kind]} ${reference.value}`;
+  }
+  function eventMapReferenceButtons(kind,row){
+    return getEventRowMapReferences(kind,row).map(reference=>{
+      const label=eventMapReferenceLabel(reference);
+      return `<button type="button" class="eventMapReference" data-ref-kind="${reference.kind}" data-ref-value="${reference.value}" title="Frame ${escapeHtml(label)} on map" aria-label="Frame ${escapeHtml(label)} on map">◎ ${escapeHtml(label)}</button>`;
+    }).join('');
+  }
+  function getItemsForEventMapReference(kind,value){
+    if(kind==='group')return state.items.filter(item=>Math.trunc(Number(item?.kv?.group_id))===value);
+    if(kind==='ssn')return state.items.filter(item=>Math.trunc(Number(readKvValue(item,'id','ssn','social_security_number')))===value);
+    if(kind==='waypoint')return state.items.filter(item=>getItemWaypointId(item)===value);
+    if(kind==='area')return state.items.filter(item=>isAreaTriggerItem(item)&&getItemWaypointNumber(item)===value);
+    return [];
+  }
+  function focusEventMapReference(kind,value){
+    const items=getItemsForEventMapReference(kind,value).filter(item=>kvHas(item,'position'));
+    const label=eventMapReferenceLabel({kind,value});
+    if(!items.length){statusEl.textContent=`Events: no map object found for ${label}.`;return;}
+    state.selectedId=items[0].id;
+    state.multiSelectedIds=new Set(items.map(item=>item.id));
+    state.selectedWaypointMarkerIds.clear();
+    updateWaypointMarkerCount(0);
+    renderList();
+    focusCameraOnItems(items);
+    statusEl.textContent=`Events: framed ${items.length} map object(s) for ${label}.`;
+  }
   function renderEventRows(kind, rows){
     const el=document.getElementById(kind==="trigger"?"eventTriggerList":"eventActionList"), selected=kind==="trigger"?eventUi.selectedTrigger:eventUi.selectedAction;
-    el.innerHTML=rows.map((r,i)=>`<span class="eventNestedRow ${selected===i?'active':''}" data-index="${i}">(${i}) ${escapeHtml(kind==='trigger'?triggerDescription(r):actionDescription(r))}</span>`).join("") + (rows.length<20?`<span class="eventNestedRow eventNewRow" data-index="new">&lt;&lt; New ${kind==='trigger'?'Trigger':'Action'} &gt;&gt;</span>`:"");
+    el.innerHTML=rows.map((r,i)=>`<span class="eventNestedRow ${selected===i?'active':''}" data-index="${i}"><span class="eventRowDescription">(${i}) ${escapeHtml(kind==='trigger'?triggerDescription(r):actionDescription(r))}</span><span class="eventMapReferences">${eventMapReferenceButtons(kind,r)}</span></span>`).join("") + (rows.length<20?`<span class="eventNestedRow eventNewRow" data-index="new">&lt;&lt; New ${kind==='trigger'?'Trigger':'Action'} &gt;&gt;</span>`:"");
+    el.querySelectorAll('.eventMapReference').forEach(button=>button.addEventListener('click',event=>{
+      event.stopPropagation();
+      focusEventMapReference(button.dataset.refKind,Number(button.dataset.refValue));
+    }));
     el.querySelectorAll('.eventNestedRow').forEach(row=>row.addEventListener('click',()=>{
       if(row.dataset.index==='new') openEventRowEditor(kind,-1); else { const i=Number(row.dataset.index); if(kind==='trigger') eventUi.selectedTrigger=i; else eventUi.selectedAction=i; renderEventEditor(); }
     }));
@@ -7353,6 +7430,33 @@
     state.camera.z = cam.pos.z;
     state.camera.yaw = cam.yaw;
     state.camera.pitch = cam.pitch;
+    requestRender();
+  }
+
+  function focusCameraOnItems(items){
+    const positioned=(items||[]).filter(item=>kvHas(item,'position'));
+    if(!positioned.length)return;
+    if(positioned.length===1){focusCameraNearItem(positioned[0]);return;}
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,minZ=Infinity,maxZ=-Infinity;
+    for(const item of positioned){
+      const x=rawToWorld(item.x,'x'),y=rawToWorld(item.y,'y'),z=getItemWorldZ(item);
+      if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z))continue;
+      minX=Math.min(minX,x);maxX=Math.max(maxX,x);
+      minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+      minZ=Math.min(minZ,z);maxZ=Math.max(maxZ,z);
+    }
+    if(!Number.isFinite(minX))return;
+    const center=vec3((minX+maxX)/2,(minY+maxY)/2,(minZ+maxZ)/2);
+    const span=Math.max(maxX-minX,maxY-minY,maxZ-minZ,72);
+    cam.pos=vec3(center.x+span*0.9,center.y+span*0.9,center.z+Math.max(32,span*0.55));
+    const delta=vec3Sub(center,cam.pos);
+    cam.yaw=Math.atan2(delta.x,delta.y);
+    cam.pitch=Math.max(-1.55,Math.min(1.55,Math.atan2(delta.z,Math.max(1e-6,Math.hypot(delta.x,delta.y)))));
+    state.camera.x=cam.pos.x;
+    state.camera.y=cam.pos.y;
+    state.camera.z=cam.pos.z;
+    state.camera.yaw=cam.yaw;
+    state.camera.pitch=cam.pitch;
     requestRender();
   }
 
