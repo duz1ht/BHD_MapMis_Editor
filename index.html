@@ -1263,6 +1263,9 @@
     .eventNode:hover,.eventNode.active{ outline:2px solid var(--accent-glow-strong); }.eventNode.error{ border-color:#ff6565; }.eventNode.warning{ border-color:#d8a72d; }
     .eventNodeHead{ display:flex; justify-content:space-between; gap:6px; padding:6px 8px; background:#26336f; font-weight:700; }.eventNodeBody{ padding:6px 8px; display:grid; gap:3px; }.eventNodeLine{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-subtle); }.eventNodeDiagnostic{ color:#ffd166; }
     .eventGraphEdge{ fill:none; stroke-width:2; opacity:.9; }.eventGraphEdge.dependency{ stroke:#70a1ff; }.eventGraphEdge.reset{ stroke:#ff8f70; stroke-dasharray:7 4; }.eventGraphEdge.item{ stroke:#7bd88f; stroke-dasharray:2 4; }.eventGraphEdge.inferred{ stroke:#d4a5ff; stroke-dasharray:2 5; opacity:.55; }
+    .eventGraphPin{ stroke-width:2; }.eventGraphPin.output{ stroke:var(--panel-muted); }.eventGraphPin.input{ fill:var(--panel-muted); }
+    .eventGraphPin.dependency{ fill:#70a1ff; stroke:#70a1ff; }.eventGraphPin.reset{ fill:#ff8f70; stroke:#ff8f70; }.eventGraphPin.item{ fill:#7bd88f; stroke:#7bd88f; }.eventGraphPin.inferred{ fill:#d4a5ff; stroke:#d4a5ff; opacity:.75; }
+    .eventGraphPin.input{ fill:var(--panel-muted); }
     .eventGraphLegend{ display:flex; gap:10px; flex-wrap:wrap; }.eventGraphLegend i{ display:inline-block; width:18px; border-top:2px solid; margin-right:4px; vertical-align:middle; }.eventGraphEmpty{ padding:28px; color:var(--text-subtle); }
     .eventListItem{ width:100%; border:0; text-align:left; color:inherit; }
     .eventNestedRow{ display:block; padding:3px 5px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -5586,7 +5589,15 @@
   function drawEventGraphEdges(model){
     const svg=document.getElementById('eventGraphEdges'),canvas=document.getElementById('eventGraphCanvas');if(!svg||!canvas)return;
     const cr=canvas.getBoundingClientRect(),width=Math.max(canvas.scrollWidth,canvas.clientWidth),height=Math.max(canvas.scrollHeight,canvas.clientHeight);svg.setAttribute('viewBox',`0 0 ${width} ${height}`);svg.style.width=`${width}px`;svg.style.height=`${height}px`;
-    svg.innerHTML=model.edges.map(edge=>{const a=document.querySelector(`.eventNode[data-number="${edge.from}"]`),b=document.querySelector(`.eventNode[data-number="${edge.to}"]`);if(!a||!b)return'';const ar=a.getBoundingClientRect(),br=b.getBoundingClientRect(),x1=ar.right-cr.left+canvas.scrollLeft,y1=ar.top-cr.top+canvas.scrollTop+ar.height/2,x2=br.left-cr.left+canvas.scrollLeft,y2=br.top-cr.top+canvas.scrollTop+br.height/2,m=(x1+x2)/2;return `<path class="eventGraphEdge ${edge.type}" d="M ${x1} ${y1} C ${m} ${y1}, ${m} ${y2}, ${x2} ${y2}"><title>${escapeHtml(edge.label)}</title></path>`;}).join('');
+    const visible=model.edges.filter(edge=>document.querySelector(`.eventNode[data-number="${edge.from}"]`)&&document.querySelector(`.eventNode[data-number="${edge.to}"]`));
+    const outgoing=new Map(),incoming=new Map();
+    for(const edge of visible){if(!outgoing.has(edge.from))outgoing.set(edge.from,[]);if(!incoming.has(edge.to))incoming.set(edge.to,[]);outgoing.get(edge.from).push(edge);incoming.get(edge.to).push(edge);}
+    const pinY=(rect,index,count)=>rect.top-cr.top+canvas.scrollTop+Math.max(35,rect.height*(index+1)/(count+1));
+    svg.innerHTML=visible.map(edge=>{
+      const a=document.querySelector(`.eventNode[data-number="${edge.from}"]`),b=document.querySelector(`.eventNode[data-number="${edge.to}"]`),ar=a.getBoundingClientRect(),br=b.getBoundingClientRect();
+      const x1=ar.right-cr.left+canvas.scrollLeft+1,y1=pinY(ar,outgoing.get(edge.from).indexOf(edge),outgoing.get(edge.from).length),x2=br.left-cr.left+canvas.scrollLeft-1,y2=pinY(br,incoming.get(edge.to).indexOf(edge),incoming.get(edge.to).length),direction=x2>=x1?1:-1,bend=Math.max(36,Math.abs(x2-x1)*.45),c1=x1+bend*direction,c2=x2-bend*direction;
+      return `<g><path class="eventGraphEdge ${edge.type}" d="M ${x1} ${y1} C ${c1} ${y1}, ${c2} ${y2}, ${x2} ${y2}"><title>${escapeHtml(edge.label)}</title></path><circle class="eventGraphPin output ${edge.type}" cx="${x1}" cy="${y1}" r="5"><title>Output: Event ${edge.from}</title></circle><circle class="eventGraphPin input ${edge.type}" cx="${x2}" cy="${y2}" r="5"><title>Input: Event ${edge.to}</title></circle></g>`;
+    }).join('');
   }
   function renderEventGraph(){
     const nodesEl=document.getElementById('eventGraphNodes'),summary=document.getElementById('eventGraphSummary');if(!nodesEl||!summary)return;
