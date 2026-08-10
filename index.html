@@ -1321,6 +1321,20 @@
     .giInline{ display:grid; grid-template-columns:1fr 90px; gap:6px; align-items:center; margin-bottom:6px; }
     .giInline3{ display:grid; grid-template-columns:1fr 56px 56px 56px; gap:6px; align-items:center; margin-bottom:6px; }
     .giActions{ display:flex; gap:6px; margin-top:8px; }
+    #eventLogicOverlay{position:absolute;inset:0;z-index:18;pointer-events:none;overflow:hidden;display:none}
+    #eventLogicOverlay.open{display:block}
+    #eventLogicLines{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+    .eventLogicLine{fill:none;stroke-width:2;opacity:.82;vector-effect:non-scaling-stroke}
+    .eventLogicLine.trigger{stroke:#f5c451}.eventLogicLine.action{stroke:#55d78a}.eventLogicLine.event{stroke:#b78cff}
+    #eventLogicCards{position:absolute;inset:0}
+    .eventLogicCard{position:absolute;min-width:150px;max-width:260px;padding:7px 9px;border:1px solid rgba(255,255,255,.35);border-left:4px solid var(--logic-color,#75aaff);border-radius:6px;background:rgba(18,22,30,.93);box-shadow:0 4px 16px rgba(0,0,0,.42);color:#f6f8fb;font-size:11px;line-height:1.3;transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer;user-select:none}
+    .eventLogicCard strong{display:block;color:#fff;font-size:12px;margin-bottom:2px}.eventLogicCard span{display:block;color:#c7d0dc}
+    .eventLogicCard.event{--logic-color:#b78cff;min-width:190px}.eventLogicCard.trigger{--logic-color:#f5c451}.eventLogicCard.action{--logic-color:#55d78a}.eventLogicCard.spatial{--logic-color:#6cb7ff}
+    .eventLogicCard.unresolved{--logic-color:#ff6b6b;border-style:dashed}.eventLogicCard.selected{box-shadow:0 0 0 2px var(--logic-color),0 5px 20px rgba(0,0,0,.5)}
+    #eventLogicEmpty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:12px 16px;border:1px solid #596273;border-radius:6px;background:rgba(18,22,30,.94);color:#d8dee8;font-size:12px}
+    .eventLogicControls{gap:7px}.eventLogicControls label{display:flex;align-items:center;justify-content:space-between;gap:10px}.eventLogicControls select{min-width:132px}
+    #eventLogicLegend{display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:10px;color:var(--text-muted)}
+    #eventLogicLegend span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:var(--legend)}
   </style>
 </head>
 
@@ -1391,6 +1405,11 @@
         <div id="fpsCounter">0 FPS</div>
       </div>
       <canvas id="cv"></canvas>
+      <div id="eventLogicOverlay" aria-hidden="true">
+        <svg id="eventLogicLines" aria-hidden="true"></svg>
+        <div id="eventLogicCards"></div>
+        <div id="eventLogicEmpty" hidden>No events are available in this mission.</div>
+      </div>
       <div id="camDebug"></div>
       <div id="sceneInfoHint">Show Scene Info (I)</div>
       <canvas id="gizmoCanvas" aria-hidden="true"></canvas>
@@ -1496,6 +1515,19 @@
             <label><span>Enable Snap</span><input id="transformSnapEnabled" type="checkbox"></label>
             <label>Translation <input id="translationSnap" type="number" min="0.01" step="0.25" value="1" title="Translation snap, world units"></label>
             <label>Rotation <input id="rotationSnap" type="number" min="0.1" step="1" value="15" title="Rotation snap, degrees"></label>
+          </div>
+        </section>
+        <section class="floatingPanelSection">
+          <div class="floatingPanelTitle">Mission Logic Overlay</div>
+          <div class="floatingPanelFields eventLogicControls">
+            <label><span>Event Logic</span><input id="eventLogicEnabled" type="checkbox"></label>
+            <label>Focus Event <select id="eventLogicEvent"></select></label>
+            <label><span>Show Inputs</span><input id="eventLogicInputs" type="checkbox" checked></label>
+            <label><span>Show Outputs</span><input id="eventLogicOutputs" type="checkbox" checked></label>
+          </div>
+          <div id="eventLogicLegend">
+            <span style="--legend:#f5c451">Conditions</span><span style="--legend:#55d78a">Actions</span>
+            <span style="--legend:#6cb7ff">Map entities</span><span style="--legend:#b78cff">Events</span>
           </div>
         </section>
       </div>
@@ -2303,6 +2335,14 @@
   const waypointVisibilityPanelEl = document.getElementById("waypointVisibilityPanel");
   const areaTriggerVisibilityPanelEl = document.getElementById("areaTriggerVisibilityPanel");
   const viewportToolsPanelEl = document.getElementById("viewportToolsPanel");
+  const eventLogicOverlayEl = document.getElementById("eventLogicOverlay");
+  const eventLogicLinesEl = document.getElementById("eventLogicLines");
+  const eventLogicCardsEl = document.getElementById("eventLogicCards");
+  const eventLogicEmptyEl = document.getElementById("eventLogicEmpty");
+  const eventLogicEnabledEl = document.getElementById("eventLogicEnabled");
+  const eventLogicEventEl = document.getElementById("eventLogicEvent");
+  const eventLogicInputsEl = document.getElementById("eventLogicInputs");
+  const eventLogicOutputsEl = document.getElementById("eventLogicOutputs");
   const viewModePanelEl = document.getElementById("viewModePanel");
   const viewModeListEl = document.getElementById("viewModeList");
   const debugFogPanelEl = document.getElementById("debugFogPanel");
@@ -5502,6 +5542,115 @@
     if(simple[type])return medFormat(simple[type][0],simple[type][1]);
     return EVENT_ACTION_TYPES[type]||medFormat("INVALID_ACTION",[],`Unknown ${type}`);
   }
+
+  const eventLogicState = { enabled:false, eventNumber:null, showInputs:true, showOutputs:true, lastRender:0 };
+
+  function eventLogicReferences(kind, row){
+    const refs=[];
+    if(kind==='trigger'){
+      const type=row[1], condition=row[2], values=row.slice(3,7), labels=TRIGGER_VARIABLES[type]?.[condition]||[];
+      labels.forEach((label,index)=>{
+        const low=String(label).toLowerCase(), value=Math.trunc(Number(values[index]));
+        if(!Number.isFinite(value)||value<0)return;
+        if(low.includes('group')) refs.push({kind:'group',value});
+        else if(low.includes('ssn')) refs.push({kind:'ssn',value});
+        else if(low.includes('area')) refs.push({kind:'area',value});
+        else if(low.includes('event')) refs.push({kind:'event',value});
+        else if(low.includes('waypoint list')) refs.push({kind:'waypoint',value});
+      });
+      if(type===3&&Number.isFinite(values[0])) refs.push({kind:'event',value:Math.trunc(values[0])});
+    }else{
+      const type=row[1], values=row.slice(2,6), labels=ACTION_VARIABLES[type]||[];
+      labels.forEach((label,index)=>{
+        const low=String(label).toLowerCase(), value=Math.trunc(Number(values[index]));
+        if(!Number.isFinite(value)||value<0)return;
+        if(low.includes('group')) refs.push({kind:'group',value});
+        else if(low.includes('ssn')||low.includes('person')) refs.push({kind:'ssn',value});
+        else if(low.includes('area')) refs.push({kind:'area',value});
+        else if(low.includes('event')) refs.push({kind:'event',value});
+        else if(low.includes('waypoint list')) refs.push({kind:'waypoint',value});
+      });
+    }
+    return refs.filter((ref,index)=>refs.findIndex(other=>other.kind===ref.kind&&other.value===ref.value)===index);
+  }
+
+  function eventLogicReferenceLabel(ref){
+    if(ref.kind==='group') return `Group ${ref.value}${getGroupDescription(getGroupSectionByNumber(ref.value))?` — ${getGroupDescription(getGroupSectionByNumber(ref.value))}`:''}`;
+    if(ref.kind==='area') return `Area Trigger ${ref.value}${getAreaTrigDescription(getAreaTrigSectionByNumber(ref.value))?` — ${getAreaTrigDescription(getAreaTrigSectionByNumber(ref.value))}`:''}`;
+    if(ref.kind==='waypoint') return `Waypoint List ${ref.value}${getWaypointDescription(getWaypointSectionByNumber(ref.value))?` — ${getWaypointDescription(getWaypointSectionByNumber(ref.value))}`:''}`;
+    if(ref.kind==='event') { const sec=getSortedEvents().find(ev=>getEventNumber(ev)===ref.value); return `Event ${ref.value}${sec?` — ${getEventName(sec)||`Event ${ref.value}`}`:' (missing)'}`; }
+    const item=state.items.find(it=>Number(it?.kv?.id)===ref.value); return `SSN ${ref.value}${item?` — ${item.kv?.name||item.kv?.graphic||item.typeId||'Item'}`:' (missing)'}`;
+  }
+
+  function eventLogicAnchor(ref){
+    let items=[];
+    if(ref.kind==='group') items=state.items.filter(it=>Number(it?.kv?.group_id)===ref.value&&kvHas(it,'position'));
+    else if(ref.kind==='ssn') items=state.items.filter(it=>Number(it?.kv?.id)===ref.value&&kvHas(it,'position'));
+    else if(ref.kind==='waypoint') items=state.items.filter(it=>Number(it?.kv?.waypoint_id)===ref.value&&kvHas(it,'position'));
+    else if(ref.kind==='area') items=state.items.filter(it=>isAreaTriggerItem(it)&&Number(it?.kv?.wpnumber)===ref.value&&kvHas(it,'position'));
+    if(!items.length)return null;
+    const sum=items.reduce((acc,it)=>({x:acc.x+rawToWorld(it.x,'x'),y:acc.y+rawToWorld(it.y,'y'),z:acc.z+getItemWorldZ(it)}),{x:0,y:0,z:0});
+    return {x:sum.x/items.length,y:sum.y/items.length,z:sum.z/items.length+2};
+  }
+
+  function projectEventLogicAnchor(anchor){
+    if(!anchor||!state.glb.ready||!state.glb.camera)return null;
+    const point=new state.glb.THREE.Vector3(anchor.x,anchor.y,anchor.z).project(state.glb.camera);
+    if(point.z<-1||point.z>1||Math.abs(point.x)>1.08||Math.abs(point.y)>1.08)return null;
+    const wrap=canvasWrapEl.getBoundingClientRect(), rect=cv.getBoundingClientRect();
+    return {x:rect.left-wrap.left+(point.x+1)*rect.width*.5,y:rect.top-wrap.top+(1-point.y)*rect.height*.5};
+  }
+
+  function syncEventLogicOptions(){
+    if(!eventLogicEventEl)return;
+    const events=getSortedEvents(), current=eventLogicState.eventNumber;
+    eventLogicEventEl.innerHTML=events.map(sec=>{const n=getEventNumber(sec);return `<option value="${n}">${escapeHtml(`(${n}) ${getEventName(sec)||`Event ${n}`}`)}</option>`}).join('');
+    const selected=getEventNumber(selectedEvent());
+    eventLogicState.eventNumber=events.some(sec=>getEventNumber(sec)===current)?current:(Number.isFinite(selected)?selected:getEventNumber(events[0]));
+    eventLogicEventEl.value=eventLogicState.eventNumber==null?'':String(eventLogicState.eventNumber);
+  }
+
+  function setEventLogicEnabled(enabled){
+    eventLogicState.enabled=!!enabled;
+    if(eventLogicEnabledEl)eventLogicEnabledEl.checked=eventLogicState.enabled;
+    eventLogicOverlayEl?.classList.toggle('open',eventLogicState.enabled);
+    eventLogicOverlayEl?.setAttribute('aria-hidden',eventLogicState.enabled?'false':'true');
+    viewportToolsBtn?.classList.toggle('active',eventLogicState.enabled);
+    syncEventLogicOptions(); eventLogicState.lastRender=0; requestRender();
+  }
+
+  function renderEventLogicOverlay(){
+    if(!eventLogicState.enabled||!eventLogicCardsEl||!eventLogicLinesEl)return;
+    const events=getSortedEvents(), sec=events.find(ev=>getEventNumber(ev)===eventLogicState.eventNumber)||events[0];
+    const now=performance.now();
+    if(now-eventLogicState.lastRender<66)return;
+    eventLogicState.lastRender=now;
+    if(eventLogicEventEl.options.length!==events.length)syncEventLogicOptions();
+    eventLogicEmptyEl.hidden=!!sec;
+    if(!sec){eventLogicCardsEl.innerHTML='';eventLogicLinesEl.innerHTML='';return;}
+    eventLogicState.eventNumber=getEventNumber(sec);
+    const data=parseEventData(sec), inputs=eventLogicState.showInputs?data.triggers:[], outputs=eventLogicState.showOutputs?data.actions:[];
+    const wrap=canvasWrapEl.getBoundingClientRect(), center={x:wrap.width*.5,y:wrap.height*.46};
+    const nodes=[{id:'focus',kind:'event',title:`Event ${getEventNumber(sec)} — ${getEventName(sec)||'Unnamed'}`,detail:`${inputs.length} condition${inputs.length===1?'':'s'} · ${outputs.length} action${outputs.length===1?'':'s'}${Number(sec.kv?.delay_value)?` · delay ${sec.kv.delay_value}`:''}`,x:center.x,y:center.y,selected:true}];
+    const edges=[], refs=new Map();
+    const laneY=(index,count)=>count<2?center.y:70+index*Math.max(34,Math.min(86,(wrap.height-140)/(count-1)));
+    inputs.forEach((row,index)=>{const y=laneY(index,inputs.length),id=`trigger-${index}`;nodes.push({id,kind:'trigger',title:`Condition ${index+1}`,detail:triggerDescription(row),x:center.x-300,y});edges.push({from:id,to:'focus',kind:'trigger'});eventLogicReferences('trigger',row).forEach(ref=>{const key=`${ref.kind}:${ref.value}`;refs.set(key,ref);edges.push({from:`ref-${key}`,to:id,kind:ref.kind==='event'?'event':'trigger'});});});
+    outputs.forEach((row,index)=>{const y=laneY(index,outputs.length),id=`action-${index}`;nodes.push({id,kind:'action',title:`Action ${index+1}`,detail:actionDescription(row),x:center.x+300,y});edges.push({from:'focus',to:id,kind:'action'});eventLogicReferences('action',row).forEach(ref=>{const key=`${ref.kind}:${ref.value}`;refs.set(key,ref);edges.push({from:id,to:`ref-${key}`,kind:ref.kind==='event'?'event':'action'});});});
+    let fallbackIndex=0;
+    refs.forEach((ref,key)=>{const projected=projectEventLogicAnchor(eventLogicAnchor(ref)), isEvent=ref.kind==='event';nodes.push({id:`ref-${key}`,kind:isEvent?'event':'spatial',title:eventLogicReferenceLabel(ref),detail:projected?'Located in the 3D map':isEvent?'Linked mission event':'Reference has no spatial anchor',x:projected?.x??(center.x+520),y:projected?.y??(90+fallbackIndex++*62),unresolved:!projected&&!isEvent,ref});});
+    const byId=new Map(nodes.map(node=>[node.id,node]));
+    eventLogicCardsEl.innerHTML=nodes.map(node=>`<button type="button" class="eventLogicCard ${node.kind}${node.unresolved?' unresolved':''}${node.selected?' selected':''}" data-node="${escapeHtml(node.id)}" style="left:${node.x}px;top:${node.y}px"><strong>${escapeHtml(node.title)}</strong><span>${escapeHtml(node.detail)}</span></button>`).join('');
+    const path=(a,b)=>{const bend=(a.x+b.x)*.5;return `M ${a.x} ${a.y} C ${bend} ${a.y}, ${bend} ${b.y}, ${b.x} ${b.y}`;};
+    eventLogicLinesEl.setAttribute('viewBox',`0 0 ${wrap.width} ${wrap.height}`);
+    eventLogicLinesEl.innerHTML=`<defs><marker id="logicArrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="context-stroke"/></marker></defs>`+edges.map(edge=>{const a=byId.get(edge.from),b=byId.get(edge.to);return a&&b?`<path class="eventLogicLine ${edge.kind}" marker-end="url(#logicArrow)" d="${path(a,b)}"/>`:'';}).join('');
+    eventLogicCardsEl.querySelectorAll('[data-node]').forEach(card=>card.addEventListener('click',()=>{const node=byId.get(card.dataset.node);if(node?.ref?.kind==='event'){eventLogicState.eventNumber=node.ref.value;syncEventLogicOptions();eventLogicState.lastRender=0;requestRender();}}));
+  }
+
+  eventLogicEnabledEl?.addEventListener('change',()=>setEventLogicEnabled(eventLogicEnabledEl.checked));
+  eventLogicEventEl?.addEventListener('change',()=>{eventLogicState.eventNumber=Math.trunc(Number(eventLogicEventEl.value));eventLogicState.lastRender=0;requestRender();});
+  eventLogicInputsEl?.addEventListener('change',()=>{eventLogicState.showInputs=eventLogicInputsEl.checked;eventLogicState.lastRender=0;requestRender();});
+  eventLogicOutputsEl?.addEventListener('change',()=>{eventLogicState.showOutputs=eventLogicOutputsEl.checked;eventLogicState.lastRender=0;requestRender();});
+
   function renderEventRows(kind, rows){
     const el=document.getElementById(kind==="trigger"?"eventTriggerList":"eventActionList"), selected=kind==="trigger"?eventUi.selectedTrigger:eventUi.selectedAction;
     el.innerHTML=rows.map((r,i)=>`<span class="eventNestedRow ${selected===i?'active':''}" data-index="${i}">(${i}) ${escapeHtml(kind==='trigger'?triggerDescription(r):actionDescription(r))}</span>`).join("") + (rows.length<20?`<span class="eventNestedRow eventNewRow" data-index="new">&lt;&lt; New ${kind==='trigger'?'Trigger':'Action'} &gt;&gt;</span>`:"");
@@ -10710,6 +10859,7 @@
       state.glb.renderer.clear(true, true, true);
     }
     const {P,V,PV}=currentPV(); const renderStats=renderLayersByBackend(P, V, PV, forward); const drawCalls=renderStats.drawCalls;
+    renderEventLogicOverlay();
     logRenderDiagnostics(drawCalls);
     const waterRender = getRenderWaterHeightRaw();
     const waterHeightLabel = (waterRender.raw===0 || waterRender.raw) ? waterRender.raw : '-';
