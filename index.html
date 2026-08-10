@@ -1254,9 +1254,11 @@
     #sectionWindow:has(#eventEditorMock.graph-mode){ width:min(1100px,100%); }
     #eventEditorMock.graph-mode .eventTopFields,#eventEditorMock.graph-mode .eventGrid{ display:none; }
     #eventEditorMock.graph-mode #eventGraphPanel{ display:grid; }
+    #eventEditorMock.graph-mode .eventFooterBtns{ display:none; }
     .eventGraphSummary{ grid-column:1/-1; display:flex; gap:12px; padding:4px 2px; color:var(--text-subtle); }
     .eventGraphSummary .error{ color:#ff8b8b; }.eventGraphSummary .warning{ color:#ffd166; }
     #eventGraphCanvas{ position:relative; overflow:auto; min-height:420px; border:1px solid var(--line); background:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px),var(--surface); background-size:20px 20px; }
+    #eventGraphViewport{ position:relative; min-width:100%; min-height:100%; }
     #eventGraphEdges{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
     .eventGraphNodes{ position:relative; min-width:100%; min-height:100%; box-sizing:border-box; }
     .eventNode{ position:absolute; z-index:1; width:220px; min-height:108px; padding:0; border:1px solid #5865f2; border-radius:5px; background:var(--panel-muted); color:var(--text); text-align:left; overflow:hidden; box-shadow:var(--shadow-sm); cursor:pointer; }
@@ -1701,6 +1703,7 @@
                 <select id="eventGraphMode" aria-label="Graph detail mode"><option value="simple">Simple Flow</option><option value="debug">Debug Graph</option></select>
                 <button id="eventGraphFocusBtn" type="button">Focus selected</button>
                 <button id="eventGraphShowAllBtn" type="button">Show all</button>
+                <button id="eventGraphZoomReset" type="button" title="Reset graph zoom">100%</button>
                 <span class="spacer"></span>
                 <label><input id="eventGraphHideEmpty" type="checkbox" /> Hide empty</label>
                 <label><input id="eventGraphShowInferred" type="checkbox" disabled /> Inferred links</label>
@@ -1724,7 +1727,7 @@
               </div>
               <div id="eventGraphPanel" aria-label="Event dependency graph">
                 <div class="eventGraphSummary" id="eventGraphSummary"></div>
-                <div id="eventGraphCanvas"><svg id="eventGraphEdges" aria-hidden="true"></svg><div class="eventGraphNodes" id="eventGraphNodes"></div></div>
+                <div id="eventGraphCanvas" title="Use the mouse wheel to zoom"><div id="eventGraphViewport"><svg id="eventGraphEdges" aria-hidden="true"></svg><div class="eventGraphNodes" id="eventGraphNodes"></div></div></div>
                 <aside id="eventGraphInspector" aria-live="polite"><div class="eventInspectorSummary">Select an Event to understand what triggers it and what happens next.</div></aside>
               </div>
               <div class="eventFooterBtns"><button id="eventDeleteBtn">Delete Event</button><button id="eventCopyBtn">Copy Event</button><button id="eventPasteBtn">Paste Event</button><button id="eventPrintBtn">Print Event</button><button id="eventPrintAllBtn">Print All Events</button><button id="eventOkBtn">OK</button></div>
@@ -5448,7 +5451,7 @@
     46:["Firing Angle"]
   };
   const EVENT_ROW_LABELS = { trigger:["Flags","Trigger Type","Trigger Condition","Variable 1","Variable 2","Variable 3","Variable 4","Reserved"], action:["Reserved","Action Type","Variable 1","Variable 2","Variable 3","Variable 4","Action / AI","Reserved"] };
-  const eventUi = { selectedTrigger:-1, selectedAction:-1, editKind:null, editIndex:-1, triggerClipboard:null, actionClipboard:null, eventClipboard:null, view:"list", graphMode:"simple", focus:false, expanded:new Set() };
+  const eventUi = { selectedTrigger:-1, selectedAction:-1, editKind:null, editIndex:-1, triggerClipboard:null, actionClipboard:null, eventClipboard:null, view:"list", graphMode:"simple", focus:false, expanded:new Set(), graphZoom:1, graphWidth:760, graphHeight:430 };
 
   function parseEventData(sec){
     const data = { triggers:[], actions:[] };
@@ -5644,6 +5647,15 @@
     el.innerHTML=`<div class="eventInspectorTitle">#${node.number} ${escapeHtml(eventGraphTitle(node))}</div><div class="eventNodeRoleBadges">${classification.roles.map(role=>`<span class="eventNodeRoleBadge" title="${escapeHtml(role.reason)}">${role.label}</span>`).join('')}</div><div class="eventInspectorSummary">${escapeHtml(previous.length?`Waits for ${previous.join(', ')}${delay?`, then waits ${delay}s`:''}.`:'Starts from game state or mission conditions.')}</div><div class="eventInspectorSection"><b>WHEN — all conditions</b><ol>${node.data.triggers.map(r=>`<li>${escapeHtml(triggerDescription(r))}</li>`).join('')||'<li>Always / no trigger</li>'}</ol></div><div class="eventInspectorSection"><b>DO — all actions</b><ol>${node.data.actions.map(r=>`<li>${escapeHtml(actionDescription(r))}</li>`).join('')||'<li>No action</li>'}</ol></div><div class="eventInspectorSection"><b>Flow</b><div>Previous: ${escapeHtml(previous.join(', ')||'none')}</div><div>Next: ${escapeHtml(next.join(', ')||'none')}</div><div>Reset by: ${escapeHtml(resets.join(', ')||'none')}</div><div>Item references: ${node.itemRefs.length}</div></div>${node.diagnostics.length?`<div class="eventInspectorSection"><b>Diagnostics</b><ul>${node.diagnostics.map(d=>`<li>${escapeHtml(d.text)}</li>`).join('')}</ul></div>`:''}<div class="eventInspectorActions"><button id="eventInspectorOpen" type="button">Open in List Editor</button><button id="eventInspectorFocus" type="button">Focus this flow</button></div>`;
     document.getElementById('eventInspectorOpen')?.addEventListener('click',()=>setEventView('list'));document.getElementById('eventInspectorFocus')?.addEventListener('click',()=>{eventUi.focus=true;renderEventGraph();});
   }
+  function applyEventGraphZoom(nextZoom,event=null){
+    const canvas=document.getElementById('eventGraphCanvas'),viewport=document.getElementById('eventGraphViewport'),nodes=document.getElementById('eventGraphNodes'),svg=document.getElementById('eventGraphEdges');if(!canvas||!viewport||!nodes||!svg)return;
+    const oldZoom=eventUi.graphZoom||1,zoom=Math.max(.35,Math.min(2.5,nextZoom)),rect=canvas.getBoundingClientRect(),pointerX=event?event.clientX-rect.left:canvas.clientWidth/2,pointerY=event?event.clientY-rect.top:canvas.clientHeight/2,worldX=(canvas.scrollLeft+pointerX)/oldZoom,worldY=(canvas.scrollTop+pointerY)/oldZoom;
+    eventUi.graphZoom=zoom;viewport.style.width=`${eventUi.graphWidth*zoom}px`;viewport.style.height=`${eventUi.graphHeight*zoom}px`;nodes.style.transformOrigin='0 0';svg.style.transformOrigin='0 0';nodes.style.transform=`scale(${zoom})`;svg.style.transform=`scale(${zoom})`;canvas.scrollLeft=worldX*zoom-pointerX;canvas.scrollTop=worldY*zoom-pointerY;
+    const reset=document.getElementById('eventGraphZoomReset');if(reset)reset.textContent=`${Math.round(zoom*100)}%`;
+  }
+  function handleEventGraphWheel(event){
+    if(eventUi.view!=='graph')return;event.preventDefault();const factor=Math.exp(-event.deltaY*.0015);applyEventGraphZoom(eventUi.graphZoom*factor,event);
+  }
   function drawEventGraphEdges(model){
     const svg=document.getElementById('eventGraphEdges'),canvas=document.getElementById('eventGraphCanvas');if(!svg||!canvas)return;
     const cr=canvas.getBoundingClientRect(),width=Math.max(canvas.scrollWidth,canvas.clientWidth),height=Math.max(canvas.scrollHeight,canvas.clientHeight);svg.setAttribute('viewBox',`0 0 ${width} ${height}`);svg.style.width=`${width}px`;svg.style.height=`${height}px`;
@@ -5661,13 +5673,13 @@
   }
   function renderEventGraph(){
     const nodesEl=document.getElementById('eventGraphNodes'),summary=document.getElementById('eventGraphSummary');if(!nodesEl||!summary)return;
-    const model=buildEventGraphModel(),simple=eventUi.graphMode==='simple',hideEmpty=simple||document.getElementById('eventGraphHideEmpty')?.checked,visible=model.nodes.filter(n=>(!simple||!n.missing)&&(n.missing||!hideEmpty||n.data.triggers.length||n.data.actions.length)),errors=model.nodes.filter(n=>!n.missing).flatMap(n=>n.diagnostics).filter(d=>d.level==='error').length,warnings=model.nodes.flatMap(n=>n.diagnostics).filter(d=>d.level==='warning').length,layout=layoutEventGraph(visible,model.edges),focus=focusedEventNumbers(model);
+    const model=buildEventGraphModel(),simple=eventUi.graphMode==='simple',hideEmpty=simple||document.getElementById('eventGraphHideEmpty')?.checked,visible=model.nodes.filter(n=>(!simple||!n.missing)&&(n.missing||!hideEmpty||n.data.triggers.length||n.data.actions.length)),errors=model.nodes.filter(n=>!n.missing).flatMap(n=>n.diagnostics).filter(d=>d.level==='error').length,warnings=model.nodes.flatMap(n=>n.diagnostics).filter(d=>d.level==='warning').length,layout=layoutEventGraph(visible,model.edges),focus=focusedEventNumbers(model),viewport=document.getElementById('eventGraphViewport'),svg=document.getElementById('eventGraphEdges');
     document.getElementById('eventGraphPanel')?.classList.toggle('no-role-colors',!simple&&!document.getElementById('eventGraphRoleColors')?.checked);
-    nodesEl.style.width=`${layout.width}px`;nodesEl.style.height=`${layout.height}px`;
+    eventUi.graphWidth=layout.width;eventUi.graphHeight=layout.height;if(viewport){viewport.style.width=`${layout.width}px`;viewport.style.height=`${layout.height}px`;}nodesEl.style.transform='none';if(svg)svg.style.transform='none';nodesEl.style.width=`${layout.width}px`;nodesEl.style.height=`${layout.height}px`;
     summary.innerHTML=`<span>${visible.filter(n=>!n.missing).length} events</span><span>${model.edges.filter(e=>e.type!=='inferred').length} direct links</span>${simple?'':`<span class="error">${errors} errors</span><span class="warning">${warnings} warnings</span>`}<span class="eventGraphLegend"><span><i style="border-color:#70a1ff"></i>triggered</span><span><i style="border-color:#ffd166;border-style:dashed"></i>not triggered</span><span><i style="border-color:#ff8f70;border-style:dashed"></i>reset</span>${simple?'':`<span><i style="border-color:#d4a5ff;border-style:dotted"></i>inferred</span><span><i style="border-color:#ff6565;border-style:dashed"></i>broken</span>`}</span>`;
     nodesEl.innerHTML=visible.length?visible.map(n=>{const pos=`left:${n.x}px;top:${n.y}px`;if(n.missing)return `<div class="eventNode missing" style="${pos}" data-number="${n.number}"><span class="eventNodeHead"><span>Missing Event #${n.number}</span><span>!</span></span><span class="eventNodeBody"><span class="eventNodeDiagnostic">⚠ Referenced but not defined</span></span></div>`;const classification=classifyEventGraphNode(n,model),roleBadges=simple?classification.roles.filter(role=>role.key===classification.primary).slice(0,1):classification.roles,level=!simple&&(n.diagnostics.some(d=>d.level==='error')?'error':n.diagnostics.length?'warning':''),expanded=eventUi.expanded.has(n.number),limit=expanded?99:3,triggers=n.data.triggers.slice(0,limit),actions=n.data.actions.slice(0,limit),dim=focus&&!focus.has(n.number)?'dimmed':focus?'focused':'';return `<button type="button" style="${pos}" class="eventNode eventRole-${classification.primary} ${level} ${dim} ${n.sec.id===state.sectionSelectedId?'active':''}" data-id="${n.sec.id}" data-number="${n.number}" aria-label="Event ${n.number}, ${escapeHtml(eventGraphTitle(n))}, role ${classification.primary}, ${n.data.triggers.length} conditions and ${n.data.actions.length} actions"><span class="eventNodeHead"><span>#${n.number} ${escapeHtml(getEventName(n.sec)||`Event ${n.number}`)}</span><span>${n.data.triggers.length}→${n.data.actions.length}</span></span><span class="eventNodeRoleBadges">${roleBadges.map(role=>`<span class="eventNodeRoleBadge" title="${escapeHtml(role.reason)}">${role.label}</span>`).join('')}</span><span class="eventNodeBody"><span class="eventNodeTitle">${escapeHtml(eventGraphTitle(n))}</span><span class="eventNodeSection">WHEN</span>${triggers.map(r=>`<span class="eventNodeLine">${escapeHtml(triggerDescription(r))}</span>`).join('')||'<span class="eventNodeLine">Always / game state</span>'}${n.data.triggers.length>limit?`<span class="eventNodeMore">+ ${n.data.triggers.length-limit} more</span>`:''}<span class="eventNodeSection">DO</span>${actions.map(r=>`<span class="eventNodeLine">${escapeHtml(actionDescription(r))}</span>`).join('')||'<span class="eventNodeLine">No action</span>'}${n.data.actions.length>limit?`<span class="eventNodeMore">+ ${n.data.actions.length-limit} more</span>`:''}${Number(n.sec.kv?.delay_value)?`<span class="eventNodeLine">⏱ Delay ${Number(n.sec.kv.delay_value)}s</span>`:''}</span></button>`;}).join(''):'<div class="eventGraphEmpty">No events match the current filters.</div>';
     nodesEl.querySelectorAll('.eventNode[data-id]').forEach(el=>{el.addEventListener('click',()=>{state.sectionSelectedId=Number(el.dataset.id);renderEventEditor();});el.addEventListener('dblclick',()=>{eventUi.view='list';renderEventEditor();});});
-    nodesEl.querySelectorAll('.eventNodeMore').forEach(el=>el.addEventListener('click',event=>{event.stopPropagation();eventUi.expanded.add(Number(el.closest('.eventNode').dataset.number));renderEventGraph();}));renderEventInspector(model);requestAnimationFrame(()=>drawEventGraphEdges(model));
+    nodesEl.querySelectorAll('.eventNodeMore').forEach(el=>el.addEventListener('click',event=>{event.stopPropagation();eventUi.expanded.add(Number(el.closest('.eventNode').dataset.number));renderEventGraph();}));renderEventInspector(model);requestAnimationFrame(()=>{drawEventGraphEdges(model);applyEventGraphZoom(eventUi.graphZoom);});
   }
   function setEventView(view){eventUi.view=view==='graph'?'graph':'list';renderEventEditor();}
   function renderEventEditor(){
@@ -7844,6 +7856,8 @@
   document.getElementById("eventGraphMode")?.addEventListener("change",event=>{eventUi.graphMode=event.target.value;document.getElementById('eventGraphShowInferred').disabled=eventUi.graphMode==='simple';document.getElementById('eventGraphRoleColors').disabled=eventUi.graphMode==='simple';renderEventGraph();});
   document.getElementById("eventGraphFocusBtn")?.addEventListener("click",()=>{eventUi.focus=true;renderEventGraph();});
   document.getElementById("eventGraphShowAllBtn")?.addEventListener("click",()=>{eventUi.focus=false;renderEventGraph();});
+  document.getElementById("eventGraphZoomReset")?.addEventListener("click",()=>applyEventGraphZoom(1));
+  document.getElementById("eventGraphCanvas")?.addEventListener("wheel",handleEventGraphWheel,{passive:false});
   document.getElementById("eventGraphRoleColors")?.addEventListener("change",renderEventGraph);
   document.getElementById("eventGraphHideEmpty")?.addEventListener("change",renderEventGraph);
   document.getElementById("eventGraphShowInferred")?.addEventListener("change",renderEventGraph);
