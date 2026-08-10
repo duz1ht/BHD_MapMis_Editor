@@ -5735,7 +5735,7 @@
     const referenceNodes=new Map([...triggerRefs,...abstractActionRefs]);
     referenceNodes.forEach((ref,key)=>{
       const projection=projectEventLogicAnchor(eventLogicAnchor(ref)), isEvent=ref.kind==='event', visible=projection.status==='visible', offscreen=projection.status==='offscreen';
-      nodes.push({id:`ref-${key}`,kind:isEvent?'event':'spatial',title:eventLogicReferenceLabel(ref),detail:visible?'Located in the 3D map':isEvent?'Linked mission event':projection.status==='missing'?'Reference is missing':'',x:visible?projection.x:offscreen?projection.edgeX:center.x+520,y:visible?projection.y:offscreen?projection.edgeY:90+fallbackIndex++*62,hidden:offscreen&&!isEvent,unresolved:projection.status==='missing',ref});
+      nodes.push({id:`ref-${key}`,kind:isEvent?'event':'spatial',title:eventLogicReferenceLabel(ref),detail:isEvent?'Linked mission event':projection.status==='missing'?'Reference is missing':'Position unavailable',x:visible?projection.x:offscreen?projection.edgeX:center.x+520,y:visible?projection.y:offscreen?projection.edgeY:90+fallbackIndex++*62,hidden:!isEvent&&(visible||offscreen),unresolved:projection.status==='missing',ref});
     });
     const byId=new Map(nodes.map(node=>[node.id,node]));
     eventLogicCardsEl.innerHTML=nodes.filter(node=>!node.hidden).map(node=>`<button type="button" class="eventLogicCard ${node.kind}${node.className?` ${node.className}`:''}${node.unresolved?' unresolved':''}${node.selected?' selected':''}" data-node="${escapeHtml(node.id)}" style="left:${node.x}px;top:${node.y}px"><strong>${escapeHtml(node.title)}</strong><span>${escapeHtml(node.detail)}</span></button>`).join('');
