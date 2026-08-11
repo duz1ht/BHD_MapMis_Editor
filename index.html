@@ -2146,6 +2146,9 @@
     itemClipboardItems: [],
     pastePlacementActive: false,
     pastePreviewWorld: null,
+    insertMode: false,
+    insertTemplateItem: null,
+    insertTemplateSection: null,
     gizmoDrag: null,
     gizmoVisual: null,
     gizmoAxisScreenDirs: null,
@@ -7327,6 +7330,10 @@
       requestRender();
       statusEl.textContent = "Paste cancelado.";
     }
+    if (e.key === "Escape" && state.insertMode){
+      setInsertMode(false);
+      statusEl.textContent = "Insert Mode canceled.";
+    }
     if (e.key === "Escape" && (state.selectedId != null || state.multiSelectedIds.size || state.selectedWaypointMarkerIds.size)){
       state.selectedId = null;
       state.multiSelectedIds.clear();
@@ -7483,6 +7490,7 @@
       statusEl.textContent = "Nenhum item copiado para colar.";
       return;
     }
+    if (state.insertMode) setInsertMode(false);
     state.pastePlacementActive = true;
     state.pastePreviewWorld = screenToWorld(sx, sy);
     requestRender();
@@ -7531,6 +7539,57 @@
     const sx = state.lastMouse ? state.lastMouse.sx : rect.width / 2;
     const sy = state.lastMouse ? state.lastMouse.sy : rect.height / 2;
     beginPastePlacementAtScreen(sx, sy);
+  }
+
+  function setInsertMode(enabled){
+    const next = Boolean(enabled);
+    if (next){
+      const selected = getSelected();
+      if (!selected){
+        statusEl.textContent = "Select an item to use as the Insert Mode template.";
+        return false;
+      }
+      const section = getItemSectionByStartFast(selected.start);
+      state.insertTemplateItem = structuredClone(selected);
+      state.insertTemplateSection = section ? structuredClone(section) : null;
+      state.pastePlacementActive = false;
+      state.pastePreviewWorld = null;
+    } else {
+      state.insertTemplateItem = null;
+      state.insertTemplateSection = null;
+    }
+    state.insertMode = next;
+    cv.style.cursor = next ? "crosshair" : "";
+    renderMenuBar();
+    requestRender();
+    return true;
+  }
+
+  function toggleInsertMode(){
+    if (setInsertMode(!state.insertMode)){
+      statusEl.textContent = state.insertMode
+        ? "Insert Mode active: click the canvas to insert copies of the selected item; press Escape to finish."
+        : "Insert Mode disabled.";
+    }
+  }
+
+  function insertItemAtWorld(world){
+    if (!state.insertMode || !state.insertTemplateItem || !world) return false;
+    beginUndoTransaction();
+    const inserted = createPastedItemFrom(state.insertTemplateItem, state.insertTemplateSection, {
+      offset: false,
+      worldPosition: world,
+      refresh: false
+    });
+    markItemsChanged({ structure: true });
+    endUndoTransaction();
+    state.multiSelectedIds.clear();
+    renderList();
+    renderItemWindow();
+    scheduleLiveMisRefresh();
+    requestRender();
+    statusEl.textContent = `Inserted item #${inserted.id}. Insert Mode remains active.`;
+    return true;
   }
 
   ui.dupBtn.addEventListener("click", () => {
@@ -8242,6 +8301,7 @@
   }
 
   function clearEditorMap(){
+    setInsertMode(false);
     state.rawText = "";
     resetUndoHistory("");
     state.items = [];
@@ -8374,6 +8434,7 @@
     "edit.paste": pasteCopiedItem,
     "edit.cut": cutSelectedItems,
     "edit.delete": deleteSelectedItem,
+    "edit.insertMode": toggleInsertMode,
     "edit.undo": undoLastChange,
     "edit.redo": redoLastChange,
     "edit.globalReplace": runGlobalReplace,
@@ -8421,7 +8482,7 @@
           { label: "Paste", shortcut: "Ctrl + V", command: "edit.paste" },
           { label: "Delete", shortcut: "Delete", command: "edit.delete" },
           { separator: true },
-          { label: "Insert Mode", command: "edit.insertMode" },
+          { label: "Insert Mode", command: "edit.insertMode", checked: state.insertMode },
           { separator: true },
           { label: "Briefing", command: "edit.briefing" },
           { label: "General Information", command: "edit.generalInfo" },
@@ -8722,6 +8783,7 @@
     state.itemClipboard = null;
     state.itemClipboardSection = null;
     state.itemClipboardItems = [];
+    setInsertMode(false);
     state.selectedWaypointMarkerIds.clear();
     updateWaypointMarkerCount(0);
 
@@ -11430,6 +11492,13 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       return;
     }
 
+    if (state.insertMode){
+      const templateZ = rawToWorld(state.insertTemplateItem?.z || 0, 'z');
+      insertItemAtWorld(screenToWorld(sx, sy, templateZ));
+      state.lastMouse = { sx, sy };
+      return;
+    }
+
     const picked = pickItemAtCanvas(sx,sy);
 
     state.draggingItem = false;
@@ -11481,10 +11550,10 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     const next=pickGizmoModeAt(e.clientX,e.clientY);
     if(next===state.hoveredGizmoHandle)return;
     state.hoveredGizmoHandle=next;
-    cv.style.cursor=next?'pointer':'';
+    cv.style.cursor=next?'pointer':(state.insertMode?'crosshair':'');
     updateItemGizmo();
   });
-  cv.addEventListener('mouseleave',()=>{state.hoveredGizmoHandle=null;cv.style.cursor='';updateItemGizmo();});
+  cv.addEventListener('mouseleave',()=>{state.hoveredGizmoHandle=null;cv.style.cursor=state.insertMode?'crosshair':'';updateItemGizmo();});
   function rayPlanePoint(ray,point,normal){
     const den=vec3Dot(ray.dir,normal);if(Math.abs(den)<1e-6)return null;
     const t=vec3Dot(vec3Sub(point,ray.origin),normal)/den;return t>=0?vec3Add(ray.origin,vec3Scale(ray.dir,t)):null;
