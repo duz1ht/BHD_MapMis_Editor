@@ -1512,7 +1512,7 @@
           <label data-show-category="markerAreaTrigger"><input type="checkbox" id="showAreaTriggerMarkers" checked> <span class="visibilityItemName">Markers - Area Triggers</span> <span class="visibilityItemCount">(0)</span></label>
           <label><input type="checkbox" id="showAreaTriggers" checked> Markers - Area Trigger Volumes</label>
           <label data-show-category="markerSound"><input type="checkbox" id="showSoundMarkers" checked> <span class="visibilityItemName">Markers - Sound</span> <span class="visibilityItemCount">(0)</span></label>
-          <label data-show-category="powerup"><input type="checkbox" id="showPowerups" checked> <span class="visibilityItemName">Powerups</span> <span class="visibilityItemCount">(0)</span></label>
+          <label data-show-category="powerup"><input type="checkbox" id="showPowerups" checked> <span class="visibilityItemName">Power-ups</span> <span class="visibilityItemCount">(0)</span></label>
           <label><input type="checkbox" id="showWpDistance"> WP Distance</label>
           <label><input type="checkbox" id="showFovCones"> FOV Cones</label>
           <label><input type="checkbox" id="showWater"> Water</label>
@@ -3621,7 +3621,7 @@
     markerAreaTrigger: { inputId: "showAreaTriggerMarkers", label: "Markers - Area Triggers" },
     markerSound: { inputId: "showSoundMarkers", label: "Markers - Sound" },
     object: { inputId: "showObjects", label: "Objects" },
-    powerup: { inputId: "showPowerups", label: "Powerups" },
+    powerup: { inputId: "showPowerups", label: "Power-ups" },
     vehicle: { inputId: "showVehicles", label: "Vehicles" },
   };
 
@@ -3895,8 +3895,8 @@
   const INSERT_CATEGORIES = [
     ["foliage", "Foliage"], ["decoration", "Decorations"], ["people", "People"],
     ["building", "Buildings"], ["vehicle", "Vehicles"], ["object", "Objects"],
-    ["powerup", "POWERUP"], ["marker", "Markers"], ["med_fly", "Med fly"],
-    ["sound", "Sounds"]
+    ["powerup", "Power-ups"], ["marker", "Markers"], ["sound", "Sounds"],
+    ["med_fly", "Editor Helpers"]
   ];
 
   function insertCategoryForDef(def){
