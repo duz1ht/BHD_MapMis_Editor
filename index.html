@@ -6080,6 +6080,8 @@ end group
     const parsed = parseMIS(text);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
+    disposeAreaTriggerVolumes();
+    state.areaTriggerVolumes.signature = "";
     state.undoCurrentText = text;
     state.selectedId = null;
     state.multiSelectedIds.clear();
@@ -8988,6 +8990,8 @@ end group
     const parsed = parseMIS(DEFAULT_NEW_MAP_MIS);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
+    disposeAreaTriggerVolumes();
+    state.areaTriggerVolumes.signature = "";
     resetUndoHistory(DEFAULT_NEW_MAP_MIS);
     markItemsChanged({ structure: true });
     state.selectedId = null;
@@ -11056,6 +11060,13 @@ end group
       getAreaTrigColorIndex(getAreaTrigSectionByNumber(number)),
       ...markers.map(it => `${it.id}:${it.x}:${it.y}:${it.z}`),
     ].join("|")).join(";");
+    // An empty map also has an empty cached signature. Dispose first so an
+    // empty signature cannot make volumes from the previous mission survive.
+    if (!areas.size){
+      state.areaTriggerVolumes.signature = "";
+      disposeAreaTriggerVolumes();
+      return;
+    }
     if (signature === state.areaTriggerVolumes.signature) return;
     state.areaTriggerVolumes.signature = signature;
     disposeAreaTriggerVolumes();
