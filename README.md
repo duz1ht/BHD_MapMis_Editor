@@ -57,3 +57,6 @@ If you have any questions, feel free to contact me on Discord at @duz1ht.
 
 ## Contributors so far
 biggy, Demonic, dataspiller, Scott (NovaHQ), AngelExalted
+
+### 3D item color precedence
+GLB item colors are applied in this order: the model's base material, the item-definition `tint`, waypoint or Area Trigger colors, and finally temporary viewport modes or selection visuals. Each later layer intentionally overrides the earlier layers while it applies.

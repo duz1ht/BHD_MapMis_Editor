@@ -2453,6 +2453,7 @@ end group
       itemInstances: new Map(),
       syncPromise: null,
       initPromise: null,
+      documentGeneration: 0,
       structureDirty: true,
       transformDirtyIds: new Set(),
       syncCount: 0,
@@ -8966,6 +8967,7 @@ end group
   }
 
   async function clearEditorMap(){
+    clearGlbItemInstances();
     // Cancel every interaction that belongs to the previous mission before its
     // item ids and sections are replaced.
     state.keysDown.clear();
@@ -9561,10 +9563,13 @@ end group
   // File inputs
   async function loadMisFile(file, fileHandle = null){
     if (!file) return;
+    const documentGeneration = clearGlbItemInstances();
     state.filename = file.name;
     state.currentMisFileHandle = fileHandle;
     await loadMissionGameStrings(file.name);
+    if (documentGeneration !== state.glb.documentGeneration) return;
     const misBuffer = await file.arrayBuffer();
+    if (documentGeneration !== state.glb.documentGeneration) return;
     const decodedMis = decodeMisTextFromFile(misBuffer);
     const text = decodedMis.text;
     state.rawText = text;
@@ -10573,6 +10578,8 @@ end group
     });
   }
 
+  // GLB color precedence, from lowest to highest: base material, DEF tint,
+  // waypoint/area-trigger color, then temporary view/selection visuals.
   function applySolidTintToGlbObject(root, tint){
     const normalizedTint = String(tint || "").trim();
     if (!root || !/^#[0-9a-f]{6}$/i.test(normalizedTint) || !state.glb.THREE) return;
@@ -11258,6 +11265,41 @@ end group
   }
 
 
+  function getGlbItemVisualSignature(it, graphic){
+    return [String(graphic || "").trim(), String(it?.typeId ?? ""), getItemTint(it)].join("|");
+  }
+
+  function disposeGlbInstanceMaterials(instance){
+    const disposed = new Set();
+    instance?.traverse?.((obj) => {
+      if (!obj.isMesh || !obj.material) return;
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      materials.forEach((material) => {
+        if (!material || disposed.has(material)) return;
+        disposed.add(material);
+        material.dispose?.();
+      });
+    });
+  }
+
+  function removeGlbItemInstance(instance){
+    if (!instance) return;
+    cleanupGlbInstanceVisualState(instance);
+    state.glb.scene?.remove?.(instance);
+    disposeGlbInstanceMaterials(instance);
+  }
+
+  function clearGlbItemInstances(){
+    // Invalidates async sync work before replacing the current mission document.
+    state.glb.documentGeneration += 1;
+    for (const instance of state.glb.itemInstances.values()) removeGlbItemInstance(instance);
+    state.glb.itemInstances.clear();
+    state.glb.lastSelectedVisualIds.clear();
+    state.glb.transformDirtyIds.clear();
+    state.glb.structureDirty = true;
+    return state.glb.documentGeneration;
+  }
+
   function cleanupGlbInstanceVisualState(instance){
     if (!instance) return;
     clearGlbSelectionOutline(instance);
@@ -11277,29 +11319,31 @@ end group
     const ready = await ensureGlbRendererReady();
     if (!ready || state.glb.syncPromise) return;
 
+    const generation = state.glb.documentGeneration;
     state.glb.syncPromise = (async () => {
       const started = performance.now();
+      if (generation !== state.glb.documentGeneration) return;
       const { entries, stats } = getRenderableGlbEntries();
       const wantedIds = new Set(entries.map(x => x.it.id));
 
       for (const [itemId, obj] of state.glb.itemInstances.entries()){
         if (wantedIds.has(itemId)) continue;
-        cleanupGlbInstanceVisualState(obj);
-        state.glb.scene.remove(obj);
+        removeGlbItemInstance(obj);
         state.glb.itemInstances.delete(itemId);
       }
 
       for (const { it, graphic } of entries){
+        const visualSignature = getGlbItemVisualSignature(it, graphic);
         let instance = state.glb.itemInstances.get(it.id) || null;
-        if (instance && instance.userData.graphic !== graphic){
-          cleanupGlbInstanceVisualState(instance);
-          state.glb.scene.remove(instance);
+        if (instance && instance.userData.visualSignature !== visualSignature){
+          removeGlbItemInstance(instance);
           state.glb.itemInstances.delete(it.id);
           instance = null;
         }
 
         if (!instance){
           const template = await loadGraphicTemplate(graphic);
+          if (generation !== state.glb.documentGeneration) return;
           if (!template) continue;
           instance = template.clone(true);
           cloneGlbMaterials(instance);
@@ -11309,6 +11353,8 @@ end group
           applyWaypointOutlineToGlbObject(instance, it);
           instance.userData.itemId = it.id;
           instance.userData.graphic = graphic;
+          instance.userData.tint = getItemTint(it);
+          instance.userData.visualSignature = visualSignature;
           applyViewModeToGlbObject(instance, it);
           state.glb.scene.add(instance);
           state.glb.itemInstances.set(it.id, instance);
@@ -11345,6 +11391,7 @@ end group
         itemsMissingDefForType: stats.itemsMissingDefForType,
         itemsMissingGraphicInDefAndItem: stats.itemsMissingGraphicInDefAndItem,
       };
+      if (generation !== state.glb.documentGeneration) return;
       state.glb.lastStats = syncReport;
       state.glb.lastSyncReport = syncReport;
       addLog(`[3d_items] cobertura GLB: total=${syncReport.totalItems} renderizaveis=${syncReport.renderableItems} instancias=${syncReport.finalInstances} sem_graphic=${syncReport.skippedMissingGraphic} sem_type_id=${syncReport.skippedMissingTypeId} sem_def_para_type=${syncReport.skippedDefNotFoundForTypeId} sem_graphic_def_item=${syncReport.skippedMissingGraphicInDefAndItem} ausentes_pos_sync=${syncReport.missingInstancesAfterSync} graficos_distintos=${syncReport.distinctGraphics} top=${topGraphics.join(', ') || '<none>'}`);
