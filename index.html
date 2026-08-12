@@ -2356,6 +2356,7 @@ end group
     editorFolderHandle: null,
     currentMisFileHandle: null,
     generalTerrainNames: [],
+    generalInfoLoadGeneration: 0,
     soundGraphicFromOtherItems: "",
     soundGraphicScaleFromOtherItems: 1,
     availableGlbFiles: null,
@@ -4888,13 +4889,15 @@ end group
     }
   }
 
-  async function applyTerrainWaterToInput(){
+  async function applyTerrainWaterToInput(generation = state.generalInfoLoadGeneration){
     if (!hasMisLoaded()){
       giWaterLevel.value = "0";
       return;
     }
     if (giWaterEnabled.checked) return;
-    const waterHeight = await loadTerrainWaterHeight(giTerrain.value || "");
+    const terrainName = giTerrain.value || "";
+    const waterHeight = await loadTerrainWaterHeight(terrainName);
+    if (generation !== state.generalInfoLoadGeneration || terrainName !== (giTerrain.value || "")) return;
     giWaterLevel.value = String(Number.isFinite(waterHeight) ? waterHeight : 0);
   }
 
@@ -4926,6 +4929,7 @@ end group
   }
 
   function fillGeneralInfoEditor(sec){
+    const generation = ++state.generalInfoLoadGeneration;
     const kv = sec?.kv || {};
     const terrainOptions = state.generalTerrainNames || [];
     ensureSelectOptions(giTerrain, terrainOptions.map(v=>({ value:v, label:v })), kv.terrain || "dvd1", { caseInsensitive: true });
@@ -5013,7 +5017,7 @@ end group
     }
 
     applyEnvironmentFogToInputs();
-    applyTerrainWaterToInput();
+    applyTerrainWaterToInput(generation);
     updateGeneralInfoEnables();
   }
 
@@ -8990,6 +8994,8 @@ end group
     const parsed = parseMIS(DEFAULT_NEW_MAP_MIS);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
+    const generalInfo = state.sectionBlocks.find(sec => sec.kind === "general_information");
+    if (generalInfo) fillGeneralInfoEditor(generalInfo);
     disposeAreaTriggerVolumes();
     state.areaTriggerVolumes.signature = "";
     resetUndoHistory(DEFAULT_NEW_MAP_MIS);
