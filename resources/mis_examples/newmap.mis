@@ -1,0 +1,98 @@
+// mission metafile, saved on 8/12/2026, 8: 0
+
+
+begin general_information
+  file_version 2
+  name ""
+  designer ""
+  terrain 
+  cnv_file 
+  tt_file 
+  terrain_color 0
+  attrib 0
+  visible_if 0
+  notvisible_if 0
+  arty 0
+  water_level 0
+  fog_level 0
+  fog_color 0
+  weather_type 0
+  lowest_elev 0
+  num_items 0
+  num_events 0
+  sunset dawn1
+  viewx 0
+  viewy 0
+  viewz 0
+  viewzoom 0.001000
+  gen_def_val1 0
+  gen_def_val2 0
+  gen_def_val3 0
+  gen_def_val4 0
+  hardwin 0
+  hardlose 0
+  subgoals_win 0 0 0 0 0 0 0 0
+  subgoals_lose 0 0 0 0 0 0 0 0
+  win_scores 0 0 0 0 0 0 0 0
+  lose_scores 0 0 0 0 0 0 0 0
+  terrain_tile_tga 
+  wind 0 0
+  wp_names_blue 0 0 0 0 0 0 0 0
+  wp_names_red 0 0 0 0 0 0 0 0
+  player_type 0
+  max_saves 3
+  map_zoom 0.50
+  bonus_expiration 10
+  default_primary   WPN_CAR15AUTO
+  default_secondary WPN_M9Berreta
+  default_accessory WPN_CLAYMORE
+end general_information
+
+begin weapon_availability
+
+  WPN_colt45          ALWAYS_ON
+  WPN_M9Beretta       ALWAYS_ON
+  WPN_RemmingtonSG    ALWAYS_ON
+  WPN_CAR15AUTO       ALWAYS_ON
+  WPN_CAR15M203AUTO   ALWAYS_ON
+  WPN_M16BURST        ALWAYS_ON
+  WPN_M16M203BURST    ALWAYS_ON
+  WPN_M21             ALWAYS_ON
+  WPN_M24             ALWAYS_ON
+  WPN_W300            ALWAYS_ON
+  WPN_Barret          ALWAYS_ON
+  WPN_M249SAW         ALWAYS_ON
+  WPN_M60             ALWAYS_ON
+  WPN_MAG58           ALWAYS_ON
+  WPN_MP5             ALWAYS_ON
+  WPN_G3AUTO          ALWAYS_ON
+  WPN_G36AUTO         ALWAYS_ON
+  WPN_PSG1            ALWAYS_ON
+  WPN_GRENADEFB       ALWAYS_ON
+  WPN_GRENADEHE       ALWAYS_ON
+  WPN_GRENADESM       ALWAYS_ON
+  WPN_SATCHEL_CHARGE  ALWAYS_ON
+  WPN_CLAYMORE        ALWAYS_ON
+  WPN_AT4             ALWAYS_ON
+end weapon_availability
+
+begin waypoint 125
+  description "Goto SSN"
+end waypoint
+
+begin waypoint 126
+  description "Goto Group"
+end waypoint
+
+begin waypoint 127
+  description "Goto Player"
+end waypoint
+
+begin group 1
+  description "Blue Players"
+end group
+
+begin group 2
+  description "Red Players"
+end group
+
