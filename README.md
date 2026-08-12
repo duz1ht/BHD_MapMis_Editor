@@ -45,7 +45,7 @@ Rotation Snap = Toolbar toggle that quantizes gizmo rotation; use its arrow to c
 Snap to Floor = Context-menu command that moves selected items vertically until the bottom of their transformed geometry rests on terrain or the highest item surface below<br>
 Work Grid = Uses the XY top plane; the infinite grid follows the camera while keeping a stable world origin<br>
 F = Toggles item wireframe view  
-G = Toggles grid lines  
+G = Cycles guide visibility: grid + Main Area, hidden, Main Area only, grid only<br>
 H = Toggles item anchor points  
 I = Toggles the scene info box on the canvas<br>
 C = Closes or opens the left sidebar<br>
@@ -57,3 +57,6 @@ If you have any questions, feel free to contact me on Discord at @duz1ht.
 
 ## Contributors so far
 biggy, Demonic, dataspiller, Scott (NovaHQ), AngelExalted
+
+### 3D item color precedence
+GLB item colors are applied in this order: the model's base material, the item-definition `tint`, waypoint or Area Trigger colors, and finally temporary viewport modes or selection visuals. Each later layer intentionally overrides the earlier layers while it applies.
