@@ -2165,6 +2165,103 @@
 <script src="resources/items_lists/itemsDef.js"></script>
 
 <script>
+  const DEFAULT_NEW_MAP_MIS = `begin general_information
+  file_version 2
+  name ""
+  designer ""
+  terrain${" "}
+  cnv_file${" "}
+  tt_file${" "}
+  terrain_color 0
+  attrib 0
+  visible_if 0
+  notvisible_if 0
+  arty 0
+  water_level 0
+  fog_level 0
+  fog_color 0
+  weather_type 0
+  lowest_elev 0
+  num_items 0
+  num_events 0
+  sunset dawn1
+  viewx 0
+  viewy 0
+  viewz 0
+  viewzoom 0.001000
+  gen_def_val1 0
+  gen_def_val2 0
+  gen_def_val3 0
+  gen_def_val4 0
+  hardwin 0
+  hardlose 0
+  subgoals_win 0 0 0 0 0 0 0 0
+  subgoals_lose 0 0 0 0 0 0 0 0
+  win_scores 0 0 0 0 0 0 0 0
+  lose_scores 0 0 0 0 0 0 0 0
+  terrain_tile_tga${" "}
+  wind 0 0
+  wp_names_blue 0 0 0 0 0 0 0 0
+  wp_names_red 0 0 0 0 0 0 0 0
+  player_type 0
+  max_saves 3
+  map_zoom 0.50
+  bonus_expiration 10
+  default_primary   WPN_CAR15AUTO
+  default_secondary WPN_M9Berreta
+  default_accessory WPN_CLAYMORE
+end general_information
+
+begin weapon_availability
+
+  WPN_colt45          ALWAYS_ON
+  WPN_M9Beretta       ALWAYS_ON
+  WPN_RemmingtonSG    ALWAYS_ON
+  WPN_CAR15AUTO       ALWAYS_ON
+  WPN_CAR15M203AUTO   ALWAYS_ON
+  WPN_M16BURST        ALWAYS_ON
+  WPN_M16M203BURST    ALWAYS_ON
+  WPN_M21             ALWAYS_ON
+  WPN_M24             ALWAYS_ON
+  WPN_W300            ALWAYS_ON
+  WPN_Barret          ALWAYS_ON
+  WPN_M249SAW         ALWAYS_ON
+  WPN_M60             ALWAYS_ON
+  WPN_MAG58           ALWAYS_ON
+  WPN_MP5             ALWAYS_ON
+  WPN_G3AUTO          ALWAYS_ON
+  WPN_G36AUTO         ALWAYS_ON
+  WPN_PSG1            ALWAYS_ON
+  WPN_GRENADEFB       ALWAYS_ON
+  WPN_GRENADEHE       ALWAYS_ON
+  WPN_GRENADESM       ALWAYS_ON
+  WPN_SATCHEL_CHARGE  ALWAYS_ON
+  WPN_CLAYMORE        ALWAYS_ON
+  WPN_AT4             ALWAYS_ON
+end weapon_availability
+
+begin waypoint 125
+  description "Goto SSN"
+end waypoint
+
+begin waypoint 126
+  description "Goto Group"
+end waypoint
+
+begin waypoint 127
+  description "Goto Player"
+end waypoint
+
+begin group 1
+  description "Blue Players"
+end group
+
+begin group 2
+  description "Red Players"
+end group
+
+`;
+
   const state = {
     rawText: "",
     items: [],
@@ -2259,6 +2356,7 @@
     editorFolderHandle: null,
     currentMisFileHandle: null,
     generalTerrainNames: [],
+    generalInfoLoadGeneration: 0,
     soundGraphicFromOtherItems: "",
     soundGraphicScaleFromOtherItems: 1,
     availableGlbFiles: null,
@@ -2323,6 +2421,7 @@
     terrainLoad: {
       phase: "idle",
       revision: 0,
+      generation: 0,
     },
     threeOverlays: {
       scene: null,
@@ -4790,13 +4889,15 @@
     }
   }
 
-  async function applyTerrainWaterToInput(){
+  async function applyTerrainWaterToInput(generation = state.generalInfoLoadGeneration){
     if (!hasMisLoaded()){
       giWaterLevel.value = "0";
       return;
     }
     if (giWaterEnabled.checked) return;
-    const waterHeight = await loadTerrainWaterHeight(giTerrain.value || "");
+    const terrainName = giTerrain.value || "";
+    const waterHeight = await loadTerrainWaterHeight(terrainName);
+    if (generation !== state.generalInfoLoadGeneration || terrainName !== (giTerrain.value || "")) return;
     giWaterLevel.value = String(Number.isFinite(waterHeight) ? waterHeight : 0);
   }
 
@@ -4828,6 +4929,7 @@
   }
 
   function fillGeneralInfoEditor(sec){
+    const generation = ++state.generalInfoLoadGeneration;
     const kv = sec?.kv || {};
     const terrainOptions = state.generalTerrainNames || [];
     ensureSelectOptions(giTerrain, terrainOptions.map(v=>({ value:v, label:v })), kv.terrain || "dvd1", { caseInsensitive: true });
@@ -4915,7 +5017,7 @@
     }
 
     applyEnvironmentFogToInputs();
-    applyTerrainWaterToInput();
+    applyTerrainWaterToInput(generation);
     updateGeneralInfoEnables();
   }
 
@@ -5982,6 +6084,8 @@
     const parsed = parseMIS(text);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
+    disposeAreaTriggerVolumes();
+    state.areaTriggerVolumes.signature = "";
     state.undoCurrentText = text;
     state.selectedId = null;
     state.multiSelectedIds.clear();
@@ -8844,11 +8948,57 @@
     return Boolean(state.filename || state.rawText || state.items.length || state.sectionBlocks.length);
   }
 
-  function clearEditorMap(){
-    state.rawText = "";
-    resetUndoHistory("");
-    state.items = [];
-    state.sectionBlocks = [];
+  async function clearEditorMap(){
+    // Cancel every interaction that belongs to the previous mission before its
+    // item ids and sections are replaced.
+    state.keysDown.clear();
+    state.pendingLeftClick = null;
+    state.draggingPan = false;
+    state.draggingItem = false;
+    state.boxSelecting = false;
+    state.boxStart = null;
+    state.boxCurrent = null;
+    state.rightPanActive = false;
+    state.rightPanStart = null;
+    state.cameraLookActive = false;
+    state.cameraLookPending = false;
+    state.cameraLookStart = null;
+    state.pastePlacementActive = false;
+    state.pastePreviewWorld = null;
+    state.insertModeActive = false;
+    state.insertDragStart = null;
+    state.insertDragStartScreen = null;
+    state.insertHoverPoint = null;
+    state.insertPreviewWorld = null;
+    state.insertPreviewSamples = [];
+    state.insertPreviewPoints = [];
+    state.gizmoDrag = null;
+    state.gizmoVisual = null;
+    state.hoveredGizmoHandle = null;
+    state.modalOpen = false;
+    state.modalSnapshot = null;
+    state.selectedInfoIndex = 0;
+    state.groupSelectedNumber = 1;
+    state.waypointSelectedNumber = 1;
+    if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock();
+    closeItemContextMenu();
+    closeSectionEditor();
+    modalOverlay.classList.remove("open");
+    modalOverlay.setAttribute("aria-hidden", "true");
+    insertOverlay.classList.remove("open");
+    insertOverlay.setAttribute("aria-hidden", "true");
+    insertPreviewLabel.style.display = "none";
+    cv.style.cursor = "";
+
+    state.rawText = DEFAULT_NEW_MAP_MIS;
+    const parsed = parseMIS(DEFAULT_NEW_MAP_MIS);
+    state.items = parsed.items;
+    state.sectionBlocks = parsed.sectionBlocks;
+    const generalInfo = state.sectionBlocks.find(sec => sec.kind === "general_information");
+    if (generalInfo) fillGeneralInfoEditor(generalInfo);
+    disposeAreaTriggerVolumes();
+    state.areaTriggerVolumes.signature = "";
+    resetUndoHistory(DEFAULT_NEW_MAP_MIS);
     markItemsChanged({ structure: true });
     state.selectedId = null;
     state.multiSelectedIds.clear();
@@ -8859,8 +9009,33 @@
     state.itemClipboardItems = [];
     state.selectedWaypointMarkerIds.clear();
     updateWaypointMarkerCount(0);
+    state.sectionSelectedId = null;
+    state.eventSelectedId = null;
+    eventUi.selectedTrigger = -1;
+    eventUi.selectedAction = -1;
+    state.layerVisibility.clear();
+    state.groupVisibility.clear();
+    state.waypointVisibility.clear();
+    state.areaTriggerVisibility.clear();
+    await loadMissionGameStrings("");
     fileMisEl.value = "";
+    buildLayerOptions();
+    buildWaypointList();
+    buildGroupOptions();
+    renderLayerVisibilityPanel();
+    renderGroupVisibilityPanel();
+    renderWaypointVisibilityPanel();
+    renderAreaTriggerVisibilityPanel();
     renderList();
+    try{
+      await loadTerrainFromMis();
+      if (state.terrainLoad.phase === "ready") resetCamera();
+    } catch (err){
+      addLog(`[terrain] load error after Create New Map: ${err?.message || err}`);
+      camDebugEl.textContent = `Failed to load terrain: ${err.message || err}`;
+    }
+    renderMenuBar();
+    updateItemGizmo();
     requestRender();
     refreshLiveMisWindow(true, { force: true });
   }
@@ -8963,7 +9138,7 @@
 
   async function handleNewProject(){
     if (!hasMapLoaded()){
-      clearEditorMap();
+      await clearEditorMap();
       statusEl.textContent = "New map project created.";
       return;
     }
@@ -8973,7 +9148,7 @@
       const saved = await saveCurrentMap({ forcePicker: true });
       if (!saved) return;
     }
-    clearEditorMap();
+    await clearEditorMap();
     statusEl.textContent = "New map project created.";
   }
 
@@ -10891,6 +11066,13 @@
       getAreaTrigColorIndex(getAreaTrigSectionByNumber(number)),
       ...markers.map(it => `${it.id}:${it.x}:${it.y}:${it.z}`),
     ].join("|")).join(";");
+    // An empty map also has an empty cached signature. Dispose first so an
+    // empty signature cannot make volumes from the previous mission survive.
+    if (!areas.size){
+      state.areaTriggerVolumes.signature = "";
+      disposeAreaTriggerVolumes();
+      return;
+    }
     if (signature === state.areaTriggerVolumes.signature) return;
     state.areaTriggerVolumes.signature = signature;
     disposeAreaTriggerVolumes();
@@ -11747,6 +11929,8 @@
   const AI_TEXTFILE_FILE_INDEX={"boat.aip": ["boat.aip"], "G_Aveng2.AIP": ["G_Aveng2.AIP"], "G_Avengr.AIP": ["G_Avengr.AIP"], "G_BMP.AIP": ["G_BMP.AIP"], "G_bmpG.AIP": ["G_bmpG.AIP"], "G_Bradly.AIP": ["G_Bradly.AIP"], "G_BRDM.AIP": ["G_BRDM.AIP"], "G_Buggy.AIP": ["G_Buggy.AIP"], "G_buggyS.AIP": ["G_buggyS.AIP"], "G_Jeep.AIP": ["G_Jeep.AIP"], "G_JeepS.AIP": ["G_JeepS.AIP"], "G_MIM23.AIP": ["G_MIM23.AIP"], "G_MIM23R.AIP": ["G_MIM23R.AIP"], "G_SA6.AIP": ["G_SA6.AIP"], "G_sa6R.AIP": ["G_sa6R.AIP"], "G_SA8.AIP": ["G_SA8.AIP"], "G_SA8R.AIP": ["G_SA8R.AIP"], "G_Snow.AIP": ["G_Snow.AIP"], "G_SnowR.AIP": ["G_SnowR.AIP"], "G_SnowS.AIP": ["G_SnowS.AIP"], "G_tngska.AIP": ["G_tngska.AIP"], "G_tngskR.AIP": ["G_tngskR.AIP"], "GMG.AIP": ["GMG.AIP"], "GMG_F.AIP": ["GMG_F.AIP"], "GMG_P.AIP": ["GMG_P.AIP"], "GMGF_P.AIP": ["GMGF_P.AIP"], "ground1.AIP": ["ground1.AIP"], "GS.AIP": ["GS.AIP"], "GS_F.AIP": ["GS_F.AIP"], "GS_P.AIP": ["GS_P.AIP"], "GT.AIP": ["GT.AIP"], "GT_F.AIP": ["GT_F.AIP"], "GTR.AIP": ["GTR.AIP"], "GU.AIP": ["GU.AIP"], "GU_F.AIP": ["GU_F.AIP"], "GU_S.AIP": ["GU_S.AIP"], "H_AH6.AIP": ["H_AH6.AIP"], "h_ah6b_z.aip": ["h_ah6b_z.aip"], "h_ah6z.aip": ["h_ah6z.aip"], "H_Apach2.AIP": ["H_Apach2.AIP"], "H_Apache.AIP": ["H_Apache.AIP"], "H_BHawk.AIP": ["H_BHawk.AIP"], "h_bhawkf.aip": ["h_bhawkf.aip"], "H_BHawkN.AIP": ["H_BHawkN.AIP"], "H_BHawkZ.AIP": ["H_BHawkZ.AIP"], "h_bhawmp.aip": ["h_bhawmp.aip"], "H_ComanZ.AIP": ["H_ComanZ.AIP"], "H_Havoc.aip": ["H_Havoc.aip"], "H_HavocR.AIP": ["H_HavocR.AIP"], "H_Helix.AIP": ["H_Helix.AIP"], "H_Hind.aip": ["H_Hind.aip"], "H_Hokum.AIP": ["H_Hokum.AIP"], "H_Hokum2.AIP": ["H_Hokum2.AIP"], "H_Hokum3.AIP": ["H_Hokum3.AIP"], "H_MGNF.AIP": ["H_MGNF.AIP"], "HELO1.AIP": ["HELO1.AIP"], "HMG.AIP": ["HMG.AIP"], "HS_F.AIP": ["HS_F.AIP"], "HU.AIP": ["HU.AIP"], "P_AF1.AIP": ["P_AF1.AIP"], "P_cessna.aip": ["P_cessna.aip"], "P_drone.aip": ["P_drone.aip"], "P_Drone2.AIP": ["P_Drone2.AIP"], "plane.AIP": ["plane.AIP"], "planesit.AIP": ["planesit.AIP"], "PR_F.AIP": ["PR_F.AIP"], "PR_S.AIP": ["PR_S.AIP"], "PRETTY.AIP": ["PRETTY.AIP"], "PRF_F.AIP": ["PRF_F.AIP"], "PRF_S.AIP": ["PRF_S.AIP"], "PS_F.AIP": ["PS_F.AIP"], "PS_FZ.AIP": ["PS_FZ.AIP"], "PSE_F.AIP": ["PSE_F.AIP"], "PSE_FZ.AIP": ["PSE_FZ.AIP"], "Pu_s.aip": ["Pu_s.aip"], "sitboat.aip": ["sitboat.aip"], "sitgrnd1.AIP": ["sitgrnd1.AIP"], "T_Cannon.AIP": ["T_Cannon.AIP"], "T_Gun.AIP": ["T_Gun.AIP"], "T_Rocket.AIP": ["T_Rocket.AIP"], "T_SAM.AIP": ["T_SAM.AIP"], "W_big.AIP": ["W_big.AIP"], "W_Cargo.AIP": ["W_Cargo.AIP"], "W_Frig.AIP": ["W_Frig.AIP"], "W_LCAC.AIP": ["W_LCAC.AIP"], "W_Zode.AIP": ["W_Zode.AIP"], "Wingman.AIP": ["Wingman.AIP"], "WMG_F.AIP": ["WMG_F.AIP"], "WMG_VF.AIP": ["WMG_VF.AIP"], "WMP.AIP": ["WMP.AIP"], "WU.AIP": ["WU.AIP"], "WU_F.AIP": ["WU_F.AIP"]};
   const TERRAIN_FILE_INDEX={"CINE": ["CINE.TRN"], "DVD1": ["DVD1.TRN"], "dvd2": ["dvd2.trn"], "dvd3": ["dvd3.trn"], "DVD4": ["DVD4.TRN"], "dvd5": ["dvd5.trn"], "dvdg1": ["dvdg1.trn"], "DVDG2": ["DVDG2.TRN"], "dvg1": ["dvg1.trn"], "dvt1": ["dvt1.trn"], "Flat": ["Flat.TRN"], "MIS1": ["MIS1.TRN"], "mis10": ["mis10.trn"], "MIS11": ["MIS11.TRN"], "MIS13": ["MIS13.TRN"], "Mis14": ["Mis14.trn"], "MIS15": ["MIS15.TRN"], "MIS16": ["MIS16.TRN"], "MIS17": ["MIS17.TRN"], "MIS18": ["MIS18.TRN"], "MIS19B": ["MIS19B.TRN"], "MIS2": ["MIS2.TRN"], "MIS3": ["MIS3.TRN"], "MIS4": ["MIS4.TRN"], "MIS5": ["MIS5.TRN"], "MIS6": ["MIS6.TRN"], "MIS7": ["MIS7.TRN"], "MIS8": ["MIS8.TRN"], "MIS9": ["MIS9.TRN"], "MIST1": ["MIST1.TRN"], "MIST2": ["MIST2.TRN"], "rmp02b": ["rmp02b.trn"], "rmp03p": ["rmp03p.trn"], "rmp03r": ["rmp03r.trn"], "TKHR_04": ["TKHR_04.trn"], "ts_01": ["ts_01.trn"], "ts_02": ["ts_02.trn"], "TS_05": ["TS_05.trn"], "TS_09": ["TS_09.trn"], "ts_11": ["ts_11.trn"], "TSBHD_04": ["TSBHD_04.trn"], "TSBHD_06": ["TSBHD_06.trn"], "zoo": ["zoo.trn"]};
   async function loadTerrainFromMis(terrainOverride = null){
+    const generation = ++state.terrainLoad.generation;
+    const isCurrentLoad = () => generation === state.terrainLoad.generation;
     const terrainRaw = terrainOverride ?? extractTerrainNameFromMis();
     const terrain = String(terrainRaw || "").trim();
     setTerrainLoadPhase("loading");
@@ -11765,6 +11949,7 @@
 
     if (state.isLocalRuntime && state.editorFolderHandle){
       const localListing = await listTerrainFilesFromEditorFolder(terrain);
+      if (!isCurrentLoad()) return;
       if (localListing){
         folder = localListing.folder;
         files = localListing.files;
@@ -11798,6 +11983,7 @@
     addLog(`[terrain] loading TRN: ${base}/${trnFile}`);
 
     const trnTxt = await loadTextResource(`${base}/${trnFile}`);
+    if (!isCurrentLoad()) return;
     if(!trnTxt){
       addLog(`[terrain] failed to read TRN file: ${base}/${trnFile}`);
       throw new Error(`Failed to read TRN: ${base}/${trnFile}`);
@@ -11852,6 +12038,7 @@
     const cptPath=`${base}/${cptFile}`;
     addLog(`[terrain] loading CPT: ${cptPath}`);
     const cptBuf=await loadBinaryResource(cptPath);
+    if (!isCurrentLoad()) return;
     if(!cptBuf) throw new Error(`Failed to read CPT: ${cptPath}`);
 
     const dv=new DataView(cptBuf,0xA4);
@@ -11862,6 +12049,7 @@
     const tgaPath=`${base}/${resolvedColFile}`;
     addLog(`[terrain] loading TGA: ${tgaPath}`);
     const tgaBuf=await loadBinaryResource(tgaPath);
+    if (!isCurrentLoad()) return;
     if(!tgaBuf) throw new Error(`Failed to read TGA: ${tgaPath}`);
     lastImg=decodeTGA(tgaBuf);
     addLog(`[terrain] TGA decoded: ${lastImg.w}x${lastImg.h}`);
@@ -11873,7 +12061,7 @@
     } finally {
       // A missing or unreadable terrain must not leave area-trigger rendering
       // blocked forever. In that case volumes fall back to the markers' raw Z.
-      if (state.terrainLoad.phase === "loading") setTerrainLoadPhase("failed");
+      if (isCurrentLoad() && state.terrainLoad.phase === "loading") setTerrainLoadPhase("failed");
     }
   }
 
