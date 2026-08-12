@@ -1,6 +1,6 @@
 begin "Sound"
 	graphic 1_speaker
-	graphic_scale 2
+	graphic_scale 4
 end
 
 
