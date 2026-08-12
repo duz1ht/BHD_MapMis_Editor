@@ -1395,7 +1395,7 @@
 <div class="hint" id="defStatus" style="margin-top:6px;">Item catalog loaded (embedded ITEMS.DEF).</div>
 
     <div class="row" style="margin-top:10px;">
-      <input id="search" placeholder="Search by type_id, id, name" />
+      <input id="search" placeholder="Search by type_id, id, name, or .glb file" />
     </div>
 
     <div id="selectedInfoPanel">
@@ -2887,7 +2887,10 @@
       const tid = (it.kv.type_id || "").toString();
       const name = (it.kv.name || it.kv.iai_name || "").toString();
       const defName = def?.name ? String(def.name) : "";
-      const graphic = def?.graphic ? String(def.graphic) : "";
+      const graphic = def?.graphic ? String(def.graphic) : String(it.kv.graphic || "");
+      const glbFileName = graphic
+        ? (graphic.toLowerCase().endsWith(".glb") ? graphic : `${graphic}.glb`)
+        : "";
 
       if (!q) return true;
       return (
@@ -2895,7 +2898,8 @@
         name.toLowerCase().includes(q) ||
         defName.toLowerCase().includes(q) ||
         defType.toLowerCase().includes(q) ||
-        graphic.toLowerCase().includes(q)
+        graphic.toLowerCase().includes(q) ||
+        glbFileName.toLowerCase().includes(q)
       );
     });
 
