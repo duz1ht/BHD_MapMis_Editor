@@ -3684,6 +3684,11 @@
     return 1;
   }
 
+  function getItemTint(it){
+    const tint = String(getDefForItem(it)?.tint || "").trim();
+    return /^#[0-9a-f]{6}$/i.test(tint) ? tint : "";
+  }
+
   // DEF parser (ITEMS.DEF)
   function extractSoundDefinitionFromOtherItems(rawText){
     const text = String(rawText || "");
@@ -3720,6 +3725,7 @@
           type: "",
           graphic: "",
           graphicScale: 1,
+          tint: "",
           attrib: [],
           kv: {},
         };
@@ -3757,6 +3763,7 @@
         if (k === "type_id") cur.typeId = v;
         if (k === "type") cur.type = v;
         if (k === "graphic") cur.graphic = v;
+        if (k === "tint" && /^#[0-9a-f]{6}$/i.test(v)) cur.tint = v;
         if (k === "graphic_scale"){
           const numericScale = Number(v);
           if (Number.isFinite(numericScale) && numericScale > 0) cur.graphicScale = numericScale;
@@ -3805,6 +3812,7 @@
         type: Object.prototype.hasOwnProperty.call(supplementKv, "type") ? supplement.type : base.type,
         graphic: Object.prototype.hasOwnProperty.call(supplementKv, "graphic") ? supplement.graphic : base.graphic,
         graphicScale: Object.prototype.hasOwnProperty.call(supplementKv, "graphic_scale") ? supplement.graphicScale : base.graphicScale,
+        tint: Object.prototype.hasOwnProperty.call(supplementKv, "tint") ? supplement.tint : base.tint,
         attrib,
         kv: { ...(base.kv || {}), ...supplementKv },
       });
@@ -4172,6 +4180,7 @@
     if (preview.object) preview.scene.remove(preview.object);
     preview.object = template.clone(true);
     cloneGlbMaterials(preview.object);
+    applySolidTintToGlbObject(preview.object, def.tint);
     applyItemModelTransform(preview.object, 0, 0, def.graphicScale);
     preview.object.visible = true;
     preview.scene.add(preview.object);
@@ -8759,19 +8768,19 @@
       { label: "Paste", action: () => pasteCopiedItem() },
       { separator: true },
       { label: "Move", action: () => statusEl.textContent = "Use Shift + arrastar para mover o item selecionado." },
-      { label: "Numeric Move", action: () => showNotImplemented("Numeric Move") },
-      { label: "Group Rotate", action: () => showNotImplemented("Group Rotate") },
+      { label: "Numeric Move", disabled: true },
+      { label: "Group Rotate", disabled: true },
       { separator: true },
-      { label: "Hide Selected", action: () => showNotImplemented("Hide Selected") },
-      { label: "Hide Unselected", action: () => showNotImplemented("Hide Unselected") },
-      { label: "Unhide All", action: () => showNotImplemented("Unhide All") },
+      { label: "Hide Selected", disabled: true },
+      { label: "Hide Unselected", disabled: true },
+      { label: "Unhide All", disabled: true },
       { separator: true },
-      { label: "Select This Type", action: () => showNotImplemented("Select This Type") },
-      { label: "Select This Group", action: () => showNotImplemented("Select This Group") },
-      { label: "Select This BGRP", action: () => showNotImplemented("Select This BGRP") },
-      { label: "Select This WPLIST", action: () => showNotImplemented("Select This WPLIST") },
+      { label: "Select This Type", disabled: true },
+      { label: "Select This Group", disabled: true },
+      { label: "Select This BGRP", disabled: true },
+      { label: "Select This WPLIST", disabled: true },
       { separator: true },
-      { label: "Deselect This Type", action: () => showNotImplemented("Deselect This Type") },
+      { label: "Deselect This Type", disabled: true },
       { separator: true },
       { label: "Snap to Floor", action: snapSelectedItemsToFloor },
       { separator: true },
@@ -8789,9 +8798,10 @@
       const btn = document.createElement("button");
       btn.className = "menuItemBtn";
       btn.textContent = entry.label;
+      btn.disabled = entry.disabled === true;
       btn.addEventListener("click", () => {
         closeItemContextMenu();
-        entry.action();
+        entry.action?.();
       });
       itemContextMenu.appendChild(btn);
     }
@@ -8982,8 +8992,8 @@
       { label: "Open", command: "file.open" },
       { label: "Save (.mis)", shortcut: "Ctrl + S", command: "file.save" },
       { label: "Save As (.mis)", shortcut: "Ctrl + Shift + S", command: "file.saveAs" },
-      { label: "Export Binary (.bms)", command: "file.exportBinaryMission" },
-      { label: "Save (.mis) and export (.bms)", command: "file.saveAndExport" }
+      { label: "Export Binary (.bms)", command: "file.exportBinaryMission", disabled: true },
+      { label: "Save (.mis) and export (.bms)", command: "file.saveAndExport", disabled: true }
     ];
 
     return [
@@ -9201,6 +9211,8 @@
 
           const itemBtn = document.createElement("button");
           itemBtn.className = `menuItemBtn${child.attention ? " attention" : ""}`;
+          const handler = menuHandlers[child.command];
+          itemBtn.disabled = child.disabled === true || !handler;
           if (typeof child.checked === "boolean"){
             itemBtn.setAttribute("role", "menuitemcheckbox");
             itemBtn.setAttribute("aria-checked", child.checked ? "true" : "false");
@@ -9214,7 +9226,6 @@
             shortcutEl.textContent = child.shortcut;
             itemBtn.appendChild(shortcutEl);
           }
-          const handler = menuHandlers[child.command];
           itemBtn.addEventListener("click", () => {
             closeMenus();
             if (handler) handler();
@@ -10293,6 +10304,27 @@
     });
   }
 
+  function applySolidTintToGlbObject(root, tint){
+    const normalizedTint = String(tint || "").trim();
+    if (!root || !/^#[0-9a-f]{6}$/i.test(normalizedTint) || !state.glb.THREE) return;
+    const color = new state.glb.THREE.Color(normalizedTint);
+    root.traverse?.(obj => {
+      if (!obj.isMesh) return;
+      const originalMaterials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      const tintedMaterials = originalMaterials.map(material => new state.glb.THREE.MeshBasicMaterial({
+        color,
+        side: material?.side ?? state.glb.THREE.FrontSide,
+        transparent: false,
+        opacity: 1,
+        depthTest: material?.depthTest ?? true,
+        depthWrite: material?.depthWrite ?? true,
+        toneMapped: false,
+      }));
+      obj.material = Array.isArray(obj.material) ? tintedMaterials : tintedMaterials[0];
+      originalMaterials.forEach(material => material?.dispose?.());
+    });
+  }
+
   function applyItemModelTransform(obj, heading = 0, pitch = 0, graphicScale = 1){
     if (!obj) return;
     // OpenNova-style orientation correction: sign-flip yaw/pitch and apply a +180° yaw phase shift.
@@ -10995,6 +11027,7 @@
           if (!template) continue;
           instance = template.clone(true);
           cloneGlbMaterials(instance);
+          applySolidTintToGlbObject(instance, getItemTint(it));
           applyWaypointColorToGlbObject(instance, it);
           applyAreaTriggerColorToGlbObject(instance, it);
           applyWaypointOutlineToGlbObject(instance, it);
