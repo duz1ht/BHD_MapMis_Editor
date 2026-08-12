@@ -8,9 +8,9 @@ Todo:
 - [X] Layer Names
 - [X] Groups
 - [ ] 90% - Item Attributes
-- [ ] 90% - Area Triggers
-- [ ] 60% - Item context menu
-- [ ] Canvas context menu
+- [X] 90% - Area Triggers
+- [ ] 90% - Item context menu
+- [X] Canvas context menu
 - [ ] Briefing
 - [x] Events
 - [ ] Global Replace
