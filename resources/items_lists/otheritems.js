@@ -22,6 +22,7 @@ end
 begin "start, Blue Team"
 	type_id 106003
 	graphic 1_person
+	tint #0066FF
 end
 
 
@@ -29,6 +30,7 @@ end
 begin "start, Red Team"
 	type_id 106004
 	graphic 1_person
+	tint #FF2020
 end
 
 
@@ -42,6 +44,7 @@ end
 begin "start, player"
 	type_id 106001
 	graphic 1_person
+	tint #39FF14
 end  
 
 
@@ -49,6 +52,7 @@ end
 begin "start, dmatch"
 	type_id 106002
 	graphic 1_person
+	tint #FFFFFF
 end  
 
 
@@ -56,6 +60,7 @@ end
 begin "start, primary, player"
 	type_id 106094
 	graphic 1_person
+	tint #CCFF00
 end  
 
 
@@ -63,6 +68,7 @@ end
 begin "start, primary, dmatch"
 	type_id 106095
 	graphic 1_person
+	tint #B8C4D6
 end  
 
 
@@ -70,6 +76,7 @@ end
 begin "start, primary, Blue Team"
 	type_id 106096
 	graphic 1_person
+	tint #00B7FF
 end  
 
 
@@ -77,6 +84,7 @@ end
 begin "start, primary, Red Team"
 	type_id 106097
 	graphic 1_person
+	tint #FF00AA
 end  
 
 
@@ -127,6 +135,5 @@ begin "Map Centerpoint, helps align commander map grid"
 	type_id 102043
 	graphic
 end 
-
 
 

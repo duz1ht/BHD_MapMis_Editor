@@ -3684,6 +3684,11 @@
     return 1;
   }
 
+  function getItemTint(it){
+    const tint = String(getDefForItem(it)?.tint || "").trim();
+    return /^#[0-9a-f]{6}$/i.test(tint) ? tint : "";
+  }
+
   // DEF parser (ITEMS.DEF)
   function extractSoundDefinitionFromOtherItems(rawText){
     const text = String(rawText || "");
@@ -3720,6 +3725,7 @@
           type: "",
           graphic: "",
           graphicScale: 1,
+          tint: "",
           attrib: [],
           kv: {},
         };
@@ -3757,6 +3763,7 @@
         if (k === "type_id") cur.typeId = v;
         if (k === "type") cur.type = v;
         if (k === "graphic") cur.graphic = v;
+        if (k === "tint" && /^#[0-9a-f]{6}$/i.test(v)) cur.tint = v;
         if (k === "graphic_scale"){
           const numericScale = Number(v);
           if (Number.isFinite(numericScale) && numericScale > 0) cur.graphicScale = numericScale;
@@ -3805,6 +3812,7 @@
         type: Object.prototype.hasOwnProperty.call(supplementKv, "type") ? supplement.type : base.type,
         graphic: Object.prototype.hasOwnProperty.call(supplementKv, "graphic") ? supplement.graphic : base.graphic,
         graphicScale: Object.prototype.hasOwnProperty.call(supplementKv, "graphic_scale") ? supplement.graphicScale : base.graphicScale,
+        tint: Object.prototype.hasOwnProperty.call(supplementKv, "tint") ? supplement.tint : base.tint,
         attrib,
         kv: { ...(base.kv || {}), ...supplementKv },
       });
@@ -4172,6 +4180,7 @@
     if (preview.object) preview.scene.remove(preview.object);
     preview.object = template.clone(true);
     cloneGlbMaterials(preview.object);
+    applySolidTintToGlbObject(preview.object, def.tint);
     applyItemModelTransform(preview.object, 0, 0, def.graphicScale);
     preview.object.visible = true;
     preview.scene.add(preview.object);
@@ -10293,6 +10302,27 @@
     });
   }
 
+  function applySolidTintToGlbObject(root, tint){
+    const normalizedTint = String(tint || "").trim();
+    if (!root || !/^#[0-9a-f]{6}$/i.test(normalizedTint) || !state.glb.THREE) return;
+    const color = new state.glb.THREE.Color(normalizedTint);
+    root.traverse?.(obj => {
+      if (!obj.isMesh) return;
+      const originalMaterials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      const tintedMaterials = originalMaterials.map(material => new state.glb.THREE.MeshBasicMaterial({
+        color,
+        side: material?.side ?? state.glb.THREE.FrontSide,
+        transparent: false,
+        opacity: 1,
+        depthTest: material?.depthTest ?? true,
+        depthWrite: material?.depthWrite ?? true,
+        toneMapped: false,
+      }));
+      obj.material = Array.isArray(obj.material) ? tintedMaterials : tintedMaterials[0];
+      originalMaterials.forEach(material => material?.dispose?.());
+    });
+  }
+
   function applyItemModelTransform(obj, heading = 0, pitch = 0, graphicScale = 1){
     if (!obj) return;
     // OpenNova-style orientation correction: sign-flip yaw/pitch and apply a +180° yaw phase shift.
@@ -10995,6 +11025,7 @@
           if (!template) continue;
           instance = template.clone(true);
           cloneGlbMaterials(instance);
+          applySolidTintToGlbObject(instance, getItemTint(it));
           applyWaypointColorToGlbObject(instance, it);
           applyAreaTriggerColorToGlbObject(instance, it);
           applyWaypointOutlineToGlbObject(instance, it);
