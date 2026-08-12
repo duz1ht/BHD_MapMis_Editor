@@ -8941,7 +8941,7 @@ end group
     return Boolean(state.filename || state.rawText || state.items.length || state.sectionBlocks.length);
   }
 
-  function clearEditorMap(){
+  async function clearEditorMap(){
     state.rawText = DEFAULT_NEW_MAP_MIS;
     const parsed = parseMIS(DEFAULT_NEW_MAP_MIS);
     state.items = parsed.items;
@@ -8962,6 +8962,12 @@ end group
     buildWaypointList();
     buildGroupOptions();
     renderList();
+    try{
+      await loadTerrainFromMis();
+    } catch (err){
+      addLog(`[terrain] load error after Create New Map: ${err?.message || err}`);
+      camDebugEl.textContent = `Failed to load terrain: ${err.message || err}`;
+    }
     requestRender();
     refreshLiveMisWindow(true, { force: true });
   }
@@ -9064,7 +9070,7 @@ end group
 
   async function handleNewProject(){
     if (!hasMapLoaded()){
-      clearEditorMap();
+      await clearEditorMap();
       statusEl.textContent = "New map project created.";
       return;
     }
@@ -9074,7 +9080,7 @@ end group
       const saved = await saveCurrentMap({ forcePicker: true });
       if (!saved) return;
     }
-    clearEditorMap();
+    await clearEditorMap();
     statusEl.textContent = "New map project created.";
   }
 
