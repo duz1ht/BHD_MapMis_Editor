@@ -2420,6 +2420,7 @@ end group
     terrainLoad: {
       phase: "idle",
       revision: 0,
+      generation: 0,
     },
     threeOverlays: {
       scene: null,
@@ -8942,6 +8943,47 @@ end group
   }
 
   async function clearEditorMap(){
+    // Cancel every interaction that belongs to the previous mission before its
+    // item ids and sections are replaced.
+    state.keysDown.clear();
+    state.pendingLeftClick = null;
+    state.draggingPan = false;
+    state.draggingItem = false;
+    state.boxSelecting = false;
+    state.boxStart = null;
+    state.boxCurrent = null;
+    state.rightPanActive = false;
+    state.rightPanStart = null;
+    state.cameraLookActive = false;
+    state.cameraLookPending = false;
+    state.cameraLookStart = null;
+    state.pastePlacementActive = false;
+    state.pastePreviewWorld = null;
+    state.insertModeActive = false;
+    state.insertDragStart = null;
+    state.insertDragStartScreen = null;
+    state.insertHoverPoint = null;
+    state.insertPreviewWorld = null;
+    state.insertPreviewSamples = [];
+    state.insertPreviewPoints = [];
+    state.gizmoDrag = null;
+    state.gizmoVisual = null;
+    state.hoveredGizmoHandle = null;
+    state.modalOpen = false;
+    state.modalSnapshot = null;
+    state.selectedInfoIndex = 0;
+    state.groupSelectedNumber = 1;
+    state.waypointSelectedNumber = 1;
+    if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock();
+    closeItemContextMenu();
+    closeSectionEditor();
+    modalOverlay.classList.remove("open");
+    modalOverlay.setAttribute("aria-hidden", "true");
+    insertOverlay.classList.remove("open");
+    insertOverlay.setAttribute("aria-hidden", "true");
+    insertPreviewLabel.style.display = "none";
+    cv.style.cursor = "";
+
     state.rawText = DEFAULT_NEW_MAP_MIS;
     const parsed = parseMIS(DEFAULT_NEW_MAP_MIS);
     state.items = parsed.items;
@@ -8957,17 +8999,33 @@ end group
     state.itemClipboardItems = [];
     state.selectedWaypointMarkerIds.clear();
     updateWaypointMarkerCount(0);
+    state.sectionSelectedId = null;
+    state.eventSelectedId = null;
+    eventUi.selectedTrigger = -1;
+    eventUi.selectedAction = -1;
+    state.layerVisibility.clear();
+    state.groupVisibility.clear();
+    state.waypointVisibility.clear();
+    state.areaTriggerVisibility.clear();
+    await loadMissionGameStrings("");
     fileMisEl.value = "";
     buildLayerOptions();
     buildWaypointList();
     buildGroupOptions();
+    renderLayerVisibilityPanel();
+    renderGroupVisibilityPanel();
+    renderWaypointVisibilityPanel();
+    renderAreaTriggerVisibilityPanel();
     renderList();
     try{
       await loadTerrainFromMis();
+      if (state.terrainLoad.phase === "ready") resetCamera();
     } catch (err){
       addLog(`[terrain] load error after Create New Map: ${err?.message || err}`);
       camDebugEl.textContent = `Failed to load terrain: ${err.message || err}`;
     }
+    renderMenuBar();
+    updateItemGizmo();
     requestRender();
     refreshLiveMisWindow(true, { force: true });
   }
@@ -11854,6 +11912,8 @@ end group
   const AI_TEXTFILE_FILE_INDEX={"boat.aip": ["boat.aip"], "G_Aveng2.AIP": ["G_Aveng2.AIP"], "G_Avengr.AIP": ["G_Avengr.AIP"], "G_BMP.AIP": ["G_BMP.AIP"], "G_bmpG.AIP": ["G_bmpG.AIP"], "G_Bradly.AIP": ["G_Bradly.AIP"], "G_BRDM.AIP": ["G_BRDM.AIP"], "G_Buggy.AIP": ["G_Buggy.AIP"], "G_buggyS.AIP": ["G_buggyS.AIP"], "G_Jeep.AIP": ["G_Jeep.AIP"], "G_JeepS.AIP": ["G_JeepS.AIP"], "G_MIM23.AIP": ["G_MIM23.AIP"], "G_MIM23R.AIP": ["G_MIM23R.AIP"], "G_SA6.AIP": ["G_SA6.AIP"], "G_sa6R.AIP": ["G_sa6R.AIP"], "G_SA8.AIP": ["G_SA8.AIP"], "G_SA8R.AIP": ["G_SA8R.AIP"], "G_Snow.AIP": ["G_Snow.AIP"], "G_SnowR.AIP": ["G_SnowR.AIP"], "G_SnowS.AIP": ["G_SnowS.AIP"], "G_tngska.AIP": ["G_tngska.AIP"], "G_tngskR.AIP": ["G_tngskR.AIP"], "GMG.AIP": ["GMG.AIP"], "GMG_F.AIP": ["GMG_F.AIP"], "GMG_P.AIP": ["GMG_P.AIP"], "GMGF_P.AIP": ["GMGF_P.AIP"], "ground1.AIP": ["ground1.AIP"], "GS.AIP": ["GS.AIP"], "GS_F.AIP": ["GS_F.AIP"], "GS_P.AIP": ["GS_P.AIP"], "GT.AIP": ["GT.AIP"], "GT_F.AIP": ["GT_F.AIP"], "GTR.AIP": ["GTR.AIP"], "GU.AIP": ["GU.AIP"], "GU_F.AIP": ["GU_F.AIP"], "GU_S.AIP": ["GU_S.AIP"], "H_AH6.AIP": ["H_AH6.AIP"], "h_ah6b_z.aip": ["h_ah6b_z.aip"], "h_ah6z.aip": ["h_ah6z.aip"], "H_Apach2.AIP": ["H_Apach2.AIP"], "H_Apache.AIP": ["H_Apache.AIP"], "H_BHawk.AIP": ["H_BHawk.AIP"], "h_bhawkf.aip": ["h_bhawkf.aip"], "H_BHawkN.AIP": ["H_BHawkN.AIP"], "H_BHawkZ.AIP": ["H_BHawkZ.AIP"], "h_bhawmp.aip": ["h_bhawmp.aip"], "H_ComanZ.AIP": ["H_ComanZ.AIP"], "H_Havoc.aip": ["H_Havoc.aip"], "H_HavocR.AIP": ["H_HavocR.AIP"], "H_Helix.AIP": ["H_Helix.AIP"], "H_Hind.aip": ["H_Hind.aip"], "H_Hokum.AIP": ["H_Hokum.AIP"], "H_Hokum2.AIP": ["H_Hokum2.AIP"], "H_Hokum3.AIP": ["H_Hokum3.AIP"], "H_MGNF.AIP": ["H_MGNF.AIP"], "HELO1.AIP": ["HELO1.AIP"], "HMG.AIP": ["HMG.AIP"], "HS_F.AIP": ["HS_F.AIP"], "HU.AIP": ["HU.AIP"], "P_AF1.AIP": ["P_AF1.AIP"], "P_cessna.aip": ["P_cessna.aip"], "P_drone.aip": ["P_drone.aip"], "P_Drone2.AIP": ["P_Drone2.AIP"], "plane.AIP": ["plane.AIP"], "planesit.AIP": ["planesit.AIP"], "PR_F.AIP": ["PR_F.AIP"], "PR_S.AIP": ["PR_S.AIP"], "PRETTY.AIP": ["PRETTY.AIP"], "PRF_F.AIP": ["PRF_F.AIP"], "PRF_S.AIP": ["PRF_S.AIP"], "PS_F.AIP": ["PS_F.AIP"], "PS_FZ.AIP": ["PS_FZ.AIP"], "PSE_F.AIP": ["PSE_F.AIP"], "PSE_FZ.AIP": ["PSE_FZ.AIP"], "Pu_s.aip": ["Pu_s.aip"], "sitboat.aip": ["sitboat.aip"], "sitgrnd1.AIP": ["sitgrnd1.AIP"], "T_Cannon.AIP": ["T_Cannon.AIP"], "T_Gun.AIP": ["T_Gun.AIP"], "T_Rocket.AIP": ["T_Rocket.AIP"], "T_SAM.AIP": ["T_SAM.AIP"], "W_big.AIP": ["W_big.AIP"], "W_Cargo.AIP": ["W_Cargo.AIP"], "W_Frig.AIP": ["W_Frig.AIP"], "W_LCAC.AIP": ["W_LCAC.AIP"], "W_Zode.AIP": ["W_Zode.AIP"], "Wingman.AIP": ["Wingman.AIP"], "WMG_F.AIP": ["WMG_F.AIP"], "WMG_VF.AIP": ["WMG_VF.AIP"], "WMP.AIP": ["WMP.AIP"], "WU.AIP": ["WU.AIP"], "WU_F.AIP": ["WU_F.AIP"]};
   const TERRAIN_FILE_INDEX={"CINE": ["CINE.TRN"], "DVD1": ["DVD1.TRN"], "dvd2": ["dvd2.trn"], "dvd3": ["dvd3.trn"], "DVD4": ["DVD4.TRN"], "dvd5": ["dvd5.trn"], "dvdg1": ["dvdg1.trn"], "DVDG2": ["DVDG2.TRN"], "dvg1": ["dvg1.trn"], "dvt1": ["dvt1.trn"], "Flat": ["Flat.TRN"], "MIS1": ["MIS1.TRN"], "mis10": ["mis10.trn"], "MIS11": ["MIS11.TRN"], "MIS13": ["MIS13.TRN"], "Mis14": ["Mis14.trn"], "MIS15": ["MIS15.TRN"], "MIS16": ["MIS16.TRN"], "MIS17": ["MIS17.TRN"], "MIS18": ["MIS18.TRN"], "MIS19B": ["MIS19B.TRN"], "MIS2": ["MIS2.TRN"], "MIS3": ["MIS3.TRN"], "MIS4": ["MIS4.TRN"], "MIS5": ["MIS5.TRN"], "MIS6": ["MIS6.TRN"], "MIS7": ["MIS7.TRN"], "MIS8": ["MIS8.TRN"], "MIS9": ["MIS9.TRN"], "MIST1": ["MIST1.TRN"], "MIST2": ["MIST2.TRN"], "rmp02b": ["rmp02b.trn"], "rmp03p": ["rmp03p.trn"], "rmp03r": ["rmp03r.trn"], "TKHR_04": ["TKHR_04.trn"], "ts_01": ["ts_01.trn"], "ts_02": ["ts_02.trn"], "TS_05": ["TS_05.trn"], "TS_09": ["TS_09.trn"], "ts_11": ["ts_11.trn"], "TSBHD_04": ["TSBHD_04.trn"], "TSBHD_06": ["TSBHD_06.trn"], "zoo": ["zoo.trn"]};
   async function loadTerrainFromMis(terrainOverride = null){
+    const generation = ++state.terrainLoad.generation;
+    const isCurrentLoad = () => generation === state.terrainLoad.generation;
     const terrainRaw = terrainOverride ?? extractTerrainNameFromMis();
     const terrain = String(terrainRaw || "").trim();
     setTerrainLoadPhase("loading");
@@ -11872,6 +11932,7 @@ end group
 
     if (state.isLocalRuntime && state.editorFolderHandle){
       const localListing = await listTerrainFilesFromEditorFolder(terrain);
+      if (!isCurrentLoad()) return;
       if (localListing){
         folder = localListing.folder;
         files = localListing.files;
@@ -11905,6 +11966,7 @@ end group
     addLog(`[terrain] loading TRN: ${base}/${trnFile}`);
 
     const trnTxt = await loadTextResource(`${base}/${trnFile}`);
+    if (!isCurrentLoad()) return;
     if(!trnTxt){
       addLog(`[terrain] failed to read TRN file: ${base}/${trnFile}`);
       throw new Error(`Failed to read TRN: ${base}/${trnFile}`);
@@ -11959,6 +12021,7 @@ end group
     const cptPath=`${base}/${cptFile}`;
     addLog(`[terrain] loading CPT: ${cptPath}`);
     const cptBuf=await loadBinaryResource(cptPath);
+    if (!isCurrentLoad()) return;
     if(!cptBuf) throw new Error(`Failed to read CPT: ${cptPath}`);
 
     const dv=new DataView(cptBuf,0xA4);
@@ -11969,6 +12032,7 @@ end group
     const tgaPath=`${base}/${resolvedColFile}`;
     addLog(`[terrain] loading TGA: ${tgaPath}`);
     const tgaBuf=await loadBinaryResource(tgaPath);
+    if (!isCurrentLoad()) return;
     if(!tgaBuf) throw new Error(`Failed to read TGA: ${tgaPath}`);
     lastImg=decodeTGA(tgaBuf);
     addLog(`[terrain] TGA decoded: ${lastImg.w}x${lastImg.h}`);
@@ -11980,7 +12044,7 @@ end group
     } finally {
       // A missing or unreadable terrain must not leave area-trigger rendering
       // blocked forever. In that case volumes fall back to the markers' raw Z.
-      if (state.terrainLoad.phase === "loading") setTerrainLoadPhase("failed");
+      if (isCurrentLoad() && state.terrainLoad.phase === "loading") setTerrainLoadPhase("failed");
     }
   }
 
