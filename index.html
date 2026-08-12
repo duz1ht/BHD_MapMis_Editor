@@ -8991,8 +8991,8 @@
       { label: "Open", command: "file.open" },
       { label: "Save (.mis)", shortcut: "Ctrl + S", command: "file.save" },
       { label: "Save As (.mis)", shortcut: "Ctrl + Shift + S", command: "file.saveAs" },
-      { label: "Export Binary (.bms)", command: "file.exportBinaryMission" },
-      { label: "Save (.mis) and export (.bms)", command: "file.saveAndExport" }
+      { label: "Export Binary (.bms)", command: "file.exportBinaryMission", disabled: true },
+      { label: "Save (.mis) and export (.bms)", command: "file.saveAndExport", disabled: true }
     ];
 
     return [
@@ -9210,6 +9210,7 @@
 
           const itemBtn = document.createElement("button");
           itemBtn.className = `menuItemBtn${child.attention ? " attention" : ""}`;
+          itemBtn.disabled = child.disabled === true;
           if (typeof child.checked === "boolean"){
             itemBtn.setAttribute("role", "menuitemcheckbox");
             itemBtn.setAttribute("aria-checked", child.checked ? "true" : "false");
