@@ -8768,19 +8768,19 @@
       { label: "Paste", action: () => pasteCopiedItem() },
       { separator: true },
       { label: "Move", action: () => statusEl.textContent = "Use Shift + arrastar para mover o item selecionado." },
-      { label: "Numeric Move", action: () => showNotImplemented("Numeric Move") },
-      { label: "Group Rotate", action: () => showNotImplemented("Group Rotate") },
+      { label: "Numeric Move", disabled: true },
+      { label: "Group Rotate", disabled: true },
       { separator: true },
-      { label: "Hide Selected", action: () => showNotImplemented("Hide Selected") },
-      { label: "Hide Unselected", action: () => showNotImplemented("Hide Unselected") },
-      { label: "Unhide All", action: () => showNotImplemented("Unhide All") },
+      { label: "Hide Selected", disabled: true },
+      { label: "Hide Unselected", disabled: true },
+      { label: "Unhide All", disabled: true },
       { separator: true },
-      { label: "Select This Type", action: () => showNotImplemented("Select This Type") },
-      { label: "Select This Group", action: () => showNotImplemented("Select This Group") },
-      { label: "Select This BGRP", action: () => showNotImplemented("Select This BGRP") },
-      { label: "Select This WPLIST", action: () => showNotImplemented("Select This WPLIST") },
+      { label: "Select This Type", disabled: true },
+      { label: "Select This Group", disabled: true },
+      { label: "Select This BGRP", disabled: true },
+      { label: "Select This WPLIST", disabled: true },
       { separator: true },
-      { label: "Deselect This Type", action: () => showNotImplemented("Deselect This Type") },
+      { label: "Deselect This Type", disabled: true },
       { separator: true },
       { label: "Snap to Floor", action: snapSelectedItemsToFloor },
       { separator: true },
@@ -8798,9 +8798,10 @@
       const btn = document.createElement("button");
       btn.className = "menuItemBtn";
       btn.textContent = entry.label;
+      btn.disabled = entry.disabled === true;
       btn.addEventListener("click", () => {
         closeItemContextMenu();
-        entry.action();
+        entry.action?.();
       });
       itemContextMenu.appendChild(btn);
     }
@@ -9210,7 +9211,8 @@
 
           const itemBtn = document.createElement("button");
           itemBtn.className = `menuItemBtn${child.attention ? " attention" : ""}`;
-          itemBtn.disabled = child.disabled === true;
+          const handler = menuHandlers[child.command];
+          itemBtn.disabled = child.disabled === true || !handler;
           if (typeof child.checked === "boolean"){
             itemBtn.setAttribute("role", "menuitemcheckbox");
             itemBtn.setAttribute("aria-checked", child.checked ? "true" : "false");
@@ -9224,7 +9226,6 @@
             shortcutEl.textContent = child.shortcut;
             itemBtn.appendChild(shortcutEl);
           }
-          const handler = menuHandlers[child.command];
           itemBtn.addEventListener("click", () => {
             closeMenus();
             if (handler) handler();
