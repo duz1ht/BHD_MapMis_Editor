@@ -11387,9 +11387,10 @@ end group
 
   function getItemArrowHeadingRadians(heading){
     // MIS headings rotate in the opposite direction from Three.js positive Z
-    // rotation. Match the yaw sign used by applyItemModelTransform(), without
-    // its model-specific 180-degree correction.
-    return -(Number(heading) || 0) * Math.PI / 180;
+    // rotation. Match the yaw sign used by applyItemModelTransform(), then
+    // compensate for the arrow geometry's +X axis so it agrees with the
+    // official editor's yaw convention.
+    return (-(Number(heading) || 0) - 90) * Math.PI / 180;
   }
 
   function updateItemArrow(arrow, it){
