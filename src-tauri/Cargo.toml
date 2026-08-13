@@ -1,0 +1,18 @@
+[package]
+name = "bhd-mapmis-editor"
+version = "0.1.0"
+description = "Desktop mission editor for Delta Force: Black Hawk Down"
+authors = ["BHD MapMis Editor contributors"]
+edition = "2021"
+
+[lib]
+name = "bhd_mapmis_editor_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+rfd = "0.15"

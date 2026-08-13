@@ -1,4 +1,15 @@
-This project ports the map editor from Delta Force: Black Hawk Down, released in 2003 by NovaLogic, into a simple HTML file using Three.js. We can keep it as a web app or later migrate it to something simple like Electron, or another platform that makes it easy to reuse and build on the existing work.
+This project ports the map editor from Delta Force: Black Hawk Down, released in 2003 by NovaLogic, to a Tauri desktop application. The existing Three.js editor is used as the frontend, while Rust provides native desktop file access.
+
+## Desktop development
+
+Install the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your operating system, then run:
+
+```bash
+npm install
+npm run dev
+```
+
+Create a release installer with `npm run tauri build`. The web frontend can still be prepared independently with `npm run build`; its generated files are written to `dist/`.
 
 Todo:
 - [x] 3D terrain rendering

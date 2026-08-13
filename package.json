@@ -1,0 +1,14 @@
+{
+  "name": "bhd-mapmis-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop mission editor for Delta Force: Black Hawk Down",
+  "scripts": {
+    "build": "node scripts/build-web.mjs",
+    "tauri": "tauri",
+    "dev": "npm run tauri dev"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.0"
+  }
+}

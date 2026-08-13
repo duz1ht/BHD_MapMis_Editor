@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>BHD .MIS Editor (Web)</title>
+  <title>BHD .MIS Editor</title>
   <style>
     :root{
       --bg:#f2f2f2;
@@ -2353,8 +2353,10 @@ end group
     aiTextfileNames: [],
     aiTextfileLabels: new Map(),
     isLocalRuntime: window.location.protocol === "file:",
+    isTauriRuntime: Boolean(window.__TAURI__?.core?.invoke),
     editorFolderHandle: null,
     currentMisFileHandle: null,
+    currentMisPath: null,
     generalTerrainNames: [],
     generalInfoLoadGeneration: 0,
     soundGraphicFromOtherItems: "",
@@ -9038,6 +9040,7 @@ end group
     state.multiSelectedIds.clear();
     state.filename = "";
     state.currentMisFileHandle = null;
+    state.currentMisPath = null;
     state.itemClipboard = null;
     state.itemClipboardSection = null;
     state.itemClipboardItems = [];
@@ -9078,6 +9081,28 @@ end group
     const forcePicker = Boolean(options?.forcePicker);
     if (!state.rawText) return false;
     const out = rebuildMIS(state.rawText, state.items, state.sectionBlocks);
+    if (state.isTauriRuntime){
+      try{
+        const path = await window.__TAURI__.core.invoke("save_mission", {
+          contents: out,
+          currentPath: state.currentMisPath,
+          suggestedName: state.filename || "edited.mis",
+          forcePicker
+        });
+        if (!path){
+          statusEl.textContent = "Save canceled.";
+          return false;
+        }
+        state.currentMisPath = path;
+        state.filename = path.split(/[\\/]/).pop() || state.filename;
+        statusEl.textContent = "File saved.";
+        return true;
+      } catch (err){
+        addLog(`ERROR saving .mis: ${err?.message || err || "unknown error"}`);
+        statusEl.textContent = "Failed to save file (see Logs).";
+        return false;
+      }
+    }
     if (window.showSaveFilePicker){
       try{
         const handle = (!forcePicker && state.currentMisFileHandle) ? state.currentMisFileHandle : await window.showSaveFilePicker({
@@ -9189,6 +9214,20 @@ end group
   const menuHandlers = {
     "file.new": async () => handleNewProject(),
     "file.open": async () => {
+      if (state.isTauriRuntime){
+        try{
+          const mission = await window.__TAURI__.core.invoke("open_mission");
+          if (!mission) return;
+          const file = new File([new Uint8Array(mission.bytes)], mission.name);
+          state.currentMisPath = mission.path;
+          await loadMisFile(file);
+          state.currentMisPath = mission.path;
+        } catch (err){
+          addLog(`ERROR opening .mis: ${err?.message || err || "unknown error"}`);
+          statusEl.textContent = "Failed to open file (see Logs).";
+        }
+        return;
+      }
       if (window.showOpenFilePicker){
         try{
           const [handle] = await window.showOpenFilePicker({
