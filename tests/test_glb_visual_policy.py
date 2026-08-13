@@ -55,6 +55,14 @@ class GlbVisualPolicyTests(unittest.TestCase):
         self.assertIn("state.glb.templateByGraphic.clear()", command)
         self.assertIn("await syncGlbItems()", command)
 
+    def test_glb_folder_index_supports_nested_assets_and_real_paths(self):
+        indexer = self.function_body("listGlbFilesFromEditorFolder")
+        self.assertIn("await visit(handle, [...relativeParts, entryName])", indexer)
+        self.assertIn("state.glbPathByFilename = paths", indexer)
+        loader = self.function_body("loadGraphicTemplate")
+        self.assertIn('replace(/\\\\/g, "/").replace(/\\.glb$/i, "")', loader)
+        self.assertIn("state.glbPathByFilename.get(requestedFilename.toLowerCase())", loader)
+
 
 if __name__ == "__main__":
     unittest.main()

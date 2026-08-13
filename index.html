@@ -2361,6 +2361,7 @@ end group
     soundGraphicFromOtherItems: "",
     soundGraphicScaleFromOtherItems: 1,
     availableGlbFiles: null,
+    glbPathByFilename: new Map(),
     glbAvailability: new Map(),
     glbCheckQueue: [],
     glbChecksActive: 0,
@@ -4166,12 +4167,28 @@ end group
       let dir = state.editorFolderHandle;
       for (const part of ["resources", "3d_items"]) dir = await dir.getDirectoryHandle(part);
       const files = new Set();
-      for await (const [fileName, handle] of dir.entries()){
-        if (handle.kind === "file" && /\.glb$/i.test(fileName)) files.add(fileName.toLowerCase());
-      }
+      const paths = new Map();
+      const visit = async (currentDir, relativeParts = []) => {
+        for await (const [entryName, handle] of currentDir.entries()){
+          if (handle.kind === "directory"){
+            await visit(handle, [...relativeParts, entryName]);
+            continue;
+          }
+          if (!/\.glb$/i.test(entryName)) continue;
+          const key = entryName.toLowerCase();
+          const relativePath = [...relativeParts, entryName].join("/");
+          files.add(key);
+          // DEF graphic references normally contain only a basename. Preserve
+          // the first match deterministically if an asset pack has duplicates.
+          if (!paths.has(key)) paths.set(key, relativePath);
+        }
+      };
+      await visit(dir);
+      state.glbPathByFilename = paths;
       addLog(`[3d_items] folder indexed: ${files.size} GLB files`);
       return files;
     } catch (err){
+      state.glbPathByFilename = new Map();
       addLog(`[3d_items] unable to index folder: ${err?.message || err}`);
       return null;
     }
@@ -10840,11 +10857,14 @@ end group
 
 
   async function loadGraphicTemplate(graphic){
-    const key = String(graphic || "").trim();
+    const key = String(graphic || "").trim().replace(/\\/g, "/").replace(/\.glb$/i, "");
     if (!key) return null;
     if (state.glb.templateByGraphic.has(key)) return state.glb.templateByGraphic.get(key);
 
-    const path = `resources/3d_items/${key}.glb`;
+    const requestedFilename = `${key.split("/").pop()}.glb`;
+    const indexedRelativePath = state.glbPathByFilename.get(requestedFilename.toLowerCase());
+    const relativePath = indexedRelativePath || `${key}.glb`;
+    const path = `resources/3d_items/${relativePath}`;
     try {
       const glbData = await loadBinaryResource(path);
       if (!glbData) throw new Error(`Failed to read GLB: ${path}`);
