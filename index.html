@@ -11385,11 +11385,18 @@ end group
     return arrow;
   }
 
+  function getItemArrowHeadingRadians(heading){
+    // MIS headings rotate in the opposite direction from Three.js positive Z
+    // rotation. Match the yaw sign used by applyItemModelTransform(), without
+    // its model-specific 180-degree correction.
+    return -(Number(heading) || 0) * Math.PI / 180;
+  }
+
   function updateItemArrow(arrow, it){
     const lengthMeters = getItemArrowSize(it);
     arrow.material.color.setHex(ITEM_ARROW_COLOR);
     arrow.position.set(rawToWorld(it.x, 'x'), rawToWorld(it.y, 'y'), getItemWorldZ(it) + ITEM_ARROW_Z_OFFSET);
-    arrow.rotation.set(0, 0, (Number(it.heading) || 0) * Math.PI / 180);
+    arrow.rotation.set(0, 0, getItemArrowHeadingRadians(it.heading));
     arrow.scale.set(lengthMeters, lengthMeters, 1);
     arrow.visible = lengthMeters > 0 && isItemVisibilityFilterMatch(it);
   }

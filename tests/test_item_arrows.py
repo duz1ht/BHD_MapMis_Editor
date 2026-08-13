@@ -59,9 +59,14 @@ class ItemArrowTests(unittest.TestCase):
         self.assertNotIn("getItemTint", update)
         self.assertNotIn("selectedIds", update)
         self.assertIn("isItemVisibilityFilterMatch(it)", update)
-        self.assertIn("Number(it.heading)", update)
+        self.assertIn("getItemArrowHeadingRadians(it.heading)", update)
         create = self.function_body("createItemArrow")
         self.assertIn("arrow.raycast = () => null", create)
+
+    def test_arrow_heading_uses_the_mis_rotation_direction(self):
+        heading = self.function_body("getItemArrowHeadingRadians")
+        self.assertIn("-(Number(heading) || 0) * Math.PI / 180", heading)
+        self.assertIn("Match the yaw sign used by applyItemModelTransform()", heading)
 
     def test_arrows_sync_independently_from_glb_entries(self):
         sync = self.function_body("syncItemArrows")
