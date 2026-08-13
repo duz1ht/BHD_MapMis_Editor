@@ -11331,13 +11331,14 @@ end group
     delete instance.userData._appliedViewMode;
   }
 
-  const ITEM_ARROW_BASE_LENGTH = 8;
-  const ITEM_ARROW_BASE_WIDTH = 1.2;
+  // Three.js world units are meters here. The unit geometry is one meter long,
+  // so the DEF `arrow` value maps directly to the rendered length in meters.
+  const ITEM_ARROW_UNIT_LENGTH_METERS = 1;
+  const ITEM_ARROW_UNIT_WIDTH_METERS = 0.15;
   const ITEM_ARROW_HEAD_LENGTH_RATIO = 0.38;
   const ITEM_ARROW_HEAD_WIDTH_RATIO = 2.4;
   const ITEM_ARROW_Z_OFFSET = 0.15;
-  const ITEM_ARROW_DEFAULT_COLOR = 0xffd54f;
-  const ITEM_ARROW_SELECTED_COLOR = 0xffad00;
+  const ITEM_ARROW_COLOR = 0xffffff;
 
   function disposeItemArrow(arrow){
     if (!arrow) return;
@@ -11354,10 +11355,10 @@ end group
   function createItemArrow(it){
     if (!state.glb.THREE) return null;
     const { THREE } = state.glb;
-    const length = ITEM_ARROW_BASE_LENGTH;
-    const halfShaft = ITEM_ARROW_BASE_WIDTH * 0.5;
+    const length = ITEM_ARROW_UNIT_LENGTH_METERS;
+    const halfShaft = ITEM_ARROW_UNIT_WIDTH_METERS * 0.5;
     const headStart = length * (1 - ITEM_ARROW_HEAD_LENGTH_RATIO);
-    const halfHead = ITEM_ARROW_BASE_WIDTH * ITEM_ARROW_HEAD_WIDTH_RATIO * 0.5;
+    const halfHead = ITEM_ARROW_UNIT_WIDTH_METERS * ITEM_ARROW_HEAD_WIDTH_RATIO * 0.5;
     const shape = new THREE.Shape();
     shape.moveTo(0, -halfShaft);
     shape.lineTo(headStart, -halfShaft);
@@ -11369,7 +11370,7 @@ end group
     shape.closePath();
     const geometry = new THREE.ShapeGeometry(shape);
     const material = new THREE.MeshBasicMaterial({
-      color: ITEM_ARROW_DEFAULT_COLOR,
+      color: ITEM_ARROW_COLOR,
       side: THREE.DoubleSide,
       depthTest: true,
       depthWrite: false,
@@ -11384,17 +11385,13 @@ end group
     return arrow;
   }
 
-  function updateItemArrow(arrow, it, selectedIds){
-    const size = getItemArrowSize(it);
-    const tint = getItemTint(it);
-    const color = selectedIds.has(it.id)
-      ? ITEM_ARROW_SELECTED_COLOR
-      : (tint ? Number.parseInt(tint.slice(1), 16) : ITEM_ARROW_DEFAULT_COLOR);
-    arrow.material.color.setHex(color);
+  function updateItemArrow(arrow, it){
+    const lengthMeters = getItemArrowSize(it);
+    arrow.material.color.setHex(ITEM_ARROW_COLOR);
     arrow.position.set(rawToWorld(it.x, 'x'), rawToWorld(it.y, 'y'), getItemWorldZ(it) + ITEM_ARROW_Z_OFFSET);
     arrow.rotation.set(0, 0, (Number(it.heading) || 0) * Math.PI / 180);
-    arrow.scale.set(size, size, 1);
-    arrow.visible = size > 0 && isItemVisibilityFilterMatch(it);
+    arrow.scale.set(lengthMeters, lengthMeters, 1);
+    arrow.visible = lengthMeters > 0 && isItemVisibilityFilterMatch(it);
   }
 
   function syncItemArrows(){
@@ -11405,9 +11402,6 @@ end group
       state.glb.scene.add(state.itemArrows.group);
     }
     const wanted = new Set();
-    const selectedIds = new Set(state.multiSelectedIds.size
-      ? state.multiSelectedIds
-      : (state.selectedId != null ? [state.selectedId] : []));
     for (const it of state.items || []){
       if (getItemArrowSize(it) <= 0) continue;
       wanted.add(it.id);
@@ -11418,7 +11412,7 @@ end group
         state.itemArrows.group.add(arrow);
         state.itemArrows.instances.set(it.id, arrow);
       }
-      updateItemArrow(arrow, it, selectedIds);
+      updateItemArrow(arrow, it);
     }
     for (const [itemId, arrow] of state.itemArrows.instances){
       if (wanted.has(itemId)) continue;

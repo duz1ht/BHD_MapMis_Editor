@@ -50,11 +50,14 @@ class ItemArrowTests(unittest.TestCase):
         self.assertIn('Object.prototype.hasOwnProperty.call(supplementKv, "arrow")', merge)
         self.assertIn("supplement.arrow : base.arrow", merge)
 
-    def test_arrow_color_visibility_heading_and_pick_policy(self):
-        self.assertIn("const ITEM_ARROW_DEFAULT_COLOR = 0xffd54f", SOURCE)
+    def test_arrow_is_always_white_and_value_is_length_in_meters(self):
+        self.assertIn("const ITEM_ARROW_UNIT_LENGTH_METERS = 1", SOURCE)
+        self.assertIn("const ITEM_ARROW_COLOR = 0xffffff", SOURCE)
         update = self.function_body("updateItemArrow")
-        self.assertIn("getItemTint(it)", update)
-        self.assertIn("ITEM_ARROW_DEFAULT_COLOR", update)
+        self.assertIn("arrow.material.color.setHex(ITEM_ARROW_COLOR)", update)
+        self.assertIn("arrow.scale.set(lengthMeters, lengthMeters, 1)", update)
+        self.assertNotIn("getItemTint", update)
+        self.assertNotIn("selectedIds", update)
         self.assertIn("isItemVisibilityFilterMatch(it)", update)
         self.assertIn("Number(it.heading)", update)
         create = self.function_body("createItemArrow")
