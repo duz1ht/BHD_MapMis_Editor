@@ -11388,7 +11388,7 @@ end group
   function getItemArrowHeadingRadians(heading){
     // Compensate for the arrow geometry's +X axis so its yaw agrees with the
     // official editor's convention.
-    return ((Number(heading) || 0) - 90) * Math.PI / 180;
+    return ((Number(heading) || 0) - 180) * Math.PI / 180;
   }
 
   function updateItemArrow(arrow, it){

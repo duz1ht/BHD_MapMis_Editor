@@ -65,7 +65,7 @@ class ItemArrowTests(unittest.TestCase):
 
     def test_arrow_heading_uses_the_official_editor_direction_and_axis_offset(self):
         heading = self.function_body("getItemArrowHeadingRadians")
-        self.assertIn("((Number(heading) || 0) - 90) * Math.PI / 180", heading)
+        self.assertIn("((Number(heading) || 0) - 180) * Math.PI / 180", heading)
         self.assertNotIn("-(Number(heading)", heading)
         self.assertIn("official editor's convention", heading)
 
