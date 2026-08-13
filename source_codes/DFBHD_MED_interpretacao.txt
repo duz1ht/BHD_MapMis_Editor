@@ -1,0 +1,711 @@
+DFBHD MED (dfbhdmed.exe) - Documento de interpretação (best-effort)
+
+Data da análise: 2026-02-22 00:00 GMT-3 (São Paulo)
+
+Escopo e limitações
+- Este documento foi produzido lendo o executável como binário: strings ASCII, strings UTF-16LE (recursos de UI), e alguns templates de texto embutidos.
+- Eu não executei o editor, não depurei em runtime e não extraí lógica de código em assembly. Então:
+  - O que é afirmado como certo: nomes de arquivos que ele referencia, nomes de seções do .mis, nomes de campos, e textos/labels exibidos na interface.
+  - O que é inferido (marcado como 'provável'): conversões numéricas, unidades, e correspondência exata de alguns campos para alguns labels quando o EXE não expõe o pareamento 1:1.
+
+1) Quais arquivos o MED lê e por quê
+Arquivos de missão e templates
+- .mis: o arquivo principal de missão/mapa. O editor possui templates de escrita/leitura com tokens 'begin ... / end ...'.
+- __med.bms: aparece referenciado internamente como um arquivo base/template de missão (provável uso como modelo ou para exportação binária).
+
+Arquivos de definição para tradução de itens e armas
+- items.def: usado para traduzir type_id, id do item, nome, categoria e atributos disponíveis.
+- weapon.def: usado para traduzir/loadouts e regras ligadas a armas (há menus e tokens para weapon/loadout).
+
+Recursos e pacotes
+- O editor referencia múltiplos .pff (ex.: med.pff, resource.pff, localres.pff, updated.pff, exp1.pff). Isso sugere que ele carrega UI/strings/ícones e assets a partir desses pacotes do jogo.
+
+Modelos 3D auxiliares para visualização no editor
+- Existem referências diretas a: waypoint.3di, atrigger.3di, soundloc.3di, person.3di, pointer1.3di, pointer2.3di
+  Interpretação: o MED usa modelos simples 3D como 'gizmos' para desenhar waypoints, area triggers e marcadores.
+
+2) Como o MED lê e escreve o .mis (estrutura e gramática)
+2.1) Estrutura em seções indexadas
+O executável contém templates explícitos de leitura/escrita para seções do tipo:
+- begin item N ... end item
+- begin event N ... end event
+- begin triggers N ... end triggers
+- begin group N ... end group
+- begin layer N ... end layer
+- begin waypoint N ... end waypoint
+- begin areatrig N ... end areatrig
+
+Interpretação: o .mis é composto por listas (arrays) indexadas. Cada bloco 'begin X i' define o índice i, e dentro do bloco existem pares 'chave valor'.
+
+2.2) Tipos de valores
+- Inteiros: geralmente usados para IDs, flags e contadores.
+- Strings entre aspas: usados para nome e campos extras (ex.: name "...", extra_mlink "...", gen_string "...").
+- Tuplas de inteiros: ex.: position X Y Z e edistances A B.
+
+2.3) Campos de item detectados no executável (chaves que o editor entende)
+A seguir, um conjunto de chaves que aparecem como templates de escrita do editor (isto é, ele sabe ler e também sabe re-gravar):
+- type_id
+- name
+- iai_name
+- ai_textfile
+- id
+- position
+- map_symbol
+- wpdistance
+- fov
+- layer
+- obliqueness
+- waccuracy1
+- waccuracy2
+- perception2
+- perfectionist2
+- crouchtimer
+- shoottimer
+- attention
+- advancetimer
+- max_attack_distance
+- edistances
+- extra_mlink
+- extra_val1
+- extra_val2
+- extra_val3
+- extra_val4
+- extra_val5
+- extra_valmode
+- extra_bheight
+- gen_string
+- height_lock
+- name_index
+
+Observação: existem outras chaves em outras entidades (events, triggers, groups, waypoints). Este documento foca em itens e no mecanismo de tradução/labels, como você pediu.
+
+3) Conversões numéricas e unidades (o que o editor provavelmente 'traduz' além de texto)
+3.1) position X Y Z: valores fixos (provável 16.16)
+O MED grava position como 3 inteiros (ex.: 35014592 -113007192 4259840). Em engines dessa época, isso costuma ser coordenada em fixed-point 16.16, onde 1.0 unidade = 65536.
+Exemplo com o item que você enviou:
+- X: 35014592 -> 534.280273
+- Y: -113007192 -> -1724.352905
+- Z: 4259840 -> 65.000000
+Se o editor mostra coordenadas em unidades humanas (metros/unidades do mundo), ele deve dividir por 65536 para exibir e multiplicar por 65536 para salvar.
+Isso é 'provável' (não garantido) porque a string table não inclui explicitamente "divide por 65536". Mas os valores batem muito com fixed-point.
+
+3.2) Heading/Pitch/Facing
+Na UI de Item Attributes existem labels:
+- "Heading, 0 = North"
+- "Pitch, 90 = up"
+Isso indica que o MED apresenta rotação em graus com convenções específicas.
+Nem todo .mis expõe explicitamente 'heading' e 'pitch' como chaves de item, então isso pode ser um campo interno do editor para itens que suportam orientação.
+Caso o .mis use outra chave (ex.: rotation/facing), o MED pode estar mapeando a chave para esses controles.
+
+4) Traduções de variáveis para labels humanos (o que você pediu)
+Aqui está a parte importante: quais textos o editor usa para mostrar campos do .mis ao usuário, no contexto de Item Attributes.
+
+4.1) Prova do que você observou (SSN)
+- O executável contém o label de UI: "Social Security Number:"
+- Ele também contém strings de listagem/seleção: "SSN %.3d" e formatos "%s%s [%s] - SSN %.3d".
+Interpretação: o campo 'id' do item é apresentado ao usuário como SSN (Social Security Number).
+
+4.2) Traduções diretas e prováveis no painel 'Item Attributes'
+Abaixo, a tabela de traduções (best-effort).
+Colunas:
+- Campo no .mis: a chave que aparece no arquivo (ou equivalente provável)
+- Label no editor: texto exibido
+- Notas: quando for inferência, eu marco como 'provável'.
+
+- id -> Social Security Number. Confirmado por string de UI e pelo seu exemplo.
+- type_id -> Type. Confirmado por string 'Type: NA'. O editor complementa via items.def.
+- name -> Name. Confirmado por 'Name TEXT'.
+- layer -> Layer. Confirmado por 'Layer TEXT' e pela existência de Layer Names.
+- position -> Position / X / Y / Z. Confirmado por 'Position TEXT' e os sublabels X/Y/Z.
+- map_symbol -> Map Symbol. Provável: existe campo no .mis; o dialog de inserção usa símbolos e categorias.
+- ai_textfile -> AI Textfile. Confirmado por 'AI Textfile'.
+- iai_name -> Sub-Type. Provável: há label 'Sub-Type TEXT'. O .mis usa iai_name, que costuma representar variação interna.
+- group_id (ou group_rel) -> Group. Confirmado por 'Group TEXT'. (O item pode referenciar um grupo).
+- team (quando aplicável) -> Team. Confirmado por 'Team TEXT'.
+- waccuracy1 -> Weapon Accuracy1. Confirmado por string de UI.
+- waccuracy2 -> Weapon Accuracy2. Confirmado por string de UI.
+- edistances A B -> Min Engagement Distance / Max Engagement Distance. Confirmado por ambos labels; provável mapeamento para os 2 valores.
+- max_attack_distance -> Max Attack Distance. Confirmado por label.
+- shoottimer -> Fire Timer. Confirmado por label.
+- wp_adv_trigger -> Advancement Trigger. Confirmado por label '!Advancement Trigger'.
+- active_area -> Active Area. Confirmado por label '!Active Area'.
+- wpdistance / advancetimer (dependendo do item) -> Waypoints / Spawns (WP pause). Provável: há label 'Waypoints TEXT' e 'Spawns (WP pause)'. O .mis tem wpdistance e advancetimer.
+- heading (ou equivalente) -> Facing (Heading, 0 = North). Confirmado por label, mas a chave exata no .mis pode variar.
+- pitch (ou equivalente) -> Pitch (90 = up). Confirmado por label, mas a chave exata no .mis pode variar.
+- height_lock / extra_bheight -> Absolute Height / LOCK. Confirmado por 'Absolute Height' e '&LOCK'. Provável mapeamento para height_lock.
+
+4.3) Labels adicionais detectados dentro do mesmo dialog (podem ser campos de itens específicos)
+O 'Item Attributes' também contém labels que podem aparecer ou não dependendo do type_id (itens diferentes habilitam campos diferentes):
+- Type: NA TEXT
+- Social Security Number: TEXT
+- Layer TEXT
+- X: TEXT
+- Y: TEXT
+- Z: TEXT
+- Position TEXT
+- Heading, 0 = North TEXT
+- Facing TEXT
+- Pitch, 90 = up TEXT
+- Remove if.. TEXT
+- players TEXT
+- players TEXT
+- Group TEXT
+- AI Variables TEXT
+- Alert State
+- Weapon Accuracy2 TEXT
+- Team TEXT
+- Max Engamegent Distance
+- Sub-Type TEXT
+- Number
+- List TEXT
+- Distance (m)
+- Name TEXT
+- Waypoints TEXT
+- !AI Attributes
+- Fire Timer
+- Height
+- Elevation
+- Shine Box TEXT
+- Length
+- AI Textfile
+- Particle Effect Name:
+- Next SSN
+- Min Engagement Distance
+- Spawns (WP pause)
+- Max Attack Distance
+- Graphic: TEXT
+- Weapon Accuracy1 TEXT
+- !Advancement Trigger
+- !Active Area
+
+Interpretação: o editor habilita/desabilita campos por tipo de item, provavelmente consultando items.def para saber quais atributos existem para aquele type_id.
+
+5) Como o MED provavelmente usa items.def para traduzir type_id e atributos
+- O editor possui um erro explícito: CANT_LOAD_ITEMS_DEF (indicando dependência real do arquivo).
+- Ele também possui UI de 'Unknown Items'.
+- Existe um comando de inserir item com categorias como Foliage, Decorations, People, Buildings, Vehicles, Objects, POWERUP, Markers.
+
+Tradução provável feita com items.def:
+- type_id -> nome amigável (ex.: "Sound: desert loop")
+- type_id -> categoria (para filtro e menus)
+- type_id -> lista de atributos habilitados (quais campos aparecem em Item Attributes)
+
+Importante: eu consigo provar que items.def é referenciado, mas não consigo reconstruir 100% do mapeamento interno sem ter o items.def real ou sem executar o MED.
+
+6) 'Todas as traduções existentes' (o máximo que dá para extrair só do EXE)
+Você pediu todas as traduções do tipo 'campo interno -> texto humano'.
+Sem runtime e sem o items.def, o melhor proxy são as string tables do executável (labels, menus, descrições).
+
+6.1) Conjunto de labels e textos de UI (extraídos de recursos UTF-16)
+A lista abaixo contém os textos de UI encontrados (filtrados por padrões de label como '... TEXT', prefixos de menu '!&', e textos com ':').
+Isso inclui menus, diálogos e campos. Nem todo texto possui um par 1:1 com uma variável do .mis, mas todos são traduções humanas usadas pelo editor.
+
+!#%'
+!&About...
+!&Area Triggers
+!&Briefing
+!&Cleanup SSNs
+!&Clear
+!&Edit
+!&Events
+!&Export Binary Mission
+!&File
+!&Global Replace
+!&Groups
+!&Info
+!&Layer Names
+!&Open
+!&Redo 
+!&Save
+!&Undo 
+!&View
+!&Waypoints
+!3D Volume Trigger
+!AI Attributes
+!About...
+!Accessory
+!Active Area
+!Advancement Trigger
+!Attack && Defend
+!Blink Group Stats
+!Bonus Expiration
+!Buildings
+!CRITICAL
+!Cancel
+!Capture the Flag
+!Character Map
+!Color
+!Condition:
+!Cooperative
+!Copyright 2002, NovaLogic Inc.
+!Cut
+!DFBHDMED
+!Deathmatch
+!Decorations
+!Delete
+!Description
+!Deselect This Type
+!Designated Mission Area
+!Drop Area
+!Drop Count
+!E&xit
+!Edit Item Attributes...
+!Enviroment
+!Find
+!Flagball
+!Fog Color
+!Fog Level 
+!Foliage
+!For details on how to use DFBHDMED, please refer to the dfbhdmed.pdf file.
+!General &Information
+!Group #
+!Group A
+!Group B
+!Group Rotate...
+!Insert Mode
+!King of the Hill
+!Markers
+!Maximum Saves
+!Med fly
+!Min
+!Mission TILES
+!Move
+!Name
+!Navigation Waypoint
+!Night Vision Goggles Available
+!Objects
+!Oval
+!POWERUP
+!Page
+!Page 1
+!Page 2
+!Paste
+!People
+!Player Class:
+!Post Mission Event
+!Primary
+!Random Facing
+!Rectangle
+!Ritten bi
+!Rotate map 180 degrees
+!SCORE
+!SSN
+!Save &As
+!Save and Export
+!Search && Destroy
+!Secondary
+!Select &Blink Group
+!Select This BGRP
+!Select This Group
+!Select This WPLIST
+!Select by SSN
+!Show objects with events
+!Single Player Default Loadout
+!Snap to Grid
+!Snap to terrain
+!Sort by
+!Spinmap Color Override
+!Start with NVG Turned On
+!Starting Spin Map Zoom
+!Status
+!Team Deathmatch
+!Team King of the Hill
+!Terrain Override Values
+!Terrain Type
+!Tools
+!Type
+!VIEW SSN...
+!Vehicles
+!Version
+!View by &Layer
+!View by &Side
+!View by &Type
+!WIND DIRECTION
+!WIND SPEED
+!Water Level (x0.5 m)
+!equals
++,-:
+./01.]9:N[P9:S
+AI Action TEXT
+AI Variables TEXT
+Action Type TEXT
+Action Variables TEXT
+And TEXT
+Apply TEXT
+Area Triggers TEXT
+Briefing TEXT
+Buildings TEXT
+Cancel TEXT
+Center TEXT
+Color TEXT
+Copy Event TEXT
+Copy TEXT
+Current Size: 0 TEXT
+Default Layer (Always Visible): TEXT
+Delay (seconds) TEXT
+Delete Event TEXT
+Delete TEXT
+Description TEXT
+Event Action TEXT
+EventTriggers TEXT
+Events TEXT
+Exit Program TEXT
+Facing TEXT
+False TEXT
+General Information TEXT
+Graphic: TEXT
+Group Rotate TEXT
+Group TEXT
+Groups TEXT
+Heading, 0 = North TEXT
+Hide All TEXT
+Hide Selected TEXT
+Hide Unselected TEXT
+IF (Triggers) TEXT
+Insert Mode TEXT
+Item Attributes TEXT
+Large Briefing TEXT
+Layer Names TEXT
+Layer TEXT
+Layer Visibility TEXT
+Less than TEXT
+List TEXT
+Logic TEXT
+Long Briefing TEXT
+Lose Conditions TEXT
+Map Type(s) TEXT
+Markers TEXT
+Med fly TEXT
+Memory Stack Size: 0
+Memory Stack: CMemory
+Mission Designer: TEXT
+Mission Name: TEXT
+Mission Terrain: TEXT
+More then TEXT
+Multiplayer TEXT
+Name TEXT
+Name: TEXT
+OK TEXT
+Object Name:
+Objects TEXT
+Or TEXT
+Particle Effect Name:
+Paste Event TEXT
+Paste TEXT
+Pitch, 90 = up TEXT
+Position TEXT
+Pre Mission Event TEXT
+Print All Events TEXT
+Print Event TEXT
+Print List TEXT
+Print TEXT
+Remove if.. TEXT
+Reset after (seconds) TEXT
+Rotation: TEXT
+Select Markers TEXT
+Select Members TEXT
+Select This Type TEXT
+Shine Box TEXT
+Show All TEXT
+Social Security Number: TEXT
+Status TEXT
+Sub-Type TEXT
+THEN (Actions) TEXT
+Team Blue Waypoints TEXT
+Team Red Waypoints TEXT
+Team TEXT
+Toolbar TEXT
+Trigger Variables TEXT
+Trigger if: TEXT
+True TEXT
+Type TEXT
+Type: NA TEXT
+Unhide All TEXT
+Var 1: TEXT
+Var 2: TEXT
+Var 3: TEXT
+Var 4: TEXT
+Var1: TEXT
+Var2: TEXT
+Var3: TEXT
+Var4: TEXT
+Vehicles TEXT
+View by Layer TEXT
+View by Side TEXT
+View by Type TEXT
+Visible Layers TEXT
+Waypoint does NOT loop TEXT
+Waypoints TEXT
+Weapon Accuracy1 TEXT
+Weapon Accuracy2 TEXT
+Weather TEXT
+Win Conditions TEXT
+X-Or TEXT
+X: TEXT
+Y: TEXT
+Z: TEXT
+players TEXT
+
+6.2) Tokens internos (ASCII) que indicam nomes de módulos e funcionalidades
+Abaixo, uma amostra dos tokens ASCII relevantes que sugerem como o editor organiza dados (events/triggers/groups/layers/waypoints/areatrigs).
+ACTIVE_AREA
+AIAIMSKILL_TO
+AICLEARWPZ
+AICLEARWPZ_TO
+AICOMBAT_TO
+AIDRIVESKILL_TO
+AIMSKILL
+AINODEPATH
+AINODEPATH_BIT
+AINODEPATH_OFF
+AINODEPATH_ON
+AIPATROL_TO
+AISETSTATE
+AISTATE
+AISTATE_TO
+AITARGET_TO
+AIUSEWPZ
+AIUSEWPZ_TO
+AI_ATTRIBUTES
+AI_VARIABLES
+ALLSSN
+AREA
+AREATRIGGER_LIST_HEADER
+AREA_AI_BLUE
+AREA_AI_RED
+AREA_ID
+AREA_TRIGGER
+AREA_TRIGGERS
+BLUEPLAYERS
+CANT_LOAD_ITEMS_DEF
+CHANGE_ALL_BLUE_IN_AREA
+CHANGE_ALL_RED_IN_AREA
+CHANGE_GROUP
+CHANGE_GROUP_ACTION
+CHANGE_GROUP_AI
+CHANGE_GROUP_STRING
+CHANGE_SINGLE_AI
+CLEAR_THIS_MISSION
+COPY_EVENT
+DEFAULT_LAYER
+DELAY_EVENT
+DELETE_EVENT
+DELETE_EVENT_?
+DELETE_TRIGGER_?
+EDITAREATRIGGERS
+EDITEVENTS
+EDITGROUPS
+EDITWAYPOINTS
+EDIT_AREATRIGGERS
+EDIT_EVENTS
+EDIT_GROUPS
+EDIT_ITEM_ATTRIBUTES
+EDIT_LAYERNAMES
+EDIT_SELECTSSN
+EDIT_WAYPOINTS
+EVENT
+EVENTACTIONS
+EVENTS
+EVENTTRIGGERS
+EVENT_ACTION
+EVENT_DOWN
+EVENT_HEADER
+EVENT_LIST_HEADER
+EVENT_NOT_TRIGGERED
+EVENT_NUM
+EVENT_NUMBER
+EVENT_NUMBER_STRING
+EVENT_TRIGGER
+EVENT_TRIGGERED
+EVENT_UP
+FIND_AND_USE_SSN
+FIRE_MISSIONS_AVAILABLE
+FSMFAIR
+GOTO_GROUP
+GOTO_PLAYER
+GOTO_SSN
+GROUP
+GROUP-NULL
+GROUP1
+GROUP2
+GROUPROTATE
+GROUPS
+GROUP_ALIVE
+GROUP_AT_RED_ALERT
+GROUP_AT_WAYPOINT
+GROUP_AT_YELLOW_ALERT
+GROUP_CLOSE_DOOR_ACTION
+GROUP_CLOSE_DOOR_STRING
+GROUP_COLON
+GROUP_DESTROYED
+GROUP_HAS_LOST_MORE_UNITS
+GROUP_HAS_MORE_UNITS
+GROUP_HAS_NOT_SHOT_GROUP
+GROUP_HAS_NOT_SHOT_SINGLE
+GROUP_HAS_NOT_TARGETED_GROUP
+GROUP_HAS_SHOT_GROUP
+GROUP_HAS_SHOT_SINGLE
+GROUP_HAS_TARGETED_GROUP
+GROUP_HAS_TARGETED_SINGLE
+GROUP_HOLDING_GROUP
+GROUP_INTACT
+GROUP_IS_NOT_WITHIN_AREA
+GROUP_IS_WITHIN_AREA
+GROUP_LESS_THAN
+GROUP_LIST_HEADER
+GROUP_NONE
+GROUP_NOT_ALIVE
+GROUP_NOT_AT_RED_ALERT
+GROUP_NOT_AT_WAYPOINT
+GROUP_NOT_AT_YELLOW_ALERT
+GROUP_NOT_DESTROYED
+GROUP_NOT_HOLDING_GROUP
+GROUP_NOT_INTACT
+GROUP_NOT_SEES_GROUP
+GROUP_NOT_SEES_SINGLE
+GROUP_OPEN_DOOR_ACTION
+GROUP_OPEN_DOOR_STRING
+GROUP_REDIRECT_TO
+GROUP_REDIRECT_TO_POINT
+GROUP_RESET_HASVISITED
+GROUP_RESET_HASVISITED_TO
+GROUP_ROTATE
+GROUP_SEES_GROUP
+GROUP_SEES_SINGLE
+GROUP_TARGET_GROUP_EXC
+GROUP_TARGET_GROUP_EXC_STR
+GROUP_TARGET_GROUP_PRI
+GROUP_TARGET_GROUP_PRI_STR
+GROUP_TARGET_SSN_EXC
+GROUP_TARGET_SSN_EXC_STR
+GROUP_TARGET_SSN_PRI
+GROUP_TARGET_SSN_PRI_STR
+GROUP_TELEPORT_ACTION
+GROUP_TELEPORT_STRING
+GROUP_VELOCITY
+HELO_TAILROTOR
+HIDE_NOEVENT_SSN
+HIDE_WAYPOINTS_TO
+HOLDS_ITEM
+HUDITEM
+IF_TRIGGERS
+ITEMATTRIB
+ITEM_COLORS
+ITEM_GROUP
+ITEM_NAME
+ITEM_NUM
+ITEM_TYPE
+ITEM_WAYPOINT
+ITEM_X_POS
+ITEM_Y_POS
+ITEM_Z_POS
+KILL_GROUP
+KILL_GROUP_X
+LAYER
+LAYERNAME
+LAYERNAMES
+LAYER_BUTTON
+LAYER_NAMES
+LAYER_NUM
+LAYER_VISIBILITY
+MAX_NUM_AREA_TRIGGERS
+MAX_NUM_WAYPOINTS
+MISSION_AREA
+MISSION_CRITICAL
+MISSION_CRITICAL_ITEM
+MISSION_DESIGNER
+MISSION_FILE
+MISSION_NAME
+MISSION_TERRAIN
+MISSION_TTILE
+MISSION_VARIABLE
+MOUSE_DESELECTTHISGROUP
+MOUSE_SELECTTHISBLINKGROUP
+MOUSE_SELECTTHISGROUP
+MULTIPLAYER
+NEW_EVENT
+NEW_TRIGGER
+NEXTSSN
+NO_ITEMS
+NVG_AVAILABLE
+PAINT_MODE
+PASTE_EVENT
+PLAYER
+PLAYER-NULL
+PLAYERS
+PLAYER_1STPERSON
+PLAYER_1STPERSON_NOT
+PLAYER_1STPERSON_TEST
+PLAYER_3RDPERSON
+PLAYER_3RDPERSON_NOT
+PLAYER_3RDPERSON_TEST
+PLAYER_AWOL
+PLAYER_AWOL_NOT
+PLAYER_AWOL_TEST
+PLAYER_BERSERK
+PLAYER_BERSERK_NOT
+PLAYER_BERSERK_TEST
+PLAYER_CLEARINPUT_STRING
+PLAYER_COCKPITVIEW
+PLAYER_COCKPITVIEW_NOT
+PLAYER_COCKPITVIEW_TEST
+PLAYER_DLGDONE
+PLAYER_DLGDONE_NOT
+PLAYER_DLGDONE_TEST
+PLAYER_DLGFINISHED
+PLAYER_DLGFINISHED_NOT
+PLAYER_DLGFINISHED_TEST
+PLAYER_HUDFLASH_STRING
+PLAYER_SATCHEL
+PLAYER_SATCHEL_NOT
+PLAYER_SATCHEL_TEST
+PLAYER_STARTUP_STRING
+POST_MISSION_EVENT
+PRE_MISSION_EVENT
+PRINT_EVENT
+RAIN
+REACHED_WAYPOINT
+REDIRECT_GROUP_TO
+REDPLAYERS
+RESET_EVENT
+RESET_EVENT_TO
+SAW_GROUP
+SELECTBLINKGROUP
+SELECTSSN
+SET_GROUP_TO_SPEED
+SHOT_GROUP
+SHOW_WAYPOINTS
+SHOW_WAYPOINTS_TO
+SINGLE_AT_WAYPOINT
+SINGLE_CHANGE_GROUP
+SINGLE_HAS_NOT_SHOT_GROUP
+SINGLE_HAS_SHOT_GROUP
+SINGLE_HAS_TARGETED_GROUP
+SINGLE_HOLDING_GROUP
+SINGLE_IS_NOT_WITHIN_AREA
+SINGLE_IS_WITHIN_AREA
+SINGLE_NOT_AT_WAYPOINT
+SINGLE_NOT_HOLDING_GROUP
+SINGLE_NOT_SEES_GROUP
+SINGLE_SEES_GROUP
+SSN#
+SSN_TARGET_GROUP_EXC
+SSN_TARGET_GROUP_EXC_STR
+SSN_TARGET_GROUP_PRI
+SSN_TARGET_GROUP_PRI_STR
+SSN_TARGET_SSN_EXC
+SSN_TARGET_SSN_EXC_STR
+SSN_TARGET_SSN_PRI
+SSN_TARGET_SSN_PRI_STR
+TARGETED_GROUP
+
+7) Próximo passo para chegar em '100% das traduções' com alta confiança
+Para eu te entregar um mapeamento completo do tipo:
+- chave do .mis -> label exato do MED
+- e quais chaves aparecem para cada type_id
+eu preciso de pelo menos um destes:
+1) O arquivo items.def (idealmente o do teu setup), porque ele dita quais atributos existem por item.
+2) Um dump/screenshot do dialog 'Item Attributes' com diferentes type_id (ex.: Sound, Spawn, Objective, Trigger marker etc.).
+3) Um .mis representativo e uma lista dos campos que o MED mostra para cada item (aí dá para cruzar 1:1).
+
+Mesmo sem isso, este documento já prova e lista muitas traduções, incluindo a sua observação do SSN, e mostra o conjunto de labels que o MED usa na UI.

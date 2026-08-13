@@ -1,0 +1,992 @@
+DFBHD MED: Traduções e mapeamentos com ITEMS.DEF
+
+Data: 2026-02-22 00:00 GMT-3 (São Paulo)
+
+O que mudou com o ITEMS.DEF
+- Agora dá para explicar com alta confiança como o editor resolve o campo type_id do .mis para um item real do banco de itens.
+- Também dá para listar, em lote, a tabela completa type_id -> nome -> categoria (type) -> graphic (quando existir).
+- Ainda existe uma parte que o EXE sozinho não entrega 100%: o pareamento exato de cada campo do .mis com cada label da UI em TODOS os diálogos, porque isso depende de runtime e de tabelas internas além do ITEMS.DEF.
+
+1) Como o editor usa o ITEMS.DEF para 'traduzir' type_id
+O ITEMS.DEF usa IDs grandes (100000 a 106402). No .mis, o campo type_id é o ID do ITEMS.DEF menos 100000.
+
+Regra:
+- items_def_id = type_id + 100000
+- type_id = items_def_id - 100000
+
+Prova prática com o seu exemplo:
+- .mis: type_id 6119
+- items.def: id 106119
+- entrada no ITEMS.DEF: begin "snd: desert lp3"
+- type (categoria): marker
+
+O campo name no .mis costuma ser um nome mais amigável (ex.: "Sound: desert loop"). O ITEMS.DEF pode conter um nome-base abreviado (ex.: "snd: desert lp3"). Isso indica que o MED aplica uma formatação/normalização para mostrar nomes mais legíveis, ou então o mapa sobrescreve o nome usando o campo name.
+
+2) Tradução do campo id como SSN (Social Security Number)
+Você observou: id 3924 aparece como "Social Security Number: 3924".
+Isso bate com as strings internas do MED, que incluem "Social Security Number:" e formatos como "SSN %.3d".
+Então, para itens, a tradução confirmada é:
+- .mis: id -> UI: Social Security Number (SSN)
+
+3) Outras traduções de campos de Item Attributes (confirmadas vs prováveis)
+Confirmadas por labels encontrados no executável (UI):
+- type_id -> Type (complementado pelo ITEMS.DEF)
+- name -> Name
+- layer -> Layer
+- position -> Position (X/Y/Z)
+- ai_textfile -> AI Textfile
+- team (quando existir) -> Team
+- group_id (quando existir) -> Group
+- waccuracy1 -> Weapon Accuracy1
+- waccuracy2 -> Weapon Accuracy2
+- max_attack_distance -> Max Attack Distance
+- edistances A B -> Min Engagement Distance / Max Engagement Distance
+- shoottimer -> Fire Timer
+- wp_adv_trigger -> Advancement Trigger
+- active_area -> Active Area
+
+Prováveis (o EXE mostra o label, mas a chave exata no .mis pode variar por item/versão):
+- heading ou facing -> Facing (Heading, 0 = North)
+- pitch -> Pitch (90 = up)
+- height_lock -> Absolute Height + LOCK
+- iai_name -> Sub-Type
+
+4) Tabela completa: type_id do .mis -> nome do ITEMS.DEF -> categoria -> graphic
+Formato das linhas:
+type_id | items_def_id | type | graphic | def_name
+
+    0 | 100000 | marker     |              | Null
+ 1032 | 101032 | building   | DHut01       | Desert Adobe hut 1
+ 1034 | 101034 | building   | Dtent1       | Desert Nomadic Tent 1
+ 1037 | 101037 | building   | DHut02       | Desert Adobe hut 2
+ 1038 | 101038 | building   | DHut03       | Desert Adobe hut 3
+ 1048 | 101048 | object     | PwrGen       | Desert Power Generator
+ 1055 | 101055 | building   | Bnkr04       | Bnkr04
+ 1056 | 101056 | building   | Bnkr05       | Above ground corner piece
+ 1058 | 101058 | building   | Bnkr07       | Above ground bunker firing wall
+ 1080 | 101080 | building   | MCOlymps     | "Sister Bld
+ 1081 | 101081 | building   | MCOlympi     | Low Poly closed Version of Olympic Hotel
+ 1083 | 101083 | building   | MCTarget     | Main Mogadishu Target Building
+ 1085 | 101085 | building   | MogBlk01     | Mogadishu City Block1 Moderately Generic 64x64
+ 1086 | 101086 | building   | MogBlk02     | Mogadishu City Block2 Moderately Generic 64x64
+ 1087 | 101087 | building   | MogBlk03     | Mogadishu City Block3 Moderately Generic 64x64
+ 1088 | 101088 | building   | MogBlk04     | Mogadishu City Block4 Moderately Generic 64x64
+ 1089 | 101089 | building   | MogBlk05     | Mogadishu City Block5 Highly Generic 64x64
+ 1090 | 101090 | building   | MogBlk06     | Mogadishu City Block6 Highly Generic 64x64
+ 1091 | 101091 | building   | MogBlk07     | Mogadishu City Block7 Highly Generic 64x64
+ 1092 | 101092 | building   | MogBlk08     | Mogadishu City Block8 Highly Generic 64x64
+ 1093 | 101093 | building   | MogSlm01     | Mogadishu Slum Hut Single Unit
+ 1094 | 101094 | building   | MogSlm02     | Mogadishu Slum Hut double unit
+ 1095 | 101095 | building   | MogSlm03     | Mogadishu Slum Hut Triple Unit
+ 1096 | 101096 | building   | MogSlm04     | Mogadishu Slum Hut 4 connected Units
+ 1097 | 101097 | building   | MogHng01     | Mogadishu Airport Hanger
+ 1098 | 101098 | building   | WareHse1     | Warehouse used for weapons storage
+ 1099 | 101099 | building   | Pbld01       | Large Building on Pier Piece no interior
+ 1100 | 101100 | building   | Pbld02       | Small Building on Pier Piece no interior
+ 1101 | 101101 | building   | Pbld03       | Open Building on Pier Piece
+ 1102 | 101102 | building   | Brdg01       | Wooden River Bridge
+ 1103 | 101103 | building   | Brdg01X      | Placable husk version of wooden river bridge
+ 1104 | 101104 | building   | Moghut1      | Mogadishu Style river hut1
+ 1105 | 101105 | building   | Moghut2      | Mogadishu Style river hut2
+ 1106 | 101106 | building   | Moghut3      | Mogadishu Style river hut3
+ 1107 | 101107 | building   | MCMog3N      | Night Mission Only Mogadishu City Block with Lights
+ 1108 | 101108 | building   | MogShd1      | "Mogadishu Style shed
+ 1109 | 101109 | building   | MogShd2      | "Mogadishu Style shed
+ 1110 | 101110 | building   | MogShd3      | "Mogadishu Style shed
+ 1111 | 101111 | building   | MogSlm05     | Mogadishu Slum, Small Wooden structure
+ 1112 | 101112 | building   | MogSlm06     | Mogadishu Slum, Small Wooden domed structure
+ 1113 | 101113 | building   | MogBld1      | Mogadishu building with top floor destruction
+ 1114 | 101114 | building   | MogBld2      | Mogadishu building with just the shell of the building
+ 1115 | 101115 | building   | HN_Bld1      | two story Main building in Hornets Nest
+ 1116 | 101116 | building   | RE_Bld1      | Russian Style Embassy for Tranquilizer
+ 1117 | 101117 | building   | RE_Bsmt      | Russian Style Embassy Basement Piece
+ 1118 | 101118 | building   | RE_Bld2      | Russian Embassy Bld #2
+ 1119 | 101119 | building   | RdioBld1     | four Story Radio Bld in INTERCEPTION
+ 1120 | 101120 | building   | Crdrblk1     | Long Corridor Block Piece Type #1
+ 1121 | 101121 | building   | Crdrblk2     | Long Corridor Block Piece Type #2
+ 1122 | 101122 | building   | Garg01       | "Large Garage
+ 1123 | 101123 | building   | WareHs02     | Large Warehouse only exterior2
+ 1124 | 101124 | building   | WareHs03     | Large Warehouse only exterior3
+ 1125 | 101125 | building   | Armry01      | Armory Version #1
+ 1126 | 101126 | building   | TrnBld1      | Training building Used in Advanced Training
+ 1127 | 101127 | building   | RdioBld2     | Main radio Building in Operation Highlight
+ 1128 | 101128 | building   | SP_Bld2      | Two Story Bld with Roof Access...Shattered Palace
+ 1129 | 101129 | building   | SP_Bld1      | One Story Bld with Roof Access...Shattered Palace
+ 1130 | 101130 | building   | UNBld01      | "US
+ 1131 | 101131 | building   | MogBlk09     | Mogadishu City Block9 Highly Generic 64x64
+ 1132 | 101132 | building   | PwrGenHS     | Power Generator Housing
+ 1133 | 101133 | building   | WareHs04     | Warehouse building #4
+ 1134 | 101134 | building   | WareHs05     | Warehouse building #5
+ 1135 | 101135 | building   | WareHs06     | Warehouse building #6
+ 1136 | 101136 | building   | WareHs07     | Warehouse building #7
+ 1137 | 101137 | building   | WareHs08     | Warehouse building #8
+ 1138 | 101138 | building   | WareHs09     | Warehouse building #9
+ 1139 | 101139 | building   | WareHs10     | Warehouse building #10
+ 1140 | 101140 | building   | WareHs11     | Warehouse building #11
+ 1141 | 101141 | building   | WareHs12     | Warehouse building #12
+ 1142 | 101142 | building   | WareHs13     | Warehouse building #13
+ 1143 | 101143 | building   | WareHs14     | Warehouse building #14
+ 1144 | 101144 | building   | R_Ent1       | "Tunnle Entrance
+ 1145 | 101145 | building   | R_Tun1       | Tunnle Piece Straight 30m
+ 1146 | 101146 | building   | R_Tun2       | Tunnle Piece Straight 20m
+ 1147 | 101147 | building   | R_Tun3       | Tunnle Piece Straight 10m
+ 1148 | 101148 | building   | R_Tun4       | Tunnle Piece Curve 20X20m
+ 1149 | 101149 | building   | R_Tun5       | Tunnle Piece T intersection 10X10m
+ 1150 | 101150 | building   | R_Tun6       | Tunnle Piece stairs 20m
+ 1151 | 101151 | building   | R_Tun7       | Tunnle Piece End Cap
+ 1152 | 101152 | vehicle    | Ship01       | Large Cargo Ship with interior in Shore Patrol
+ 1162 | 101162 | building   | MogBld3      | 2 story bombed out building
+ 1163 | 101163 | building   | Adbsmnt      | Basement for Aidid Takedown
+ 1164 | 101164 | building   | R_Ent2       | "Tunnle Entrance
+ 1165 | 101165 | building   | Armry02      | Mobile Armory Version #2
+ 1166 | 101166 | building   | StadiumC     | Stadium Corner Piece, 1 Entrance, Field Access Stairs
+ 1167 | 101167 | building   | StadiumE     | Stadium End Piece, 3 Entrances, Field Access Tunnel
+ 1168 | 101168 | building   | StadiumS     | Stadium Side Piece, 1 Entrance, No Field Access
+ 1169 | 101169 | building   | StadiumT     | Stadium Light Tower
+ 1170 | 101170 | building   | StadHut1     | Hut structure for Bleachers in Stadium
+ 1171 | 101171 | building   | StadHut2     | Military Bunker Hut structure for Bleachers in Stadium
+ 1173 | 101173 | building   | mogarch      | City Street Archway
+ 1174 | 101174 | decoration | Brdgston     | Stone Arched Bridge 32 meters across, indestructable
+ 1175 | 101175 | building   | Bnkr08       | Above ground bunker firing wall straight piece
+ 1176 | 101176 | building   | Bnkr09       | Above ground bunker firing wall inward curve piece
+ 1177 | 101177 | building   | Bnkr10       | Above ground bunker firing wall outward curve piece
+ 1178 | 101178 | building   | R_Tun4D      | Tunnle Piece Curve 20X20m No Lights
+ 1179 | 101179 | building   | R_Tun6D      | Tunnle Piece stairs 20m No Lights
+ 1180 | 101180 | building   | R_Tun2B      | "Tunnle Piece Straight 20m w
+ 1181 | 101181 | building   | MogBld4      | 2 story bombed out building for Lost Convoy
+ 1182 | 101182 | building   | R_Tun8       | Tunnle Piece Diagonal
+ 1183 | 101183 | building   | R_Tun9       | Tunnle Piece Elbow 
+ 1184 | 101184 | building   | R_Tun10      | Tunnle Piece Ramp 
+ 1185 | 101185 | building   | R_Tun11      | "Tunnle Piece 6m drop w
+ 1186 | 101186 | decoration | Armry03      | Armory Version #3
+ 1187 | 101187 | building   | MCOlymps     | "Sister Bld
+ 1188 | 101188 | building   | MCtargcd     | Version of Mctarget for Lost Convoy
+ 1216 | 101216 | vehicle    | FLAV         | Armored Personell Carrier
+ 1218 | 101218 | vehicle    | NCar1        | Neutral European Car Small
+ 1219 | 101219 | decoration | NCar1hsk     | Bombed-Out Neutral European Car Small
+ 1220 | 101220 | vehicle    | NTrk1        | Neutral Compact Pickup Truck
+ 1221 | 101221 | decoration | NTrk1hsk     | Bombed-Out Neutral Compact Pickup Truck
+ 1222 | 101222 | vehicle    | NBus1        | Neutral Refugee Bus
+ 1226 | 101226 | vehicle    | Fhum2        | Friendly Hummer standard Version
+ 1230 | 101230 | vehicle    | Fbuggy       | Dune Buggy with mounted 50cal
+ 1232 | 101232 | vehicle    | FAH6a        | Friendly No Die Smoking LITTLE BIRD
+ 1234 | 101234 | decoration | Nctrk1hk     | Placable Husk for Neutral Cargo truck
+ 1235 | 101235 | decoration | Fjeep2hk     | Placable Husk for Fjeep2
+ 1236 | 101236 | vehicle    | FAH6b        | Friendly Light Helicopter LITTLE BIRD with benches
+ 1237 | 101237 | vehicle    | ETek1        | Technical enemy vehicle with mounted Cannon
+ 1239 | 101239 | vehicle    | ETek2        | Technical enemy vehicle with mounted 50cal
+ 1240 | 101240 | decoration | ETek2x       | Technical Enemy Vehicle placable husk
+ 1241 | 101241 | vehicle    | Fhum50       | Hummer with Armored 50cal
+ 1242 | 101242 | decoration | Fblkhawg     | Grounded blackhawk, doesnt have moving parts
+ 1243 | 101243 | vehicle    | Fblkhawf     | Blackhawk used for fast roping
+ 1244 | 101244 | decoration | FAH6g        | FAH6g Grounded version, no moving parts
+ 1245 | 101245 | vehicle    | ETek3        | Technical enemy vehicle #3
+ 1247 | 101247 | decoration | Fm3brd       | Parked Version of M3 Bradley Infantry Vehicle
+ 1248 | 101248 | decoration | Fhum50p      | Parked Version of Friendly Hummer with mounted 50cal
+ 1250 | 101250 | decoration | Fc130p       | Parked Version of C130
+ 1251 | 101251 | decoration | Nctrck1p     | Parked version of Cargo truck
+ 1252 | 101252 | decoration | FbuggyP      | Parked Version of Dune Buggy with mounted 50cal
+ 1253 | 101253 | vehicle    | F5tonC       | Friendly 5.5 ton with closed tarp
+ 1254 | 101254 | decoration | F5tonP       | Parked version of F5ton
+ 1255 | 101255 | decoration | ETek1P       | Technical Husk with working 50 Cal
+ 1256 | 101256 | vehicle    | Eboat01      | Enemy Motorized River Boat
+ 1257 | 101257 | decoration | Nbus1P       | Parked Version of Refugee Bus
+ 1258 | 101258 | vehicle    | Nbus2        | Bus with crop top
+ 1259 | 101259 | decoration | Nbus2P       | Parked version of Bus with Crop top
+ 1260 | 101260 | vehicle    | Eboat01      | User Drivable Motorized River Boat
+ 1261 | 101261 | vehicle    | UNtrck1      | U.N. Cargo Truck #1
+ 1265 | 101265 | vehicle    | UNtrck2      | UN Truck with smoking engine used in Marka Breakdown
+ 1266 | 101266 | vehicle    | Etrck1       | Enemy Cargo Truck #1
+ 1267 | 101267 | vehicle    | ETek4        | Technical 4
+ 1268 | 101268 | vehicle    | ETek5        | Technical 5
+ 1269 | 101269 | vehicle    | Fblkhawk     | Indestructible Blackhawk with two miniguns
+ 1270 | 101270 | vehicle    | Fhum50       | Indestructible Hummer with 50cal
+ 1272 | 101272 | vehicle    | Fblkhawd     | Blackhawk, miniguns, both doors open
+ 1273 | 101273 | vehicle    | ETek4        | Technical with Emplaced Cannon #4
+ 1274 | 101274 | vehicle    | ETek5        | Technical with Emplaced Cannon #5
+ 1275 | 101275 | vehicle    | NBus3        | Neutral Refugee Bus
+ 1276 | 101276 | vehicle    | Fhum50       | Hummer with NON-Armored 50cal
+ 1277 | 101277 | vehicle    | Fhum50       | Hummer with Mounted MK19
+ 1278 | 101278 | vehicle    | Fhum50       | Hummer with Armored MK19
+ 1280 | 101280 | vehicle    | UNLAV        | U.N Armored Personell Carrier
+ 1281 | 101281 | vehicle    | Fblkhawm     | Blackhawk, MEDIVAC, both doors open
+ 1283 | 101283 | decoration | Etrck1p      | Parked Version of Enemy Cargo Truck
+ 1284 | 101284 | vehicle    | Fhum50N      | Hummer with Armored 50cal
+ 1285 | 101285 | vehicle    | UNtrck3      | U.N. Cargo Truck #3
+ 1286 | 101286 | vehicle    | Etrck2       | "Enemy Cargo Truck #2 w
+ 1287 | 101287 | vehicle    | Fblkhawd     | Blackhawk, weak AI miniguns, both doors open
+ 1288 | 101288 | vehicle    | ETek6        | Technical enemy vehicle #6
+ 1289 | 101289 | vehicle    | Fblkhawf     | Blackhawk fast roping NO Die
+ 1290 | 101290 | vehicle    | F5tonD       | Friendly 5.5 ton with sit points
+ 1435 | 101435 | decoration | Drum         | Metal 50gal Drum
+ 1436 | 101436 | decoration | Lpost01      | Weathered light post no light
+ 1437 | 101437 | decoration | Table01      | Old wooden four legged table
+ 1438 | 101438 | decoration | Chair01      | old wooden 4 legged chair
+ 1439 | 101439 | decoration | Cradio       | Communications Radio
+ 1440 | 101440 | decoration | StnWal04     | Straight stone wall piece
+ 1441 | 101441 | decoration | HndCrt       | Hand Cart
+ 1442 | 101442 | decoration | Sack01       | Single Sack of Rice
+ 1443 | 101443 | decoration | Sack02       | Multiple Sack of Cement
+ 1444 | 101444 | decoration | Sack03       | Multiple Sacks of Rice
+ 1446 | 101446 | decoration | Antnna02     | TV antenna 2
+ 1447 | 101447 | decoration | Antnna03     | TV antenna 3
+ 1449 | 101449 | decoration | SndBag01     | Staight segment with shooting notch
+ 1450 | 101450 | decoration | SndBag02     | Semi-Circle
+ 1453 | 101453 | decoration | StnWal01     | Stone Wall Straight Segment
+ 1454 | 101454 | decoration | StnWal02     | Corner Piece
+ 1455 | 101455 | decoration | StnWal03     | Intersection
+ 1458 | 101458 | decoration | Tire01       | Stack of used Tires
+ 1459 | 101459 | decoration | WdPlank      | Straight wooden plank 
+ 1460 | 101460 | decoration | Tire02       | Tire02 Stack of used tire "
+ 1461 | 101461 | decoration | RckM01       | Group of large Rocks1
+ 1462 | 101462 | decoration | RckM02       | Group of large Rocks2
+ 1463 | 101463 | decoration | RckM03       | Group of large Rocks3
+ 1464 | 101464 | decoration | RckM04       | Group of large Rocks4
+ 1465 | 101465 | decoration | RckM05       | Group of large Rocks5
+ 1466 | 101466 | decoration | RckS01       | Singe rock formation1
+ 1467 | 101467 | decoration | RckS02       | Singe rock formation2
+ 1469 | 101469 | decoration | RckS03       | Singe rock formation3
+ 1470 | 101470 | decoration | RckS04       | Singe rock formation4
+ 1471 | 101471 | decoration | RckS05       | Singe rock formation5
+ 1472 | 101472 | decoration | VndCrt       | Vending Cart
+ 1473 | 101473 | decoration | RckM06       | Group of large Rocks6
+ 1474 | 101474 | decoration | RckS06       | Singe rock formation6
+ 1476 | 101476 | decoration | Trash01      | Scattered papers and waste
+ 1477 | 101477 | decoration | Baricd01     | Baricade 5m made of barbed wire, debris, carhusk
+ 1478 | 101478 | decoration | Baricd02     | Baricade 1m tile-able
+ 1479 | 101479 | decoration | Wlad01       | Ladder 7m 
+ 1480 | 101480 | decoration | Baricd03     | Baricade 5m made of debris and barbed wire
+ 1481 | 101481 | decoration | wcrate4      | Wooden Crate with Tarp
+ 1482 | 101482 | decoration | Barl01       | Single wooden Barrel1
+ 1483 | 101483 | decoration | Barl02       | Single wooden Barrel2
+ 1484 | 101484 | decoration | Mine_me      | Middle East Mine Field Warning Sign
+ 1486 | 101486 | decoration | Pwalk01      | Straight narrow Pier walkway piece 15m
+ 1487 | 101487 | decoration | Pwalk02      | Narrow boat Tie-off pier piece
+ 1488 | 101488 | decoration | PBlok01      | Large Pier Platform Piece
+ 1489 | 101489 | building   | Cargo01      | Large Metal Cargo Container both doors closed
+ 1490 | 101490 | decoration | Cargo02      | Large Metal Cargo Container one door open
+ 1491 | 101491 | decoration | Cargo03      | Large Metal Cargo Container both doors open
+ 1492 | 101492 | vehicle    | Skiff01      | Small fishing boat type #1
+ 1493 | 101493 | vehicle    | Skiff02      | Small fishing boat type #2
+ 1494 | 101494 | vehicle    | Skiff03      | Small fishing boat type #3
+ 1495 | 101495 | decoration | WTrsh1       | Large Trash pile to be placed along walls
+ 1496 | 101496 | decoration | WTrsh2       | Small Trash pile to be placed along walls
+ 1497 | 101497 | decoration | WTrsh3       | Corner Trash pile to be placed at the corner of buildings
+ 1498 | 101498 | decoration | Cargo04      | Large Metal Cargo Container, with ladder, both doors closed
+ 1499 | 101499 | decoration | Cargo05      | Large Metal Cargo Container, with ladder, one door open
+ 1500 | 101500 | decoration | Cargo06      | Large Metal Cargo Container, with ladder, both doors open
+ 1501 | 101501 | decoration | rmcabnts     | Blocking Furniture
+ 1502 | 101502 | decoration | WLad02       | Modular wooden Ladder 4m tall
+ 1505 | 101505 | decoration | Armoire      | Armoire, interior decoration only
+ 1506 | 101506 | decoration | Bcase01      | Short book Case, interior decortation only
+ 1507 | 101507 | decoration | Bcase02      | Long book Case, interior decortation only
+ 1508 | 101508 | decoration | Pos_ME01     | Propaganda Poster Middle East 01
+ 1509 | 101509 | decoration | Pos_ME02     | Propaganda Poster Middle East 02
+ 1510 | 101510 | decoration | Pos_ME03     | Propaganda Poster Middle East 03
+ 1511 | 101511 | decoration | Pos_ME04     | Propaganda Poster Middle East 04
+ 1512 | 101512 | decoration | Pos_ME05     | Propaganda Poster Middle East 05
+ 1513 | 101513 | decoration | Pos_ME06     | Propaganda Poster Middle East 06
+ 1514 | 101514 | decoration | TireB01      | TireB01 Stack of burning tires #1 "
+ 1531 | 101531 | decoration | Fan01        | ceiling Fan with moveing blades
+ 1532 | 101532 | decoration | Fan02        | Desktop Fan with moving blades
+ 1533 | 101533 | decoration | Bed01        | Messy Mattress on the floor
+ 1534 | 101534 | decoration | Radio        | Domestic Radio on top of Crate
+ 1535 | 101535 | decoration | Dresser      | Dresser with pulled out drawrs
+ 1536 | 101536 | decoration | Sofa01       | Old Damaged Sofa
+ 1537 | 101537 | decoration | Table02      | Broken Coffee Table
+ 1538 | 101538 | decoration | Table03      | Broken end table with lamp on top
+ 1539 | 101539 | decoration | Chair02      | Broken Office Chair
+ 1540 | 101540 | decoration | File01       | Damaged File Cabinets with scattered papers
+ 1541 | 101541 | decoration | Heatr01      | "Old wall Radiator
+ 1542 | 101542 | decoration | rmbedA       | Bed with Dresser
+ 1543 | 101543 | decoration | rmlivinA     | 2 couch with broken coffee table
+ 1544 | 101544 | decoration | rmlivinB     | 2 couches with broken end table and lamp
+ 1545 | 101545 | decoration | rmofficA     | Desk, turned over file cabinet, and a chair
+ 1550 | 101550 | person     | croc         | Large African Crocodile
+ 1551 | 101551 | decoration | MStck01      | Land Mine Marker Tall
+ 1552 | 101552 | decoration | MStck02      | Land Mine Marker Short
+ 1553 | 101553 | decoration | MStck03      | Broken Land Mine Marker Tall
+ 1554 | 101554 | decoration | MStck04      | Broken Land Mine Marker Small
+ 1555 | 101555 | decoration | FireBrl1     | Barrel with large contained bonfire, used in night mission only
+ 1556 | 101556 | decoration | WTrsh1       | Wall Trash, Large Pile
+ 1557 | 101557 | decoration | WTrsh2       | Wall Trash, Small Pile
+ 1558 | 101558 | decoration | WTrsh3       | Wall Trash, used for outer convex corner of building
+ 1559 | 101559 | decoration | FireBrl2     | Barrel with small contained bonfire, used in night mission only
+ 1560 | 101560 | decoration | FireBrl3     | Barrel with holes, small bonfier, used in night mission only
+ 1561 | 101561 | decoration | WTrsh4       | Wall Trash, Used for inner Concave corner of building
+ 1562 | 101562 | decoration | FireBrl4     | Barrel with holes, Large bonfier, used in night mission only
+ 1563 | 101563 | decoration | CmpFire1     | Camp fire with buring wood
+ 1564 | 101564 | decoration | CmpFire2     | Camp fire with smoldering embers
+ 1565 | 101565 | decoration | WpnCt1       | Single wooden Weapons Crate with closed lid
+ 1566 | 101566 | decoration | WpnCt2       | Single wooden Weapons Crate, AK47, open lid
+ 1569 | 101569 | decoration | WpnCt3       | Single wooden Weapons Crate, RPG, open lid
+ 1572 | 101572 | decoration | WpnCt4       | Stack of multiple wooden Weapons Crates 6x3, closed lids
+ 1573 | 101573 | decoration | MwalA1       | Long Straight Wall Piece, Type A
+ 1574 | 101574 | decoration | MwalA2       | Medium Straight Wall Piece, Destructable
+ 1575 | 101575 | decoration | MwalA3       | Short Straight Wall Piece, Type A
+ 1576 | 101576 | decoration | MwalA4       | Corner Wall Piece, Type A
+ 1577 | 101577 | decoration | MwalA5       | 3-Way Wall Piece, Type A
+ 1578 | 101578 | decoration | MwalB1       | Long Straight Wall Piece, Type B
+ 1579 | 101579 | decoration | MwalB2       | Med Straight Wall Piece, Type B
+ 1580 | 101580 | decoration | MwalB3       | Short Straight Wall Piece, Type B
+ 1581 | 101581 | decoration | MwalB4       | Corner Wall Piece, Type B
+ 1582 | 101582 | decoration | MwalB5       | 3-Way Wall Piece, Type B
+ 1583 | 101583 | decoration | MwalG        | Iron Gate Piece for walls
+ 1584 | 101584 | decoration | Bcase03      | Corner book Case, interior decortation only
+ 1585 | 101585 | decoration | Table04      | Table, interior decoration only
+ 1586 | 101586 | decoration | Dressr02     | Dresser, interior decoration only
+ 1587 | 101587 | decoration | Table05      | End Table, interior decoration only
+ 1588 | 101588 | decoration | Wdebris1     | Modular Wall Debris, straight Piece
+ 1589 | 101589 | decoration | Wdebris2     | Modular Wall Debris, Right End Cap
+ 1590 | 101590 | decoration | Wdebris3     | Modular Wall Debris, Left End Cap
+ 1591 | 101591 | decoration | UNsup01      | U.N. Single Supply Canister
+ 1592 | 101592 | decoration | UNsup02      | U.N. Group of Supply Canisters
+ 1593 | 101593 | decoration | UNsup03      | U.N. Single of Supply Bundle
+ 1594 | 101594 | decoration | UNsup04      | U.N. Group of Supply Bundles
+ 1595 | 101595 | decoration | WpnCt5       | Stack of multiple wooden Weapons Crates 3x6, closed lids
+ 1596 | 101596 | decoration | WpnCt6       | Scattered Pile of weapons crates, with 2 open crates
+ 1597 | 101597 | decoration | RBL_C1       | Building Rubble Corner Piece Short
+ 1598 | 101598 | decoration | RBL_C2       | Building Rubble Corner Piece Long
+ 1599 | 101599 | decoration | RBL_S1       | Building Rubble Straight Piece Short
+ 1600 | 101600 | decoration | RBL_S2       | Building Rubble Straight Piece Long
+ 1601 | 101601 | decoration | RBL_T1       | Building Rubble T intersection Piece Short
+ 1602 | 101602 | decoration | RBL_T2       | Building Rubble T intersection Piece Long
+ 1603 | 101603 | decoration | RBL_P1       | Building Rubble Pile Piece type 1
+ 1604 | 101604 | decoration | RBL_P2       | Building Rubble Pile Piece type 2
+ 1605 | 101605 | decoration | RBL_P3       | Building Rubble Pile Piece type 3
+ 1608 | 101608 | decoration | MogFill1     | Box and Couple of Baskets for use in MogShd pieces
+ 1609 | 101609 | decoration | MogFill2     | Couple of Hanging shirts for use in MogShd pieces
+ 1610 | 101610 | decoration | Table06      | Long End Table, interior decoration only
+ 1611 | 101611 | decoration | RdBlk1       | Road Block Made of various Debris Version #1
+ 1612 | 101612 | decoration | RdBlk2       | Road Block Made of various Debris Version #2
+ 1613 | 101613 | decoration | GargDR       | Large Destroyable Garage door used with Garg01.3di
+ 1614 | 101614 | decoration | Brdg02       | Large Destroyable Bridge used in Operation Guardian
+ 1615 | 101615 | decoration | RdioTwr      | Radio Tower used on top of RdioBld1.3di
+ 1616 | 101616 | decoration | Radio01      | Tall stack of radio equipment
+ 1617 | 101617 | decoration | Bed02        | Bed mattress on top of wooden palettes
+ 1618 | 101618 | decoration | Bed03        | Bed mattress on top of wooden palettes and cinder blocks
+ 1619 | 101619 | decoration | Table07      | Half Table, interior decoration only
+ 1620 | 101620 | decoration | Fountn01     | Large Broken fountain
+ 1621 | 101621 | decoration | Lndry01      | Laundry line that hangs between buildings
+ 1622 | 101622 | decoration | WLad03       | Modular wooden Ladder 8m tall
+ 1623 | 101623 | decoration | Fountn02     | Large Fountain
+ 1624 | 101624 | decoration | DockSlb1     | Concrete dock center piece
+ 1625 | 101625 | decoration | DockSlb2     | Concrete dock straight piece
+ 1626 | 101626 | decoration | DockSlb3     | Concrete dock outer corner piece 
+ 1627 | 101627 | decoration | DockArm1     | Uncovered Concrete Pier piece
+ 1628 | 101628 | decoration | DockArm2     | Covered Concrete Pier piece
+ 1629 | 101629 | decoration | Trunk01      | Open Wooden Trunk
+ 1630 | 101630 | decoration | Trunk02      | Closed Wooden Trunk
+ 1631 | 101631 | decoration | Radio02      | Single placeable radio
+ 1632 | 101632 | decoration | Radio03      | Single placeable radio alternative
+ 1633 | 101633 | decoration | Radio04      | Placeable Microphone
+ 1634 | 101634 | decoration | DockSlb4     | Concrete dock inner corner piece
+ 1635 | 101635 | decoration | DockSlb5     | Concrete dock end of pier piece
+ 1636 | 101636 | decoration | Gtools01     | Garage tools with blue car door
+ 1637 | 101637 | decoration | Gtools02     | Garage auto parts with Wall Board
+ 1638 | 101638 | decoration | Gtools03     | Auto tools with engine block hoist
+ 1639 | 101639 | decoration | Gtools04     | Auto tool boxes
+ 1640 | 101640 | decoration | Table08      | Long Half Table, interior decoration only
+ 1641 | 101641 | decoration | Rug01        | area rug for interior only
+ 1642 | 101642 | decoration | Bed04        | Master Bed with a Canopy
+ 1644 | 101644 | decoration | Pnting01     | Hanging Wall Painting1
+ 1645 | 101645 | decoration | Pnting02     | Hanging Wall Painting2
+ 1646 | 101646 | decoration | Pnting03     | Hanging Wall Painting3
+ 1647 | 101647 | decoration | Chair03      | Large Chair for head of the table3
+ 1649 | 101649 | decoration | test01       | Use this for test objects1
+ 1650 | 101650 | decoration | test02       | Use this for test objects2
+ 1651 | 101651 | decoration | test03       | Use this for test objects3
+ 1652 | 101652 | person     | Cmrch01      | Civilian Merchant #1
+ 1653 | 101653 | person     | Cmrch02      | Civilian Merchant #2
+ 1654 | 101654 | person     | PakSldr2     | Pakistani soldier #2
+ 1655 | 101655 | person     | ETier1A      | Government officialA
+ 1656 | 101656 | person     | Aidid        | Somalian Warlord
+ 1657 | 101657 | person     | Atto         | Osman Atto
+ 1658 | 101658 | person     | Csomal01     | Civilian Man Somalian #1
+ 1659 | 101659 | person     | Csomal02     | Civilian Man Somalian #2
+ 1660 | 101660 | person     | CSomalF1     | Civilian Woman Somalian #1
+ 1661 | 101661 | person     | CSomalF2     | Civilian Woman Somalian #2
+ 1667 | 101667 | person     | Ranger01     | Combat Friendly Soldier Ranger01
+ 1696 | 101696 | person     | ESomal01     | Enemy Somalian Soldier with AK47
+ 1697 | 101697 | person     | ESomal02     | Enemy Somalian Soldier with AK47
+ 1698 | 101698 | person     | ESomal03     | Enemy Somalian Soldier with RPG
+ 1699 | 101699 | person     | ESomal04     | Enemy Somalian Malitia Member4
+ 1700 | 101700 | person     | ESomal05     | Enemy Somalian Malitia Member5
+ 1701 | 101701 | person     | ESomal06     | Enemy Somalian Malitia Member6
+ 1702 | 101702 | person     | ESomal07     | Enemy Somalian Malitia Member7
+ 1703 | 101703 | person     | ESomal08     | Enemy Somalian Malitia Member8
+ 1704 | 101704 | person     | ESomal09     | Enemy Somalian Malitia Member9
+ 1705 | 101705 | person     | ESomalP1     | Enemy Somalian Prisoner1
+ 1706 | 101706 | person     | ESomalP2     | Enemy Somalian Prisoner2
+ 1707 | 101707 | person     | ESomalP3     | Enemy Somalian Prisoner3
+ 1708 | 101708 | person     | ESomalP4     | Enemy Somalian Prisoner4
+ 1709 | 101709 | person     | Informnt     | Somalian Informant
+ 1710 | 101710 | person     | PakSldr1     | Pakistani soldier #1
+ 1711 | 101711 | person     | Csomal01     | Male Somalian Civilian
+ 1712 | 101712 | person     | Csomal02     | Male Somalian Civilian
+ 1716 | 101716 | person     | ESomal09     | USE ONLY ON ROOFTOPS
+ 1744 | 101744 | person     | Delta02      | Delta Force Teammate 2
+ 1745 | 101745 | person     | Delta03      | Delta Force Teammate 3
+ 1747 | 101747 | person     | Delta04      | Delta Force Teammate 4
+ 1752 | 101752 | person     | TenthMT2     | 10th Mountain Teammate 2
+ 1753 | 101753 | person     | Delta02      | Delta Force TeamLeader Invulnerable 
+ 1754 | 101754 | person     | Ranger02     | Combat Friendly Soldier Ranger02
+ 1755 | 101755 | person     | ESomal04     | USE FOR ROOFTOPS ONLY
+ 1756 | 101756 | person     | ESomal05     | USE FOR ROOFTOPS ONLY
+ 1757 | 101757 | person     | ESomal06     | USE FOR ROOFTOPS ONLY
+ 1758 | 101758 | person     | ETier1A      | Government officialA Normal walk
+ 1759 | 101759 | person     | ETier1B      | Government OfficialB Normalwalk
+ 1760 | 101760 | person     | ETier1C      | Government OfficialC Normalwalk
+ 1761 | 101761 | person     | CSomalF3     | Civilian Woman Somalian #3
+ 1762 | 101762 | person     | CSomalF4     | Civilian Woman Somalian #4
+ 1763 | 101763 | person     | Delta2A      | "Delta Force Teammate 2 w
+ 1764 | 101764 | person     | Delta3A      | "Delta Force Teammate 3 w
+ 1765 | 101765 | person     | Csomal05     | Civilian Man Somalian #5
+ 1766 | 101766 | person     | Csomal06     | Civilian Man Somalian #6
+ 1767 | 101767 | person     | CsomalT1     | "Civilian Man Somalian w
+ 1768 | 101768 | person     | CsomalT2     | "Civilian Man Somalian w
+ 1769 | 101769 | person     | Esomal05     | Enemy Somalian that sleeps #1
+ 1770 | 101770 | person     | Esomal06     | Enemy Somalian that sleeps #2
+ 1771 | 101771 | person     | Delta4A      | "Delta Force Teammate 4 w
+ 1772 | 101772 | person     | TenthMT3     | 10th Mountain Teammate 3
+ 1773 | 101773 | person     | ETier1A      | Government officialA Surrender
+ 1774 | 101774 | person     | ETier1B      | Government OfficialB Surrender
+ 1775 | 101775 | person     | ETier1C      | Government OfficialC Surrender
+ 1776 | 101776 | person     | Csomtest     | Civilian Dummy
+ 1777 | 101777 | decoration | MwalA2       | Medium Straight Wall Piece, Triggerable only
+ 1778 | 101778 | person     | ESomal03     | Enemy Somalian Soldier with Guided RPG
+ 1779 | 101779 | person     | ETier1D      | Government OfficialD
+ 1780 | 101780 | person     | ETier1D      | Government OfficialD Normalwalk
+ 1781 | 101781 | person     | ETier1D      | Government OfficialD Surrender
+ 1782 | 101782 | person     | ETier1A      | Government officialA Flashbang
+ 1783 | 101783 | person     | ETier1B      | Government officialB Flashbang
+ 1784 | 101784 | person     | ETier1C      | Government officialC Flashbang
+ 1785 | 101785 | person     | ETier1D      | Government officialD Flashbang
+ 1786 | 101786 | person     | ETier1E      | Government OfficialE
+ 1787 | 101787 | person     | ETier1E      | Government OfficialE Normalwalk
+ 1788 | 101788 | person     | ETier1E      | Government OfficialE Surrender
+ 1789 | 101789 | person     | ETier1E      | Government officialE Flashbang
+ 1790 | 101790 | person     | ETier1F      | Government OfficialF
+ 1791 | 101791 | person     | ETier1F      | Government OfficialF Normalwalk
+ 1792 | 101792 | person     | ETier1F      | Government OfficialF Surrender
+ 1793 | 101793 | person     | ETier1F      | Government officialF Flashbang
+ 1868 | 101868 | object     | Mortar       | Mortar
+ 1869 | 101869 | object     | MK19         | Mounted Grenade Launcher on Tripod
+ 1870 | 101870 | object     | Mk19amo      | Mk19amo
+ 1871 | 101871 | object     | Minigun      | Minigun for the Blackhawk
+ 1873 | 101873 | object     | RPG          | RPG
+ 1874 | 101874 | object     | OICWnade     | grenade round for OICW
+ 1875 | 101875 | object     | Flsh_3rd     | 3rd person flash bang
+ 1876 | 101876 | object     | EM50cal      | Armored Emplaced 50cal for Humvee 
+ 1877 | 101877 | object     | E50ETEK      | 50 Cal Emplaced weapon on ETEK 1
+ 1879 | 101879 | object     | EWepBnkr     | MK19 with bunker
+ 1880 | 101880 | object     | EWepBnkr     | 50cal on Tripod with bunker
+ 1881 | 101881 | object     | E50tripd     | 50cal on 360 tripod
+ 1882 | 101882 | object     | EMcannon     | emplaced cannon for technicals
+ 1883 | 101883 | object     | Frag_3rd     | 3rd person High explosive grenade
+ 1884 | 101884 | object     | CTflag       | CTflag Change Team Flag (PSP)
+ 1885 | 101885 | object     | UG50cal      | 50 Cal Emplaced weapon on ETEK 2
+ 1886 | 101886 | object     | MK19D        | S&D Destroyable Grenade Launcher
+ 1887 | 101887 | object     | E50triD      | S&D Destroyable 50cal on tripod
+ 1888 | 101888 | object     | MinigunD     | S&D Destroyable Minigun
+ 1889 | 101889 | object     | EWepBnkr     | Bunker with destroyable 50cal
+ 1890 | 101890 | object     | EWepBnkr     | Bunker with destroyable MK19
+ 1891 | 101891 | object     | stch_3ad     | Satchel Charge
+ 1892 | 101892 | object     | H50cal       | NON-Armored Emplaced 50cal for Humvee 
+ 1895 | 101895 | object     | clym_3ad     | Claymore
+ 1896 | 101896 | decoration | lndmine1     | All Un-marked Land Mine Section
+ 1897 | 101897 | decoration | lndmine2     | All Marked Land Mine Section
+ 1898 | 101898 | decoration | lndmine3     | Marked & Unmarked Land Mine Section3
+ 1899 | 101899 | decoration | lndmine4     | Marked & Unmarked Land Mine Section4
+ 1900 | 101900 | object     |              | Target Object
+ 1901 | 101901 | object     | E50triB      | Emplaced weapon on tripod DESTROYABLE
+ 1902 | 101902 | object     | E50tripd     | 50cal on 180 tripod
+ 1903 | 101903 | object     | Minigun      | Weak minigun
+ 1904 | 101904 | object     | nvg          | Night Vision Goggles
+ 1905 | 101905 | object     | bstone       | Rock for throwing
+ 1906 | 101906 | object     | RPG          | Guided RPG
+ 1968 | 101968 | object     | FxSteamS     | Small amount of steam
+ 1969 | 101969 | object     | FxSteamM     | Medium amount of steam
+ 1970 | 101970 | object     | FxSteamL     | Large amount of steam
+ 1971 | 101971 | object     | FxGsmokS     | Small amount of Gray smoke
+ 1972 | 101972 | object     | FxGsmokM     | Medium amount of Gray smoke
+ 1973 | 101973 | object     | FxGsmokL     | Large amount of Gray smoke
+ 1974 | 101974 | object     | FxBsmokS     | Small amount of Black smoke
+ 1975 | 101975 | object     | FxBsmokM     | Medium amount of Black smoke
+ 1976 | 101976 | object     | FxBsmokL     | Large amount of Black smoke
+ 1977 | 101977 | object     | FxFireHm     | Fire .5m tall
+ 1978 | 101978 | object     | FxFire1m     | Fire 1m tall
+ 1979 | 101979 | object     | FxFire2m     | Fire 2m tall
+ 1980 | 101980 | object     | FxFire4m     | Fire 4m tall
+ 1981 | 101981 | object     | FxFire6m     | Fire 6m tall
+ 1982 | 101982 | object     | FxWtrDp      | Dripping Water that will splash upon contact with the ground
+ 1983 | 101983 | object     | FxEspark     | Electrical Sparks  (Random)
+ 1984 | 101984 | object     | FxFireWD     | Fire from a window
+ 1985 | 101985 | object     | FxBsmokX     | Extra Large amount of Black smoke
+ 2041 | 102041 | powerup    | PwrMed       | Power Up Med Pack
+ 2042 | 102042 | powerup    | PwrAmmo      | Power Up Ammo Pack
+ 2043 | 102043 | marker     |              | Map Centerpoint, helps align commander map grid
+ 2044 | 102044 | powerup    | PwrMed       | Power Up Med Pack Infinite
+ 2045 | 102045 | powerup    | PwrAmmo      | Power Up Ammo Pack Infinite
+ 2046 | 102046 | object     | cly2_3ad     | Claymore Friendly
+ 2085 | 102085 | foliage    | Dt01a        | Small Desert Tree
+ 2086 | 102086 | foliage    | Dt01b        | Med Desert Tree
+ 2087 | 102087 | foliage    | Dt01c        | Large Desert Tree
+ 2088 | 102088 | foliage    | DB01a        | Small Desert Bush
+ 2089 | 102089 | foliage    | DB01b        | Med Desert Bush
+ 2090 | 102090 | foliage    | DB01c        | Large Desert Bush
+ 2091 | 102091 | foliage    | GB01a        | Medium Green Bush used in desert Climate
+ 2092 | 102092 | foliage    | GB01b        | Large Green Bush used in desert Climate
+ 2093 | 102093 | foliage    | GP01a        | Double Palm tree Group
+ 2094 | 102094 | foliage    | Weed01       | Water Weed used for river banks
+ 2095 | 102095 | foliage    | Gt01a        | Green Tree type one version A
+ 2096 | 102096 | foliage    | Gt02a        | Green Tree type Two version A
+ 2097 | 102097 | foliage    | Wbush01      | Large Wall Foliage, for placement right next to walls
+ 2098 | 102098 | foliage    | Wbush02      | Med Wall Foliage, for placement right next to walls
+ 2099 | 102099 | foliage    | Wbush03      | Small Wall Foliage, for placement right next to walls
+ 2100 | 102100 | foliage    | Gbush01      | Large Group of tall grass like bushes used on flat ground only
+ 2104 | 102104 | decoration | Chair04      | Large Chair for head of the table4
+ 2105 | 102105 | decoration | MapBrd       | Hanging Map board for wall
+ 2106 | 102106 | decoration | CinBPakG     | Cinematic Backpack with gun
+ 2107 | 102107 | decoration | CinMap       | Cinematic Wall Map
+ 2108 | 102108 | decoration | CinDufl1     | Cinematic Duffle Bag
+ 2109 | 102109 | decoration | CinDufl2     | Cinematic Group of Duffle Bags
+ 2110 | 102110 | decoration | CinHelm      | Cinematic Helmet
+ 2111 | 102111 | decoration | WLad04       | Wood Ladder 24m tall
+ 2112 | 102112 | decoration | RE_Sky       | Sky light for Russian Embassy
+ 2113 | 102113 | decoration | MwalC1       | 8m stone wall piece
+ 2114 | 102114 | decoration | MwalC2       | 16m stone wall piece
+ 2115 | 102115 | decoration | MwalC3       | 32m stone wall piece
+ 2116 | 102116 | decoration | Lpost02      | Weathered light post with light
+ 2117 | 102117 | decoration | MwalC4       | stone wall end cap piece
+ 2118 | 102118 | decoration | RB_dor       | Destructable door for Basement
+ 2119 | 102119 | decoration | Etek4p       | Technical, parked4
+ 2120 | 102120 | decoration | Etek5p       | Technical, parked5
+ 2121 | 102121 | decoration | Gtruck01     | Truck, parked
+ 2122 | 102122 | decoration | ArrowRed     | Directional arrow for tunnels RED
+ 2123 | 102123 | decoration | ArrowBlu     | Directional arrow for tunnels BLUE
+ 2124 | 102124 | decoration | ArrowGrn     | Directional arrow for tunnels GREEN
+ 2125 | 102125 | decoration | RE_Sky2      | Special Sky light for Russian Embassy
+ 2126 | 102126 | decoration | Bowl01       | Bowl for eating anim
+ 2127 | 102127 | decoration | Pos_Sm01     | Propaganda Somalian Grafitti 01
+ 2128 | 102128 | decoration | Pos_Sm02     | Propaganda Somalian Grafitti 02
+ 2129 | 102129 | decoration | Pos_Sm03     | Propaganda Somalian Grafitti 03
+ 2130 | 102130 | decoration | Telepol1     | "Telephone pole,single pole w
+ 2131 | 102131 | decoration | Telepol2     | "Telephone pole,double pole w
+ 2132 | 102132 | decoration | Telepol3     | "Telephone pole,wrecked w
+ 2134 | 102134 | decoration | UNtrck1p     | Parked version of U.N. Cargo Truck
+ 2135 | 102135 | decoration | ETek2p       | Parked Version of Etek2 with mounted 50cal
+ 2136 | 102136 | decoration | Bfence1      | "Bfence1   8 ft. Section of barbed wire fence w
+ 2137 | 102137 | decoration | Bfence1P     | Bfence1P   End pole for chain link fence
+ 2138 | 102138 | decoration | MwalB6       | Crumbled End Piece, Type B
+ 2139 | 102139 | decoration | Trash02      | Scattered papers and waste #2
+ 2140 | 102140 | decoration | Bfence2      | Bfence2   8 ft. Section of barbed wire fence angled #1
+ 2141 | 102141 | decoration | Bfence3      | Bfence3   8 ft. Section of barbed wire fence angled #2
+ 2142 | 102142 | decoration | Steamgrt     | Steam grate
+ 2143 | 102143 | decoration | RTDicon      | Icon for Room Take Down
+ 2144 | 102144 | decoration | Bed05        | Bed mattress, Only use this for sleeping AI
+ 2145 | 102145 | decoration | MwalGb       | Iron Gate Piece for walls GATE DOES NOT OPEN
+ 2146 | 102146 | decoration | Ship01P      | Large Cargo Ship with interior, parked
+ 2147 | 102147 | decoration | wcrate5      | "Wooden Crate with Khat destroyable w
+ 2149 | 102149 | decoration | R_TunCOL     | Tunnle Piece Collapsed
+ 2150 | 102150 | decoration | RngrFall     | Wounded Soldier
+ 2151 | 102151 | decoration | Target01     | Training Target #1
+ 2152 | 102152 | decoration | Target02     | Training Target #2
+ 2153 | 102153 | vehicle    | WpnCt5R      | Stack of Weapons Crates, Red glow, S & D
+ 2154 | 102154 | vehicle    | WpnCt5B      | Stack of Weapons Crates, Blue glow S & D
+ 2155 | 102155 | decoration | Pos_Sm04     | Propaganda Somalian Grafitti 04
+ 2156 | 102156 | decoration | Pos_Sm05     | Propaganda Somalian Grafitti 05
+ 2157 | 102157 | decoration | Mctardor     | Destructable door for MCtarget
+ 2181 | 102181 | decoration | Mmanual      | Mission Critical documents manual
+ 2304 | 102304 | foliage    | Gbush01A     | Large Group of tall grass - colorized more green
+ 3800 | 103800 | person     | PakSldr3     | Pakistani soldier #3
+ 4091 | 104091 | object     | flagblu      | Flag, blue
+ 4093 | 104093 | object     | flagred      | Flag, red
+ 4095 | 104095 | object     | flaggrn      | Flag, green
+ 4098 | 104098 | object     | bsflgblu     | Flag bay, blue
+ 4100 | 104100 | object     | bsflgred     | Flag bay, red
+ 4102 | 104102 | object     | bsflgvlt     | Flag bay, violet
+ 4103 | 104103 | object     | bsflgyel     | Flag bay, yellow
+ 4200 | 104200 | building   | comtowr1     | Communications tower
+ 4201 | 104201 | building   | Wbarack1     | One-story wooden army barracks
+ 4202 | 104202 | building   | Whqcntr1     | One-story wooden L-shaped headquarters1
+ 4203 | 104203 | building   | Wcmcntr1     | Small wooden communication center.
+ 4204 | 104204 | building   | Wgrdtwr1     | Three layer wooden guard tower
+ 4206 | 104206 | building   | Mgarage1     | Corregated steel garage. Two entrances on one side only
+ 4207 | 104207 | building   | Mwherhs1     | Large warehouse end cap section
+ 4208 | 104208 | building   | Mhangar1     | Small sized steel hangar. Two doors on one side
+ 4209 | 104209 | building   | Mhangar2     | Small steel hangar with rounded roof
+ 4211 | 104211 | building   | Airhang1     | Airport hangar
+ 4217 | 104217 | building   | oiltank      | Large oil Tank
+ 4218 | 104218 | building   | Tent1        | Pup tent
+ 4220 | 104220 | building   | comtowr3     | Communications tower with dome
+ 4242 | 104242 | building   | Airtowr1     | Airport control tower
+ 4300 | 104300 | decoration | Mbarrel1     | Single metal barrel
+ 4301 | 104301 | decoration | Mbarrel2     | Group of metal barrels
+ 4302 | 104302 | decoration | wcrate1      | Single wooden crate
+ 4303 | 104303 | decoration | wcrate2      | Group of wooden crates2
+ 4304 | 104304 | decoration | wcrate3      | Group of wooden crates3
+ 4306 | 104306 | decoration | Lpole1       | Light post
+ 4309 | 104309 | decoration | Fireext1     | Portablte fire extinguisher
+ 4313 | 104313 | decoration | Mfence1      | "Mfence1   8 ft. Section of chain link fence w
+ 4314 | 104314 | decoration | Mfencep1     | End pole for chain link fence
+ 4315 | 104315 | decoration | Mfenceg1     | Gated entry section of chain link fence
+ 4331 | 104331 | decoration | Mfence2      | "16 ft. Section of chain link fence w
+ 4356 | 104356 | decoration | Farp1        | Forward Area Rearming Point
+ 4372 | 104372 | foliage    | Dp03         | Single desert palm
+ 4402 | 104402 | object     | m_flsh01     | MuzzleFlash
+ 4403 | 104403 | object     | m_flsh02     | MuzzleFlashSmall
+ 4405 | 104405 | object     | tracer1r     | Red colored tracer
+ 4406 | 104406 | object     | tracer1g     | Green colored tracer
+ 4408 | 104408 | object     |              | Flare Aflr
+ 4409 | 104409 | object     |              | Flare gflr
+ 4502 | 104502 | object     | rocket       | Rocket
+ 4504 | 104504 | object     | stinger      | Stinger
+ 4511 | 104511 | person     | ETier1C      | Government OfficialC
+ 4514 | 104514 | person     | TenthMTN     | 10th Mountain Teammate 1
+ 4516 | 104516 | person     | C4srgt       | Seargent
+ 4517 | 104517 | person     | C4recrut     | Recruit
+ 4518 | 104518 | person     | C4mechnc     | "Mechanic
+ 4519 | 104519 | person     | C4ground     | Ground Helicopter Coordinator
+ 4520 | 104520 | person     | Medic01      | "Combat Medic01 Soldier w
+ 4521 | 104521 | person     | C4mechnB     | "Mechanic
+ 4522 | 104522 | person     | Warlord      | Somalian Warlord
+ 4523 | 104523 | person     | Csomal03     | Civilian Man Somalian #3
+ 4524 | 104524 | person     | Csomal04     | Civilian Man Somalian #4
+ 4529 | 104529 | person     | DeltaMED     | Combat Medic02 Soldier no gun
+ 4610 | 104610 | vehicle    | Fjeep1       | Friendly Jeep
+ 4622 | 104622 | vehicle    | Nctruck1     | Cargo truck
+ 4643 | 104643 | vehicle    | Fblkhawk     | Blackhawk with two miniguns
+ 4652 | 104652 | decoration | Fblkhwkx     | Use this for downed helicopter
+ 5300 | 105300 | person     | Delta01      | Delta Force, Main Player character
+ 5301 | 105301 | person     | DeltaMP      | Multiplayer Delta
+ 5302 | 105302 | person     | PRanger      | Ranger, Main Player character
+ 5303 | 105303 | person     | P10thMTN     | 10th Mountain, Main Player character
+ 5304 | 105304 | person     | ETier1B      | Government OfficialB
+ 5305 | 105305 | person     | DeltaMED     | Multiplayer Delta Medic
+ 5306 | 105306 | person     | Delta01      | Delta Force Cinematic
+ 5307 | 105307 | person     | Ranger01     | Ranger Cinematic
+ 5308 | 105308 | person     | DeltaMRC     | Multiplayer Mercenary Enemy
+ 5309 | 105309 | person     | DeltaMMD     | Multiplayer Mercenary Enemy Medic
+ 6001 | 106001 | marker     |              | start, player
+ 6002 | 106002 | marker     |              | start, dmatch
+ 6003 | 106003 | marker     |              | start, Blue Team
+ 6004 | 106004 | marker     |              | start, Red Team
+ 6005 | 106005 | marker     |              | waypoint
+ 6006 | 106006 | marker     |              | KOTH center
+ 6013 | 106013 | marker     |              | Area Trigger
+ 6026 | 106026 | marker     |              | waypoint, mp, alpha
+ 6027 | 106027 | marker     |              | waypoint, mp, red base
+ 6028 | 106028 | marker     |              | waypoint, mp, blue base
+ 6030 | 106030 | marker     |              | Squib End
+ 6031 | 106031 | marker     |              | Squib Start AK47
+ 6032 | 106032 | marker     |              | Squib Start 50cal
+ 6033 | 106033 | marker     |              | Squib Start minigun
+ 6038 | 106038 | marker     |              | Briefing Map Center
+ 6088 | 106088 | marker     |              | teleport target
+ 6089 | 106089 | marker     |              | user waypoint
+ 6090 | 106090 | marker     |              | start, Yellow Team
+ 6091 | 106091 | marker     |              | start, Violet Team
+ 6092 | 106092 | marker     |              | waypoint, mp, yellow base
+ 6093 | 106093 | marker     |              | waypoint, mp, violet base
+ 6094 | 106094 | marker     |              | start, primary, player
+ 6095 | 106095 | marker     |              | start, primary, dmatch
+ 6096 | 106096 | marker     |              | start, primary, Blue Team
+ 6097 | 106097 | marker     |              | start, primary, Red Team
+ 6098 | 106098 | marker     |              | start, primary, Yellow Team
+ 6099 | 106099 | marker     |              | start, primary, Violet Team
+ 6101 | 106101 | marker     |              | snd: desert wind-crits 1 (Flys,Prairie dog squeeks)with lp3
+ 6102 | 106102 | marker     |              | snd: desert wind-gusts, with lp3
+ 6103 | 106103 | marker     |              | snd: Bird A (1-shots)
+ 6104 | 106104 | marker     |              | snd: Bird B (1-shots)
+ 6105 | 106105 | marker     |              | snd: Dock Creak1 (1-shots)
+ 6106 | 106106 | marker     |              | snd: Dock Creak2 (1-shots)
+ 6107 | 106107 | marker     |              | snd: Mtl Roof-Gusts1 (use on Shanty objects)
+ 6108 | 106108 | marker     |              | snd: Mtl Roof-Gusts2 (use on Shanty objects)
+ 6109 | 106109 | marker     |              | snd: Katydidish (1-shots)
+ 6110 | 106110 | marker     |              | snd: Ocean lp1, and one shots1
+ 6111 | 106111 | marker     |              | snd: Ocean lp2, and one shots2
+ 6112 | 106112 | marker     |              | snd: Beach lp1, and one shots (ENV_TIDE1)
+ 6113 | 106113 | marker     |              | snd: Beach lp2, and one shots (ENV_TIDE2)
+ 6114 | 106114 | marker     |              | snd: Eagle (1-shots. Use sparingly!)
+ 6115 | 106115 | marker     |              | snd: Elephant (Distant, 1-shots)
+ 6116 | 106116 | marker     |              | snd: River1 lp, and one shots (ENV_RIVER1)
+ 6117 | 106117 | marker     |              | snd: River2 lp, and one shots (ENV_RIVER2)
+ 6118 | 106118 | marker     |              | snd: Base 1 lp, and 1Shots-air wrachet
+ 6119 | 106119 | marker     |              | snd: desert lp3
+ 6120 | 106120 | marker     |              | snd: Cicaida Lp
+ 6121 | 106121 | marker     |              | snd: Ocean lp2
+ 6122 | 106122 | marker     |              | snd: HVAC1 Lp
+ 6123 | 106123 | marker     |              | snd: HVAC2 Lp
+ 6124 | 106124 | marker     |              | snd: Lion (Night, 1-shots)
+ 6125 | 106125 | marker     |              | snd: Howl1 (1-shots)
+ 6126 | 106126 | marker     |              | snd: River1 lp
+ 6127 | 106127 | marker     |              | snd: River2 lp
+ 6128 | 106128 | marker     |              | snd: Large Steam lp
+ 6129 | 106129 | marker     |              | snd: Walla: Food! SP01
+ 6130 | 106130 | marker     |              | snd: Walla: Food! SP02
+ 6131 | 106131 | marker     |              | snd: desert wind-gusts2, with lp4
+ 6132 | 106132 | marker     |              | snd: Base 2 lp, and 1Shots-air wrachet, pneumatics, etc.
+ 6133 | 106133 | marker     |              | snd: Base 3 lp, and 1Shots-ALT air wrachet, pneumatics, etc.
+ 6134 | 106134 | marker     |              | snd: LpHangarSm 1 (Base 3 lp only)
+ 6135 | 106135 | marker     |              | snd: LpHangarLg 1 (Base 2 lp only)
+ 6136 | 106136 | marker     |              | snd: City Wind lp1, and One-shots (ENV_GUSTS1)
+ 6137 | 106137 | marker     |              | snd: City Wind lp2, and One-shots (ENV_GUSTS2)
+ 6138 | 106138 | marker     |              | snd: City Crowd1
+ 6139 | 106139 | marker     |              | snd: AC1 Lp
+ 6140 | 106140 | marker     |              | snd: AC2 Lp
+ 6141 | 106141 | marker     |              | snd: Somali Radio1 Lp (pop muzik)
+ 6142 | 106142 | marker     |              | snd: Somali Radio2 Lp (Chanting-Arabic)
+ 6143 | 106143 | marker     |              | snd: CityNight Lp1
+ 6144 | 106144 | marker     |              | snd: CityNight Lp2
+ 6144 | 106144 | marker     |              | snd: TCityNight Lp2
+ 6145 | 106145 | marker     |              | snd: CityNight Lp3
+ 6146 | 106146 | marker     |              | snd: CityNight Lp4
+ 6147 | 106147 | marker     |              | snd: NghtBug1 (1-shots)
+ 6148 | 106148 | marker     |              | snd: Nght1 Lp (outside town. Use CityNight for in town)
+ 6149 | 106149 | marker     |              | snd: Nght2 Lp (outside town. Use CityNight for in town)
+ 6150 | 106150 | marker     |              | snd: Nght3 Lp (outside town. Use CityNight for in town)
+ 6151 | 106151 | marker     |              | snd: Nght4 Lp (outside town. Use CityNight for in town)
+ 6152 | 106152 | marker     |              | snd: Frog1 (1-shots)
+ 6153 | 106153 | marker     |              | snd: Hull Slaps1 (water lapping against docks-ship)
+ 6154 | 106154 | marker     |              | snd: Hull Slaps2 (water lapping against docks-ship)
+ 6155 | 106155 | marker     |              | snd: desert wind-crits 2 (Flys only)with lp4
+ 6156 | 106156 | marker     |              | snd: Loudspeaker Propaganda
+ 6157 | 106157 | marker     |              | snd: Lp Loudspeaker Chant from Somali Radio2
+ 6158 | 106158 | marker     |              | snd: Somali Radio3 Lp (propaganda-English)
+ 6159 | 106159 | marker     |              | snd: ENV_BASE1 (air wrachet 1Shots only)
+ 6160 | 106160 | marker     |              | snd: ENV_BASE2 (1Shots only-air wrachet, pneumatics, etc.)
+ 6161 | 106161 | marker     |              | snd: ENV_BASE3 (1Shots only-ALT air wrachet, pneumatics, etc.)
+ 6162 | 106162 | marker     |              | snd: Somali Radio4 Lp (propaganda-Somali)
+ 6163 | 106163 | marker     |              | snd: Somali Radio5 Lp (Static, off the air)
+ 6164 | 106164 | marker     |              | snd: War Fog 1-shots A
+ 6165 | 106165 | marker     |              | snd: War Fog 1-shots B
+ 6166 | 106166 | marker     |              | snd: LpENV Tunnel Entrance2
+ 6167 | 106167 | marker     |              | snd: LpENV Tunnel Entrance3
+ 6168 | 106168 | marker     |              | snd: LpENV DeepTunnel1
+ 6169 | 106169 | marker     |              | snd: LpENV DeepTunnel2
+ 6170 | 106170 | marker     |              | snd: LpENV DeepTunnel3
+ 6171 | 106171 | marker     |              | snd: Drips-Underground 
+ 6172 | 106172 | marker     |              | snd: LpENV Tunnel Entrance1
+ 6173 | 106173 | marker     |              | snd: Fly buzzes, BZZZZZZZZZ! (place no less than 200m apart)
+ 6174 | 106174 | marker     |              | snd: desert lp4 (NEW 2.19.03)
+ 6175 | 106175 | marker     |              | snd: desert lp1-lighter, wistle-y wind (NEW 2.19.03)
+ 6176 | 106176 | marker     |              | snd: desert lp2-lighter, wistle-y wind (NEW 2.19.03)
+ 6177 | 106177 | marker     |              | snd: Ocean lp1
+ 6178 | 106178 | marker     |              | snd: LpEngineRoom (Base 1 lp only) NEW 2.19.03
+ 6179 | 106179 | marker     |              | "snd: LpBAD SOMALIS-SP10 (bad guys in war room. Interrupt w
+ 6180 | 106180 | marker     |              | snd: LpAirBase Activity1, and One-shots (ENV_BASE3)
+ 6181 | 106181 | marker     |              | snd: LpAirBase Activity2, and One-shots (ENV_BASE2)
+ 6182 | 106182 | marker     |              | snd: LpAirBase Activity1
+ 6183 | 106183 | marker     |              | snd: LpAirBase Activity2
+ 6184 | 106184 | decoration | COCR01       | Cocaine Crate - Single
+ 6185 | 106185 | building   | CARC01       | Colombian Arch
+ 6186 | 106186 | person     | chosf1       | Civilian Woman Colombian #1
+ 6187 | 106187 | foliage    | CANL01       | Large Tropical Canopy
+ 6188 | 106188 | foliage    | CANM01       | Medium Tropical Canopy
+ 6189 | 106189 | foliage    | CANS01       | Small Tropical Canopy
+ 6190 | 106190 | foliage    | FERN01A      | Small Tropical Fern
+ 6191 | 106191 | foliage    | TT04A        | Tropical Tree Grouping 1A
+ 6192 | 106192 | decoration | ASTAT        | Aztec Statue
+ 6193 | 106193 | building   | OJNC01       | Oil Field Pipe Junction
+ 6194 | 106194 | foliage    | TT03A        | Tall Tropical Tree
+ 6195 | 106195 | foliage    | TT05A        | Medium Tropical Tree
+ 6196 | 106196 | foliage    | TT06A        | Tropical Banana Tree
+ 6197 | 106197 | foliage    | TG01C        | Tropical Tree Grouping 03 No ferns
+ 6198 | 106198 | foliage    | TG01D        | Tropical Tree Grouping 04 No ferns
+ 6199 | 106199 | person     | CHOSM1       | Civilian Man Colombian #1
+ 6200 | 106200 | person     | CDLT01       | Team Sabre Teammate 1
+ 6201 | 106201 | person     | CDLT02       | Team Sabre Teammate 2
+ 6202 | 106202 | person     | CDLT03       | Team Sabre Teammate 3
+ 6203 | 106203 | person     | IRWRK1       | Iranian Oilworker #1
+ 6204 | 106204 | person     | IRWRK2       | Iranian Oilworker #2
+ 6205 | 106205 | building   | DRGVLA       | Drug Lord's Villa
+ 6206 | 106206 | vehicle    | EAH6C        | Enemy Littlebird
+ 6207 | 106207 | vehicle    | VBL01        | VBL with 7.62mm turret
+ 6208 | 106208 | Building   | IFRTA        | Medieval Fortress Ruins A
+ 6209 | 106209 | Building   | IFRTB        | Medieval Fortress Ruins B
+ 6210 | 106210 | Building   | IFRTC        | Medieval Fortress Ruins C
+ 6211 | 106211 | Building   | IFRTD        | Medieval Fortress Ruins D
+ 6212 | 106212 | person     | CDRUG        | Colombian Drug Lord
+ 6213 | 106213 | object     | VBLtur       | VBL 7.62mm turret
+ 6214 | 106214 | vehicle    | RHIB         | Rigid Hull Inflatable Boat (collision bow)
+ 6215 | 106215 | foliage    | TG01A        | Tropical Tree Grouping 01
+ 6216 | 106216 | building   | STEP01       | Player Step
+ 6217 | 106217 | person     | CDLT04       | Team Sabre Teammate 4 Boonie Hat
+ 6218 | 106218 | person     | CDLT05       | Team Sabre Teammate 5 Do Rag
+ 6219 | 106219 | Building   | O_PIPE1      | Oil Pipe Section 1
+ 6220 | 106220 | Building   | O_PIPE2      | Oil Pipe Section 2
+ 6221 | 106221 | Building   | O_PIPE3      | Oil Pipe Section 3
+ 6222 | 106222 | Building   | O_PIPE4      | Oil Pipe Section 4
+ 6223 | 106223 | Building   | O_TANKA      | Oil Tank A
+ 6224 | 106224 | Building   | O_TANKB      | Oil Tank B
+ 6225 | 106225 | Building   | O_TANKC      | Oil Tank C
+ 6226 | 106226 | Building   | O_VALV1H     | Oil VALVE 1
+ 6227 | 106227 | foliage    | TG02A        | Tropical Tree Grouping 2A
+ 6228 | 106228 | foliage    | TG02B        | Tropical Tree Grouping 2B
+ 6229 | 106229 | foliage    | TG02C        | Tropical Tree Grouping 2C
+ 6230 | 106230 | person     | CDRNG        | Colombian Drug Lord 2
+ 6231 | 106231 | person     | CPLT         | Colombian Pilot Hostage
+ 6232 | 106232 | person     | IDLTH        | Iranian Delta Hostage
+ 6233 | 106233 | building   | OPMP01       | Oil Field Pumping Unit
+ 6234 | 106234 | foliage    | TG01B        | Tropical Tree Grouping 02
+ 6235 | 106235 | building   | O_FLARE2     | Oil Flare 2
+ 6236 | 106236 | building   | O_FLARE      | Oil Flare 1
+ 6237 | 106237 | person     | SMGL1        | Columbian Smuggler 1
+ 6238 | 106238 | person     | SMGL2        | Columbian Smuggler 2
+ 6239 | 106239 | person     | SMGL3        | Columbian Smuggler 3
+ 6240 | 106240 | person     | SMGL4        | Columbian Smuggler 4
+ 6241 | 106241 | person     | GUER1        | Columbian Guerilla 1
+ 6242 | 106242 | person     | GUER2        | "Columbian Guerilla 2 w
+ 6243 | 106243 | person     | GUER3        | Columbian Guerilla 3
+ 6244 | 106244 | Building   | IFRTE        | Medieval Fortress Ruins E
+ 6246 | 106246 | person     | GUER4        | Columbian Guerilla 4
+ 6247 | 106247 | person     | BGRD1        | Columbian BodyGuard 1
+ 6248 | 106248 | person     | BGRD2        | "Columbian BodyGuard 2 w
+ 6249 | 106249 | person     | BGRD3        | Columbian BodyGuard 3
+ 6250 | 106250 | building   | RBRG01       | Colombian Rope Bridge (tile)
+ 6251 | 106251 | vehicle    | OTNKR        | Iranian Oil Tanker
+ 6252 | 106252 | vehicle    | EBOAT2       | Enemy Motorized River Boat 2
+ 6253 | 106253 | building   | DDBH01       | Drug Lord's Boat House
+ 6254 | 106254 | building   | CARC02       | Felled Columbian Ruins
+ 6255 | 106255 | building   | CARC03       | Columbian Wall Section
+ 6256 | 106256 | building   | CARC04       | Columbian Wall End Piece
+ 6257 | 106257 | vehicle    | DDSB01       | Drug Lord's Speed Boat
+ 6258 | 106258 | person     | ICIVW        | Iranian Civilian Woman
+ 6259 | 106259 | vehicle    | SDC3         | Drug Smuggler's Plane
+ 6260 | 106260 | decoration | DTBLS01      | Drug Table Small
+ 6261 | 106261 | person     | IRST1        | Iranian Rebel Suicide Troop 1
+ 6262 | 106262 | person     | IRST2        | Iranian Rebel Suicide Troop 2
+ 6263 | 106263 | object     | CtrkSD       | Chemical Weapons Truck S & D (blue glow)
+ 6264 | 106264 | object     | CtrkSD       | Chemical Weapons Truck S & D
+ 6265 | 106265 | object     | CtrkSD       | Chemical Weapons Truck S & D (red glow)
+ 6266 | 106266 | person     | IRLDR        | Iranian Rebel Leader
+ 6267 | 106267 | person     | IRRR1        | Iranian Rebel Regular 1
+ 6268 | 106268 | person     | IRRR2        | Iranian Rebel Regular 2
+ 6269 | 106269 | person     | IRRR3        | Iranian Rebel Regular 3
+ 6270 | 106270 | person     | IRST3        | "Iranian Rebel Suicide Troop 3 w
+ 6271 | 106271 | person     | IRRR4        | "Iranian Rebel Regular 4 w
+ 6272 | 106272 | foliage    | TDP03B       | Desert Palm Grouping
+ 6273 | 106273 | decoration | ANTN04       | Large Antennae (no supports)
+ 6274 | 106274 | building   | RBRG02       | "Colombian Rope Bridge (tile
+ 6275 | 106275 | building   | RBRG03       | Colombian Rope Bridge (end piece)
+ 6277 | 106277 | person     | SAS1         | Iranian Teammate SAS 1
+ 6278 | 106278 | person     | SAS2         | Iranian Teammate SAS 2
+ 6279 | 106279 | person     | IRAC         | Iranian Armed Civilian
+ 6281 | 106281 | person     | IRFF         | Fire Fighter
+ 6282 | 106282 | building   | UNFLG01      | United Nations Flag
+ 6283 | 106283 | vehicle    | DDSB01       | Drug Lord's Speed Boat with Hardened Armor
+ 6284 | 106284 | vehicle    | MH53         | MH53 Pavelow
+ 6285 | 106285 | vehicle    | AAGN01       | "Anti Aircraft Gun in-tow (unmanned
+ 6286 | 106286 | vehicle    | AAGN02       | "Anti Aircraft Gun (manned
+ 6287 | 106287 | building   | OPLT01       | Offshore Oil Platform Main
+ 6288 | 106288 | building   | OPLT02       | Offshore Oil Platform Derrick
+ 6289 | 106289 | building   | OPLT03       | Offshore Oil Platform Flare
+ 6290 | 106290 | building   | OPLT04       | Offshore Oil Platform Helopad
+ 6291 | 106291 | building   | OPLT05       | Offshore Oil Platform Strut
+ 6293 | 106293 | building   | OPLT06       | Offshore Oil Platform Pipes
+ 6294 | 106294 | building   | OPLT07       | Offshore Oil Platform Watchtower
+ 6295 | 106295 | foliage    | FT01         | Felled Tropical Tree a
+ 6296 | 106296 | foliage    | FT02         | Felled Tropical Tree b
+ 6297 | 106297 | building   | OPLT01B      | Offshore Oil Platform Main B
+ 6298 | 106298 | building   | OPLT01C      | Offshore Oil Platform Main C
+ 6299 | 106299 | foliage    | FERN01B      | Larger Tropical Fern
+ 6300 | 106300 | building   | OPFC01       | Offshore Oil Platform Fence 1
+ 6301 | 106301 | building   | OPFC02       | Offshore Oil Platform Fence 2
+ 6302 | 106302 | building   | OPFC03       | Offshore Oil Platform Fence 3
+ 6303 | 106303 | building   | WLITE01      | Warning Light 1
+ 6305 | 106305 | person     | IRST3        | Iranian Suicide Trooper with Guided RPG
+ 6306 | 106306 | building   | OBLD01       | Offshore Oil Platform Building 1
+ 6307 | 106307 | building   | OBLD02       | Offshore Oil Platform Building 2
+ 6308 | 106308 | building   | OBLD03       | Offshore Oil Platform Building 3 (office)
+ 6309 | 106309 | building   | OPFC04       | Offshore Oil Platform Fence 4 (4.2M long)
+ 6310 | 106310 | person     | OPSPLT       | Special Operations Pilot
+ 6311 | 106311 | building   | C4bm1        | C4 bomb armed
+ 6312 | 106312 | building   | C4bm0        | C4 bomb dis-armed
+ 6314 | 106314 | vehicle    | Ctrk01       | Chemical weapons cargo truck
+ 6315 | 106315 | building   | OSHUT01      | Offshore Oil Shut Off Valve
+ 6316 | 106316 | decoration | OWINC01      | Oil Platform Winch
+ 6317 | 106317 | decoration | OVENT01      | Oil Platform Vent
+ 6318 | 106318 | decoration | OTANK01      | Oil Platform Propane Tank
+ 6319 | 106319 | decoration | OWLHD01      | Oil Field Well Head Units
+ 6320 | 106320 | person     | CPLT02       | Colombian Pilot - Delta Defs
+ 6321 | 106321 | decoration | MANU02       | Mission Critical Documents Manual #2
+ 6322 | 106322 | building   | OPONT01      | Offshore Oil Platform Pontoon
+ 6323 | 106323 | decoration | OPLIT01      | Oil platform light post with light
+ 6324 | 106324 | vehicle    | RHIB02       | Rigid Hull Inflatable Boat (collision perimeter)
+ 6325 | 106325 | vehicle    | ExMsl        | Exocet Missile launcher
+ 6327 | 106327 | building   | OCONN01      | Offshore Oil Platform gangway connector
+ 6328 | 106328 | building   | OPCRN01      | Offshore Oil Platform crane
+ 6329 | 106329 | people     | CPLTD01      | Colombian Pilot (Static Death Mesh)
+ 6330 | 106330 | vehicle    | PTRLB        | Iranian Patrol Boat
+ 6331 | 106331 | building   | OPLT04A      | Oil Platform Helopad NULL Mesh
+ 6332 | 106332 | building   | OPFC05       | Offshore Oil Platform Fence 5
+ 6333 | 106333 | decoration | BHDF         | Blackhawk, further destroyed
+ 6334 | 106334 | vehicle    | AAGN03       | "Anti Aircraft Gun in-tow (unmanned
+ 6340 | 106340 | building   | Moghut1B     | Mogadishu hut1B - with moss skin
+ 6341 | 106341 | building   | Moghut2B     | Mogadishu river hut2B - with moss skin
+ 6342 | 106342 | building   | Moghut3B     | Mogadishu river hut3B - with moss skin
+ 6343 | 106343 | building   | MSlm1B       | Mogadishu Slum Hut Single Unit B - moss skin
+ 6344 | 106344 | building   | MSlm02B      | Mogadishu Slum Hut double unit B - moss skin
+ 6345 | 106345 | building   | MSlm03B      | Mogadishu Slum Hut Triple Unit B - moss skin
+ 6346 | 106346 | building   | MSlm04B      | Mogadishu Slum Hut 4 connected Units B - moss skin
+ 6347 | 106347 | decoration | R_grp1B      | Group of large Rocks1B - moss skin
+ 6348 | 106348 | decoration | R_grp2B      | Group of large Rocks2B - moss skin
+ 6349 | 106349 | decoration | R_grp3B      | Group of large Rocks3B - moss skin
+ 6350 | 106350 | decoration | R_grp4B      | Group of large Rocks4B - moss skin
+ 6351 | 106351 | decoration | R_grp5B      | Group of large Rocks5B - moss skin
+ 6352 | 106352 | decoration | R_grp6B      | Group of large Rocks6B - moss skin
+ 6353 | 106353 | person     | IRAC02       | Iranian Armed Civilian 2
+ 6354 | 106354 | person     | IRAC03       | Iranian Armed Civilian 3
+ 6356 | 106356 | person     | GUER5        | Columbian Guerilla 5
+ 6357 | 106357 | person     | CHOSM1       | Civilian Man Colombian #2 - not hostage stance
+ 6358 | 106358 | person     | chosf1       | Civilian Woman Colombian #2 - not hostage stance
+ 6359 | 106359 | person     | SAS3         | Multiplayer SAS CQB
+ 6360 | 106360 | person     | SAS3         | Multiplayer SAS Gunner
+ 6361 | 106361 | person     | CDLT06       | Delta Force TS SP, Main Player character
+ 6362 | 106362 | person     | SAS3         | Multiplayer SAS Medic
+ 6363 | 106363 | person     | SAS4         | Multiplayer SAS Sniper
+ 6364 | 106364 | person     | SAS3         | Team Sabre SAS SP, Main Player character
+ 6365 | 106365 | decoration | PBlok01B     | Large Pier Platform Piece B - longer supports
+ 6366 | 106366 | decoration | Pwalk01B     | Straight narrow Pier walkway piece 15m B - longer supports
+ 6367 | 106367 | building   | MogBlk9b     | Mogadishu City Block9 B  - unlit
+ 6368 | 106368 | person     | CPLT         | Colombian Pilot - IRWRK1 defs
+ 6369 | 106369 | vehicle    | ETek2B       | Technical enemy vehicle - mounted 50cal - B - variant color
+ 6378 | 106378 | marker     |              | snd: LP_DC3IDLE
+ 6379 | 106379 | marker     |              | snd: LPNV_JUNGLZ1A
+ 6380 | 106380 | marker     |              | snd: LPNV_JUNGLZ1B
+ 6381 | 106381 | marker     |              | snd: LPNV_JUNGLZ1C
+ 6382 | 106382 | marker     |              | snd: LPNV_JUNGLZ2A
+ 6383 | 106383 | marker     |              | snd: LPNV_JUNGLZ2B
+ 6384 | 106384 | marker     |              | snd: LPNV_JUNGLZ2C
+ 6385 | 106385 | marker     |              | snd: LPNV_JUNGLZ2D
+ 6386 | 106386 | marker     |              | snd: LPNV_JUNGLZ3A
+ 6387 | 106387 | marker     |              | snd: LPNV_JUNGLZ3B
+ 6388 | 106388 | marker     |              | snd: LPNV_OILRIG1
+ 6389 | 106389 | marker     |              | snd: LPNV_OILRIG2
+ 6390 | 106390 | marker     |              | snd: LPNV_OILRIG3
+ 6391 | 106391 | marker     |              | snd: TCityNight Lp1
+ 6392 | 106392 | marker     |              | snd: TCityNight Lp2
+ 6393 | 106393 | marker     |              | snd: CityNight Lp3
+ 6394 | 106394 | marker     |              | snd: TCityNight Lp4
+ 6395 | 106395 | marker     |              | snd: TNght1 Lp (outside town. Use CityNight for in town)
+ 6396 | 106396 | marker     |              | snd: TNght2 Lp (outside town. Use CityNight for in town)
+ 6397 | 106397 | marker     |              | snd: TNght3 Lp (outside town. Use CityNight for in town)
+ 6398 | 106398 | marker     |              | snd: TNght4 Lp (outside town. Use CityNight for in town)
+ 6399 | 106399 | marker     |              | snd: TSomali Radio1 Lp (pop muzik)
+ 6400 | 106400 | marker     |              | snd: TSomali Radio2 Lp (Chanting-Arabic)
+ 6401 | 106401 | marker     |              | snd: TBird A (1-shots)
+ 6402 | 106402 | marker     |              | snd: TBird B (1-shots)
+
+5) O que ainda falta para eu te entregar 'todas as traduções existentes no editor' com 100% de certeza
+- O ITEMS.DEF resolve totalmente a tradução do type_id para item e categoria.
+- O EXE resolve parte das traduções de campos (labels).
+- Mas o MED tem traduções que dependem de outros arquivos e tabelas internas, por exemplo:
+  - weapon.def e tabelas de loadout
+  - textos de menus e condições de Events/Triggers/Groups
+  - possível tabela de aliases, como 'snd:' virando 'Sound:'
+
+Se você quiser fechar 100% (incluindo aliases e campos habilitados por item), o caminho mais direto é você me mandar:
+- um .mis pequeno contendo 5 a 10 itens de categorias diferentes (marker, people, vehicle, building etc)
+- e, se possível, 2 screenshots do MED mostrando o Item Attributes para dois itens diferentes
+Com isso eu consigo cruzar o que o EXE chama de label, com o campo real que ele está editando, e montar um dicionário definitivo campo -> label.
