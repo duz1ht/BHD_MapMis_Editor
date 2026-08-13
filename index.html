@@ -11736,6 +11736,12 @@ end group
     const c=Math.cos(angle), s=Math.sin(angle), d=vec3Dot(axis,v);
     return vec3Add(vec3Add(vec3Scale(v,c),vec3Scale(vec3Cross(axis,v),s)),vec3Scale(axis,d*(1-c)));
   }
+  function gizmoRotationValueDegrees(mode, geometricDegrees){
+    return mode === 'rotZ' ? -geometricDegrees : geometricDegrees;
+  }
+  function gizmoRotationGeometryDegrees(mode, valueDegrees){
+    return mode === 'rotZ' ? -valueDegrees : valueDegrees;
+  }
   function itemTransformBasis(it){
     if (state.transformSpace !== 'local') return { x:vec3(1,0,0), y:vec3(0,1,0), z:vec3(0,0,1) };
     const yaw=(Number(it?.heading)||0)*Math.PI/180, pitch=(Number(it?.pitch)||0)*Math.PI/180;
@@ -12846,10 +12852,12 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       const hit=rayPlanePoint(ray,d.pivot,d.planeNormal);if(!hit||!d.startPoint)return;let delta=vec3Sub(hit,d.startPoint),da=vec3Dot(delta,d.handle.axisA),db=vec3Dot(delta,d.handle.axisB);delta=vec3Add(vec3Scale(d.handle.axisA,da),vec3Scale(d.handle.axisB,db));d.label=`${da.toFixed(2)}, ${db.toFixed(2)}`;
       for(const start of d.snapshots){const it=getItemByIdFast(start.id);if(!it)continue;applyTranslationDelta(it,start,delta);}
     }else if(d.handle.kind==='ring'){
-      const hit=rayPlanePoint(ray,d.pivot,d.handle.axis);if(!hit||!d.lastVector)return;const cur=vec3Norm(vec3Sub(hit,d.pivot)),deltaAngle=Math.atan2(vec3Dot(d.handle.axis,vec3Cross(d.lastVector,cur)),vec3Dot(d.lastVector,cur));d.accumulatedAngle+=deltaAngle;d.lastVector=cur;let deg=d.accumulatedAngle*180/Math.PI;
-      const reference=d.snapshots[0];if(state.rotationSnapEnabled){if(state.rotationSnapMode==='absolute'){const initial=d.mode==='rotX'?reference.pitch:reference.heading,sign=d.mode==='rotX'?1:-1;deg=(snapValue(initial+sign*deg,state.rotationSnap)-initial)/sign;}else deg=snapValue(deg,state.rotationSnap);}
-      const angle=deg*Math.PI/180;d.appliedAngle=angle;d.currentVector=vec3Norm(rotateAroundAxis(d.startVector,d.handle.axis,angle));d.label=`${deg.toFixed(1)}°`;
-      for(const start of d.snapshots){const it=getItemByIdFast(start.id);if(!it)continue;let itemDeg=deg;if(state.rotationSnapEnabled&&state.rotationSnapMode==='absolute'&&state.transformPivot==='individual'){const initial=d.mode==='rotX'?start.pitch:start.heading,sign=d.mode==='rotX'?1:-1;itemDeg=(snapValue(initial+sign*d.accumulatedAngle*180/Math.PI,state.rotationSnap)-initial)/sign;}if(d.mode==='rotX')it.pitch=start.pitch+itemDeg;else it.heading=start.heading-itemDeg;if(state.transformPivot!=='individual'&&d.snapshots.length>1){const p=vec3Add(d.pivot,rotateAroundAxis(vec3Sub(start.world,d.pivot),d.handle.axis,angle));it.x=worldToRaw(p.x,'x');it.y=worldToRaw(p.y,'y');it.z=worldToRaw(p.z,'z');}}
+      const hit=rayPlanePoint(ray,d.pivot,d.handle.axis);if(!hit||!d.lastVector)return;const cur=vec3Norm(vec3Sub(hit,d.pivot)),deltaAngle=Math.atan2(vec3Dot(d.handle.axis,vec3Cross(d.lastVector,cur)),vec3Dot(d.lastVector,cur));d.accumulatedAngle+=deltaAngle;d.lastVector=cur;
+      const rawDegrees=d.accumulatedAngle*180/Math.PI,reference=d.snapshots[0];
+      let valueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);
+      if(state.rotationSnapEnabled){if(state.rotationSnapMode==='absolute'){const initial=d.mode==='rotX'?reference.pitch:reference.heading;valueDegrees=snapValue(initial+valueDegrees,state.rotationSnap)-initial;}else valueDegrees=snapValue(valueDegrees,state.rotationSnap);}
+      const geometryDegrees=gizmoRotationGeometryDegrees(d.mode,valueDegrees),angle=geometryDegrees*Math.PI/180;d.appliedAngle=angle;d.currentVector=vec3Norm(rotateAroundAxis(d.startVector,d.handle.axis,angle));d.label=`${valueDegrees.toFixed(1)}°`;
+      for(const start of d.snapshots){const it=getItemByIdFast(start.id);if(!it)continue;let itemDegrees=valueDegrees;if(state.rotationSnapEnabled&&state.rotationSnapMode==='absolute'&&state.transformPivot==='individual'){const initial=d.mode==='rotX'?start.pitch:start.heading,rawValueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);itemDegrees=snapValue(initial+rawValueDegrees,state.rotationSnap)-initial;}if(d.mode==='rotX')it.pitch=start.pitch+itemDegrees;else it.heading=start.heading+itemDegrees;if(state.transformPivot!=='individual'&&d.snapshots.length>1){const p=vec3Add(d.pivot,rotateAroundAxis(vec3Sub(start.world,d.pivot),d.handle.axis,angle));it.x=worldToRaw(p.x,'x');it.y=worldToRaw(p.y,'y');it.z=worldToRaw(p.z,'z');}}
     }
     commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean));updateItemGizmo();
   });
