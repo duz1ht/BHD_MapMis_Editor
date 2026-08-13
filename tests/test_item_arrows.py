@@ -65,9 +65,9 @@ class ItemArrowTests(unittest.TestCase):
 
     def test_arrow_heading_uses_the_mis_rotation_direction_and_axis_offset(self):
         heading = self.function_body("getItemArrowHeadingRadians")
-        self.assertIn("(-(Number(heading) || 0) - 180) * Math.PI / 180", heading)
+        self.assertIn("(-(Number(heading) || 0) - 270) * Math.PI / 180", heading)
         self.assertIn("opposite direction from Three.js positive Z", heading)
-        self.assertIn("compensate for the arrow geometry's +X axis", heading)
+        self.assertIn("arrow geometry's -270° yaw offset", heading)
 
     def test_arrows_sync_independently_from_glb_entries(self):
         sync = self.function_body("syncItemArrows")

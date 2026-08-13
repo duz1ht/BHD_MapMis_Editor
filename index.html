@@ -11387,8 +11387,8 @@ end group
 
   function getItemArrowHeadingRadians(heading){
     // MIS headings rotate in the opposite direction from Three.js positive Z.
-    // Preserve that conversion and compensate for the arrow geometry's +X axis.
-    return (-(Number(heading) || 0) - 180) * Math.PI / 180;
+    // Preserve that conversion and apply the arrow geometry's -270° yaw offset.
+    return (-(Number(heading) || 0) - 270) * Math.PI / 180;
   }
 
   function updateItemArrow(arrow, it){
