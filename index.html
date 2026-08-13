@@ -2418,6 +2418,10 @@ end group
       group: null,
       signature: "",
     },
+    itemArrows: {
+      group: null,
+      instances: new Map(),
+    },
     terrainLoad: {
       phase: "idle",
       revision: 0,
@@ -3819,6 +3823,11 @@ end group
     return /^#[0-9a-f]{6}$/i.test(tint) ? tint : "";
   }
 
+  function getItemArrowSize(it){
+    const arrow = Number(getDefForItem(it)?.arrow);
+    return Number.isFinite(arrow) && arrow > 0 ? arrow : 0;
+  }
+
   // DEF parser (ITEMS.DEF)
   function extractSoundDefinitionFromOtherItems(rawText){
     const text = String(rawText || "");
@@ -3856,6 +3865,7 @@ end group
           graphic: "",
           graphicScale: 1,
           tint: "",
+          arrow: 0,
           attrib: [],
           kv: {},
         };
@@ -3894,6 +3904,10 @@ end group
         if (k === "type") cur.type = v;
         if (k === "graphic") cur.graphic = v;
         if (k === "tint" && /^#[0-9a-f]{6}$/i.test(v)) cur.tint = v;
+        if (k === "arrow"){
+          const numericArrow = Number(v);
+          if (Number.isFinite(numericArrow) && numericArrow > 0) cur.arrow = numericArrow;
+        }
         if (k === "graphic_scale"){
           const numericScale = Number(v);
           if (Number.isFinite(numericScale) && numericScale > 0) cur.graphicScale = numericScale;
@@ -3943,6 +3957,7 @@ end group
         graphic: Object.prototype.hasOwnProperty.call(supplementKv, "graphic") ? supplement.graphic : base.graphic,
         graphicScale: Object.prototype.hasOwnProperty.call(supplementKv, "graphic_scale") ? supplement.graphicScale : base.graphicScale,
         tint: Object.prototype.hasOwnProperty.call(supplementKv, "tint") ? supplement.tint : base.tint,
+        arrow: Object.prototype.hasOwnProperty.call(supplementKv, "arrow") ? supplement.arrow : base.arrow,
         attrib,
         kv: { ...(base.kv || {}), ...supplementKv },
       });
@@ -11294,6 +11309,7 @@ end group
     state.glb.documentGeneration += 1;
     for (const instance of state.glb.itemInstances.values()) removeGlbItemInstance(instance);
     state.glb.itemInstances.clear();
+    clearItemArrows();
     state.glb.lastSelectedVisualIds.clear();
     state.glb.transformDirtyIds.clear();
     state.glb.structureDirty = true;
@@ -11313,6 +11329,103 @@ end group
       disposeViewModeMaterial(current, obj.material);
     });
     delete instance.userData._appliedViewMode;
+  }
+
+  // Three.js world units are meters here. The unit geometry is one meter long,
+  // so the DEF `arrow` value maps directly to the rendered length in meters.
+  const ITEM_ARROW_UNIT_LENGTH_METERS = 1;
+  const ITEM_ARROW_UNIT_WIDTH_METERS = 0.15;
+  const ITEM_ARROW_HEAD_LENGTH_RATIO = 0.38;
+  const ITEM_ARROW_HEAD_WIDTH_RATIO = 2.4;
+  const ITEM_ARROW_Z_OFFSET = 0.15;
+  const ITEM_ARROW_COLOR = 0xffffff;
+
+  function disposeItemArrow(arrow){
+    if (!arrow) return;
+    arrow.parent?.remove?.(arrow);
+    arrow.geometry?.dispose?.();
+    arrow.material?.dispose?.();
+  }
+
+  function clearItemArrows(){
+    for (const arrow of state.itemArrows.instances.values()) disposeItemArrow(arrow);
+    state.itemArrows.instances.clear();
+  }
+
+  function createItemArrow(it){
+    if (!state.glb.THREE) return null;
+    const { THREE } = state.glb;
+    const length = ITEM_ARROW_UNIT_LENGTH_METERS;
+    const halfShaft = ITEM_ARROW_UNIT_WIDTH_METERS * 0.5;
+    const headStart = length * (1 - ITEM_ARROW_HEAD_LENGTH_RATIO);
+    const halfHead = ITEM_ARROW_UNIT_WIDTH_METERS * ITEM_ARROW_HEAD_WIDTH_RATIO * 0.5;
+    const shape = new THREE.Shape();
+    shape.moveTo(0, -halfShaft);
+    shape.lineTo(headStart, -halfShaft);
+    shape.lineTo(headStart, -halfHead);
+    shape.lineTo(length, 0);
+    shape.lineTo(headStart, halfHead);
+    shape.lineTo(headStart, halfShaft);
+    shape.lineTo(0, halfShaft);
+    shape.closePath();
+    const geometry = new THREE.ShapeGeometry(shape);
+    const material = new THREE.MeshBasicMaterial({
+      color: ITEM_ARROW_COLOR,
+      side: THREE.DoubleSide,
+      depthTest: true,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const arrow = new THREE.Mesh(geometry, material);
+    arrow.name = `ITEM_DIRECTION_ARROW_${it.id}`;
+    arrow.userData.itemId = it.id;
+    arrow.userData.isItemArrow = true;
+    arrow.renderOrder = 18;
+    arrow.raycast = () => null;
+    return arrow;
+  }
+
+  function getItemArrowHeadingRadians(heading){
+    // MIS headings rotate in the opposite direction from Three.js positive Z
+    // rotation. Match the yaw sign used by applyItemModelTransform(), without
+    // its model-specific 180-degree correction.
+    return -(Number(heading) || 0) * Math.PI / 180;
+  }
+
+  function updateItemArrow(arrow, it){
+    const lengthMeters = getItemArrowSize(it);
+    arrow.material.color.setHex(ITEM_ARROW_COLOR);
+    arrow.position.set(rawToWorld(it.x, 'x'), rawToWorld(it.y, 'y'), getItemWorldZ(it) + ITEM_ARROW_Z_OFFSET);
+    arrow.rotation.set(0, 0, getItemArrowHeadingRadians(it.heading));
+    arrow.scale.set(lengthMeters, lengthMeters, 1);
+    arrow.visible = lengthMeters > 0 && isItemVisibilityFilterMatch(it);
+  }
+
+  function syncItemArrows(){
+    if (!state.glb.ready || !state.glb.THREE || !state.glb.scene) return;
+    if (!state.itemArrows.group){
+      state.itemArrows.group = new state.glb.THREE.Group();
+      state.itemArrows.group.name = "ITEM_DIRECTION_ARROWS";
+      state.glb.scene.add(state.itemArrows.group);
+    }
+    const wanted = new Set();
+    for (const it of state.items || []){
+      if (getItemArrowSize(it) <= 0) continue;
+      wanted.add(it.id);
+      let arrow = state.itemArrows.instances.get(it.id);
+      if (!arrow){
+        arrow = createItemArrow(it);
+        if (!arrow) continue;
+        state.itemArrows.group.add(arrow);
+        state.itemArrows.instances.set(it.id, arrow);
+      }
+      updateItemArrow(arrow, it);
+    }
+    for (const [itemId, arrow] of state.itemArrows.instances){
+      if (wanted.has(itemId)) continue;
+      disposeItemArrow(arrow);
+      state.itemArrows.instances.delete(itemId);
+    }
   }
 
   async function syncGlbItems(){
@@ -11445,6 +11558,7 @@ end group
       return;
     }
     updateGlbTransformsFromState();
+    syncItemArrows();
 
     const { renderer, scene } = state.glb;
     applyThreeCameraFromPV(P, V);
