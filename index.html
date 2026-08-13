@@ -2353,6 +2353,7 @@ end group
     aiTextfileNames: [],
     aiTextfileLabels: new Map(),
     isLocalRuntime: window.location.protocol === "file:",
+    supportsEditorFolder: typeof window.showDirectoryPicker === "function",
     editorFolderHandle: null,
     currentMisFileHandle: null,
     generalTerrainNames: [],
@@ -3311,9 +3312,12 @@ end group
   }
 
   async function loadBinaryResource(path){
-    if (state.isLocalRuntime){
-      return readArrayBufferFromEditorFolder(path);
+    if (state.editorFolderHandle){
+      const localBuffer = await readArrayBufferFromEditorFolder(path);
+      if (localBuffer !== null) return localBuffer;
+      if (!state.isLocalRuntime) addLog(`Falling back to server for binary resource: ${path}`);
     }
+    if (state.isLocalRuntime) return null;
     try{
       const res = await fetch(path);
       if (!res.ok){
@@ -3330,9 +3334,12 @@ end group
   }
 
   async function loadTextResource(path){
-    if (state.isLocalRuntime){
-      return readTextFromEditorFolder(path);
+    if (state.editorFolderHandle){
+      const localText = await readTextFromEditorFolder(path);
+      if (localText !== null) return localText;
+      if (!state.isLocalRuntime) addLog(`Falling back to server for text resource: ${path}`);
     }
+    if (state.isLocalRuntime) return null;
     try{
       const res = await fetch(path);
       if (!res.ok){
@@ -3990,7 +3997,7 @@ end group
     const defText = (window.BHD_ITEMS_DEF_TEXT || "").toString();
     const defs = parseItemsDef(defText);
     const otherItemsText = await loadTextResource("resources/items_lists/otheritems.js");
-    if (state.isLocalRuntime && state.editorFolderHandle){
+    if (state.editorFolderHandle){
       state.availableGlbFiles = await listGlbFilesFromEditorFolder();
     } else if (!state.isLocalRuntime){
       state.availableGlbFiles = null;
@@ -4165,7 +4172,7 @@ end group
   }
 
   function queueHttpGlbCheck(def){
-    if (state.isLocalRuntime) return;
+    if (state.isLocalRuntime || state.editorFolderHandle) return;
     const filename = insertGraphicFilename(def);
     if (!filename || state.glbAvailability.has(filename)) return;
     const graphic = String(def?.graphic || "").trim();
@@ -4684,7 +4691,7 @@ end group
       : parseAiTextfileLabelsFromMeditens(meditensText);
 
     let names = null;
-    if (state.isLocalRuntime && state.editorFolderHandle){
+    if (state.editorFolderHandle){
       names = await listAiTextfileNamesFromEditorFolder();
     }
     if (!names || !names.length){
@@ -4731,7 +4738,7 @@ end group
 
   async function refreshGeneralTerrainOptions(){
     let names = null;
-    if (state.isLocalRuntime && state.editorFolderHandle){
+    if (state.editorFolderHandle){
       names = await listTerrainNamesFromEditorFolder();
     }
     if (!names || !names.length){
@@ -9218,19 +9225,31 @@ end group
       await saveCurrentMap();
     },
     "file.setEditorFolder": async () => {
-      if (!state.isLocalRuntime) return;
-      if (!window.showDirectoryPicker){
-        statusEl.textContent = "Your browser does not support folder selection (File System Access API).";
+      if (!state.supportsEditorFolder){
+        statusEl.textContent = "Folder selection is unavailable in this browser. Use Chrome or Edge in a secure context (HTTPS).";
+        addLog("Editor folder selection unavailable: File System Access API is not supported.");
         return;
       }
       try{
         const handle = await window.showDirectoryPicker({ mode: "read" });
         state.editorFolderHandle = handle;
         statusEl.textContent = `Editor folder set: ${handle.name}`;
+        state.glb.templateByGraphic.clear();
+        state.glb.missingGraphics.clear();
+        state.glbAvailability.clear();
+        clearGlbItemInstances();
         await loadAndApplyItemCatalogs();
         await Promise.all([loadGameStrings(), loadWeaponDefs(), loadWpNames(), loadAiTextfileCatalog(), preloadEnvironmentFiles()]);
         await refreshGeneralTerrainOptions();
+        if (state.rawText){
+          try{
+            await loadTerrainFromMis();
+          } catch (err){
+            addLog(`[terrain] load error after setting editor folder: ${err?.message || err}`);
+          }
+        }
         renderMenuBar();
+        requestRender();
       } catch (err){
         if (err?.name === "AbortError") return;
         statusEl.textContent = "Failed to set editor folder (see Logs).";
@@ -9270,7 +9289,7 @@ end group
 
   function getMenuTree(){
     const fileChildren = [
-      ...(state.isLocalRuntime ? [
+      ...((state.isLocalRuntime || window.isSecureContext) ? [
         { label: "Set Editor Folder", command: "file.setEditorFolder", attention: !state.editorFolderHandle },
       ] : []),
       { label: "Create New Map", command: "file.new" },
@@ -12132,7 +12151,7 @@ end group
     let folder = null;
     let files = [];
 
-    if (state.isLocalRuntime && state.editorFolderHandle){
+    if (state.editorFolderHandle){
       const localListing = await listTerrainFilesFromEditorFolder(terrain);
       if (!isCurrentLoad()) return;
       if (localListing){
