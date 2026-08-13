@@ -39,6 +39,22 @@ class GlbVisualPolicyTests(unittest.TestCase):
         sync = self.function_body("syncGlbItems")
         self.assertIn("generation !== state.glb.documentGeneration", sync)
 
+    def test_editor_folder_paths_have_case_insensitive_fallback(self):
+        resolver = self.function_body("getEditorFolderEntry")
+        self.assertIn("parent[directGetter](name)", resolver)
+        self.assertIn('entryName.toLowerCase() === wanted', resolver)
+        self.assertIn('handle.kind === kind', resolver)
+        binary_reader = self.function_body("readArrayBufferFromEditorFolder")
+        self.assertIn("getFileHandleFromEditorFolder(path)", binary_reader)
+
+    def test_selecting_folder_waits_for_stale_glb_sync_and_reloads(self):
+        command_start = SOURCE.index('"file.setEditorFolder": async () => {')
+        command_end = SOURCE.index('"edit.briefing":', command_start)
+        command = SOURCE[command_start:command_end]
+        self.assertGreaterEqual(command.count("if (state.glb.syncPromise) await state.glb.syncPromise"), 2)
+        self.assertIn("state.glb.templateByGraphic.clear()", command)
+        self.assertIn("await syncGlbItems()", command)
+
 
 if __name__ == "__main__":
     unittest.main()
