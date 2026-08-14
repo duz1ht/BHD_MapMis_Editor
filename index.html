@@ -2162,7 +2162,7 @@
   </div>
   </div>
 
-<script src="resources/BHD/items_lists/itemsDef.js"></script>
+<script src="resources/items_lists/itemsDef.js"></script>
 
 <script>
   const DEFAULT_NEW_MAP_MIS = `begin general_information
@@ -3424,15 +3424,15 @@ end group
 
   async function loadGameStrings(){
     const files = [
-      "resources/BHD/game_strings/game.bin",
-      "resources/BHD/game_strings/gameerr.bin",
-      "resources/BHD/game_strings/keyhelp.bin",
-      "resources/BHD/game_strings/meditens.bin",
-      "resources/BHD/game_strings/medmssn.bin",
-      "resources/BHD/game_strings/medtext.bin",
-      "resources/BHD/game_strings/menutxt.bin",
-      "resources/BHD/game_strings/gametext.bin",
-      "resources/BHD/game_strings/known_stringkeys_to_text_1.txt",
+      "resources/game_strings/game.bin",
+      "resources/game_strings/gameerr.bin",
+      "resources/game_strings/keyhelp.bin",
+      "resources/game_strings/meditens.bin",
+      "resources/game_strings/medmssn.bin",
+      "resources/game_strings/medtext.bin",
+      "resources/game_strings/menutxt.bin",
+      "resources/game_strings/gametext.bin",
+      "resources/game_strings/known_stringkeys_to_text_1.txt",
     ];
 
     const merged = new Map();
@@ -3458,7 +3458,7 @@ end group
       return;
     }
 
-    const path = `resources/BHD/game_strings/${stem}.bin`;
+    const path = `resources/game_strings/${stem}.bin`;
     const text = await loadTextResource(path);
     if (text !== null){
       state.missionGameStrings = parseStringTableLikeFile(text);
@@ -3472,7 +3472,7 @@ end group
   }
 
   async function loadWpNames(){
-    const path = "resources/BHD/game_strings/medmssn.bin";
+    const path = "resources/game_strings/medmssn.bin";
     const text = await loadTextResource(path);
     if (text === null){
       buildWpNameOptions();
@@ -3488,7 +3488,7 @@ end group
   }
 
   async function loadWeaponDefs(){
-    const path = "resources/BHD/items_lists/weapon.def";
+    const path = "resources/items_lists/weapon.def";
     const text = await loadTextResource(path);
     if (text === null) return;
     state.weaponDefs = parseWeaponDefCatalog(text);
@@ -3989,7 +3989,7 @@ end group
   async function loadAndApplyItemCatalogs(){
     const defText = (window.BHD_ITEMS_DEF_TEXT || "").toString();
     const defs = parseItemsDef(defText);
-    const otherItemsText = await loadTextResource("resources/BHD/items_lists/otheritems.js");
+    const otherItemsText = await loadTextResource("resources/items_lists/otheritems.js");
     if (state.isLocalRuntime && state.editorFolderHandle){
       state.availableGlbFiles = await listGlbFilesFromEditorFolder();
     } else if (!state.isLocalRuntime){
@@ -4180,7 +4180,7 @@ end group
       const { filename, requestFilename, def } = state.glbCheckQueue.shift();
       state.glbChecksActive += 1;
       (async () => {
-        const url = `resources/BHD/3d_items/${requestFilename.split("/").map(encodeURIComponent).join("/")}`;
+        const url = `resources/3d_items/${requestFilename.split("/").map(encodeURIComponent).join("/")}`;
         let available = false;
         try{
           let response = await fetch(url, { method: "HEAD" });
@@ -4678,7 +4678,7 @@ end group
   }
 
   async function loadAiTextfileCatalog(){
-    const meditensText = await loadTextResource("resources/BHD/game_strings/meditens.bin");
+    const meditensText = await loadTextResource("resources/game_strings/meditens.bin");
     state.aiTextfileLabels = meditensText === null
       ? new Map()
       : parseAiTextfileLabelsFromMeditens(meditensText);
@@ -4815,12 +4815,12 @@ end group
     const folderUpper = key.toUpperCase();
     const folderTitle = key.charAt(0).toUpperCase() + key.slice(1);
     const candidates = [
-      `resources/BHD/terrains/${key}/${key}.trn`,
-      `resources/BHD/terrains/${key}/${key}.TRN`,
-      `resources/BHD/terrains/${key}/${folderUpper}.TRN`,
-      `resources/BHD/terrains/${folderUpper}/${folderUpper}.TRN`,
-      `resources/BHD/terrains/${folderUpper}/${key}.trn`,
-      `resources/BHD/terrains/${folderTitle}/${folderTitle}.trn`,
+      `resources/terrains/${key}/${key}.trn`,
+      `resources/terrains/${key}/${key}.TRN`,
+      `resources/terrains/${key}/${folderUpper}.TRN`,
+      `resources/terrains/${folderUpper}/${folderUpper}.TRN`,
+      `resources/terrains/${folderUpper}/${key}.trn`,
+      `resources/terrains/${folderTitle}/${folderTitle}.trn`,
     ];
 
     for (const path of candidates){
@@ -4879,7 +4879,7 @@ end group
     let loadedCount = 0;
     let failedCount = 0;
     const pending = GENERAL_ENV_FILE_PATHS.map(async fileName => {
-      const path = `resources/BHD/environments/${fileName}`;
+      const path = `resources/environments/${fileName}`;
       const text = await loadTextResource(path);
       if (text === null){
         failedCount += 1;
@@ -10799,7 +10799,7 @@ end group
     if (!key) return null;
     if (state.glb.templateByGraphic.has(key)) return state.glb.templateByGraphic.get(key);
 
-    const path = `resources/BHD/3d_items/${key}.glb`;
+    const path = `resources/3d_items/${key}.glb`;
     try {
       const glbData = await loadBinaryResource(path);
       if (!glbData) throw new Error(`Failed to read GLB: ${path}`);
@@ -11499,7 +11499,7 @@ end group
         topGraphics,
         missingGlbFiles: Array.from(state.glb.missingGraphics.values())
           .sort((a,b) => a.localeCompare(b))
-          .map((graphic) => `resources/BHD/3d_items/${graphic}.glb`),
+          .map((graphic) => `resources/3d_items/${graphic}.glb`),
         itemsMissingDefForType: stats.itemsMissingDefForType,
         itemsMissingGraphicInDefAndItem: stats.itemsMissingGraphicInDefAndItem,
       };
@@ -12140,7 +12140,7 @@ end group
         files = localListing.files;
         addLog(`[terrain] folder matched from editor folder: ${folder} (files on disk: ${files.length})`);
       } else {
-        addLog(`[terrain] no folder match on disk for '${terrain}' inside resources/BHD/terrains`);
+        addLog(`[terrain] no folder match on disk for '${terrain}' inside resources/terrains`);
       }
     }
 
@@ -12164,7 +12164,7 @@ end group
     }
 
     loadedTrnName=trnFile;
-    const base=`resources/BHD/terrains/${folder}`;
+    const base=`resources/terrains/${folder}`;
     addLog(`[terrain] loading TRN: ${base}/${trnFile}`);
 
     const trnTxt = await loadTextResource(`${base}/${trnFile}`);
