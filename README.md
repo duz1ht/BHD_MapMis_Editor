@@ -21,8 +21,10 @@ Todo:
 * `resources/BHD/items_lists/weapon.def` provides the weapon catalog used to display loadout names.
 * Today, when loading a map, the editor moves the camera to a spot near the center of the inserted items. This could be optimized to keep the camera from being positioned so high up in the sky.
 
-All 3D .glb items should be in the resources/BHD/3d_items folder, and you should download the items here: https://drive.google.com/file/d/1Ra4pI8aTDwG5vO3h0fLZYzqPM6YveKQH/view?usp=sharing
-How to load a map: https://youtu.be/opW0PqfdUr4
+## How to use
+Download the repository files and extract them to any folder.
+Download the rest of the files from the resources folder using this link https://drive.google.com/file/d/1oQTO6digk8jT5PJ63xNG84RsM0UKE845/view?usp=sharing, then extract them into the editor folder.
+Open index.html, click File > Set Editor Folder so the editor can read the files in the folder. After that, you can open any map you want.
 
 ## Keep working on it.
 Feel free to continue what’s already been done.
