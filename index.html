@@ -11465,13 +11465,27 @@ end group
   function createItemCircle(it){
     if (!state.glb.THREE) return null;
     const { THREE } = state.glb;
-    const positions = new Float32Array(ITEM_CIRCLE_SEGMENTS * 3);
+    // LineSegments lets the circumference and its pivot-to-front radius share
+    // one renderable without adding a chord between otherwise separate lines.
+    const positions = new Float32Array((ITEM_CIRCLE_SEGMENTS * 2 + 2) * 3);
     for (let i = 0; i < ITEM_CIRCLE_SEGMENTS; i++){
       const angle = i / ITEM_CIRCLE_SEGMENTS * Math.PI * 2;
-      positions[i * 3] = Math.cos(angle);
-      positions[i * 3 + 1] = Math.sin(angle);
-      positions[i * 3 + 2] = 0;
+      const nextAngle = (i + 1) / ITEM_CIRCLE_SEGMENTS * Math.PI * 2;
+      const offset = i * 6;
+      positions[offset] = Math.cos(angle);
+      positions[offset + 1] = Math.sin(angle);
+      positions[offset + 2] = 0;
+      positions[offset + 3] = Math.cos(nextAngle);
+      positions[offset + 4] = Math.sin(nextAngle);
+      positions[offset + 5] = 0;
     }
+    const radiusOffset = ITEM_CIRCLE_SEGMENTS * 6;
+    positions[radiusOffset] = 0;
+    positions[radiusOffset + 1] = 0;
+    positions[radiusOffset + 2] = 0;
+    positions[radiusOffset + 3] = 1;
+    positions[radiusOffset + 4] = 0;
+    positions[radiusOffset + 5] = 0;
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     const material = new THREE.LineBasicMaterial({
@@ -11482,7 +11496,7 @@ end group
       fog: false,
       toneMapped: false,
     });
-    const circle = new THREE.LineLoop(geometry, material);
+    const circle = new THREE.LineSegments(geometry, material);
     circle.name = `ITEM_RADIUS_CIRCLE_${it.id}`;
     circle.userData.itemId = it.id;
     circle.userData.isItemCircle = true;
@@ -11495,6 +11509,7 @@ end group
     const radiusMeters = getItemCircleRadius(it);
     circle.material.color.setHex(ITEM_CIRCLE_COLOR);
     circle.position.set(rawToWorld(it.x, "x"), rawToWorld(it.y, "y"), getItemWorldZ(it) + ITEM_CIRCLE_Z_OFFSET);
+    circle.rotation.set(0, 0, getItemArrowHeadingRadians(it.heading));
     circle.scale.set(radiusMeters, radiusMeters, 1);
     circle.visible = radiusMeters > 0 && isItemVisibilityFilterMatch(it);
   }
