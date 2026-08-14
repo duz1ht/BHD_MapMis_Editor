@@ -16,16 +16,16 @@ Todo:
 - [ ] Global Replace
 - [ ] Weapon Loadouts
 
-* `resources/items_lists/itemsDef.js` works similarly to the original `items.def`.
-* `resources/items_lists/otheritems.js` lists all the items that aren’t in `items.def` by default and also uses new variables to indicate which 3D `.glb` file will be used for the item.
-* `resources/items_lists/weapon.def` provides the weapon catalog used to display loadout names.
+* `resources/BHD/items_lists/itemsDef.js` works similarly to the original `items.def`.
+* `resources/BHD/items_lists/otheritems.js` lists all the items that aren’t in `items.def` by default and also uses new variables to indicate which 3D `.glb` file will be used for the item.
+* `resources/BHD/items_lists/weapon.def` provides the weapon catalog used to display loadout names.
 * Today, when loading a map, the editor moves the camera to a spot near the center of the inserted items. This could be optimized to keep the camera from being positioned so high up in the sky.
 
 ### Item direction arrows
 
 Item-list definitions can include `arrow <meters>` immediately below `tint`. A positive decimal value enables a horizontal direction arrow whose tail starts at the item's pivot, whose direction follows the MIS heading convention, and whose length is exactly `<meters>` in world space. Pitch is intentionally ignored so the direction remains readable against the terrain. Arrows are always white (`#FFFFFF`) and do not inherit `tint` or selection colors. The arrow follows item visibility, does not participate in picking, and is rendered even when the item's GLB is unavailable. This is editor-only visual metadata and is never serialized into a `.mis` file.
 
-All 3D .glb items should be in the resources/3d_items folder, and you should download the items here: https://drive.google.com/file/d/1Ra4pI8aTDwG5vO3h0fLZYzqPM6YveKQH/view?usp=sharing  
+All 3D .glb items should be in the resources/BHD/3d_items folder, and you should download the items here: https://drive.google.com/file/d/1Ra4pI8aTDwG5vO3h0fLZYzqPM6YveKQH/view?usp=sharing
 How to load a map: https://youtu.be/opW0PqfdUr4
 
 ## Shortcuts and menu options
