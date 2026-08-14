@@ -1,7 +1,6 @@
 resources/3d_items/*.glb
 resources/3d_items/backup/*.glb
 !resources/3d_items/.gitkeep
-resources/3d_items_old_biggyblender_glbs
 resources/terrains/**/*.cpt
 resources/terrains/**/*.tga
 manual_backups/
