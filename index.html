@@ -741,6 +741,53 @@
       padding:18px;
     }
     #logsOverlay.open{ display:flex; }
+    #keyboardShortcutsOverlay{
+      position:absolute;
+      inset:0;
+      background:var(--overlay);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:57;
+      padding:18px;
+    }
+    #keyboardShortcutsOverlay.open{ display:flex; }
+    #keyboardShortcutsWindow{
+      width:min(820px,100%);
+      max-height:min(760px,100%);
+      background:var(--panel-muted);
+      border:1px solid var(--line-heavy);
+      padding:10px;
+      display:grid;
+      grid-template-rows:auto auto minmax(0,1fr);
+      gap:8px;
+      box-shadow:var(--shadow-md);
+      box-sizing:border-box;
+    }
+    #keyboardShortcutsTabs{ display:flex; gap:4px; overflow-x:auto; border-bottom:1px solid var(--line-strong); padding:0 2px; }
+    .keyboardShortcutsTab{ flex:0 0 auto; border-radius:4px 4px 0 0; border-bottom:0; padding:6px 10px; }
+    .keyboardShortcutsTab[aria-selected="true"]{ background:var(--accent); color:#fff; }
+    #keyboardShortcutsContent{ overflow:auto; padding:2px 4px 8px; }
+    .shortcutSection[hidden]{ display:none; }
+    .shortcutTable{ width:100%; border-collapse:collapse; font-size:12px; }
+    .shortcutTable th,
+    .shortcutTable td{ padding:6px 8px; border-bottom:1px solid var(--line-soft); text-align:left; vertical-align:middle; }
+    .shortcutTable th{ color:var(--text-subtle); font-size:11px; }
+    .shortcutTable th:first-child,
+    .shortcutTable td:first-child{ width:190px; }
+    .shortcutTable kbd{
+      display:inline-block;
+      min-width:18px;
+      padding:2px 5px;
+      border:1px solid var(--line-strong);
+      border-bottom-width:2px;
+      border-radius:4px;
+      background:var(--surface);
+      color:var(--text);
+      font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      text-align:center;
+      white-space:nowrap;
+    }
     #logsWindow{
       width:min(1120px,100%);
       height:min(820px,100%);
@@ -1851,6 +1898,56 @@
         </div>
       </div>
 
+      <div id="keyboardShortcutsOverlay" aria-hidden="true">
+        <div id="keyboardShortcutsWindow" role="dialog" aria-modal="true" aria-labelledby="keyboardShortcutsTitle">
+          <div class="windowTitle"><span id="keyboardShortcutsTitle">Keyboard Shortcuts</span><span class="spacer"></span><button class="xbtn" id="keyboardShortcutsCloseBtn" type="button" aria-label="Close keyboard shortcuts">X</button></div>
+          <div id="keyboardShortcutsTabs" role="tablist" aria-label="Shortcut categories">
+            <button class="keyboardShortcutsTab" id="shortcutTabEditing" type="button" role="tab" aria-selected="true" aria-controls="shortcutPanelEditing" data-shortcut-tab="editing">File and editing</button>
+            <button class="keyboardShortcutsTab" id="shortcutTabInterface" type="button" role="tab" aria-selected="false" aria-controls="shortcutPanelInterface" data-shortcut-tab="interface" tabindex="-1">Interface</button>
+            <button class="keyboardShortcutsTab" id="shortcutTabViewport" type="button" role="tab" aria-selected="false" aria-controls="shortcutPanelViewport" data-shortcut-tab="viewport" tabindex="-1">Viewport</button>
+            <button class="keyboardShortcutsTab" id="shortcutTabCamera" type="button" role="tab" aria-selected="false" aria-controls="shortcutPanelCamera" data-shortcut-tab="camera" tabindex="-1">Camera and mouse</button>
+          </div>
+          <div id="keyboardShortcutsContent">
+            <section class="shortcutSection" id="shortcutPanelEditing" role="tabpanel" aria-labelledby="shortcutTabEditing" data-shortcut-panel="editing"><table class="shortcutTable"><thead><tr><th>Shortcut</th><th>Action</th></tr></thead><tbody>
+              <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save the current MIS file</td></tr>
+              <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td><td>Save the current MIS file as</td></tr>
+              <tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd></td><td>Undo</td></tr>
+              <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>Redo</td></tr>
+              <tr><td><kbd>Ctrl</kbd> + <kbd>X</kbd></td><td>Cut selected items</td></tr>
+              <tr><td><kbd>Ctrl</kbd> + <kbd>C</kbd></td><td>Copy selected items</td></tr>
+              <tr><td><kbd>Ctrl</kbd> + <kbd>V</kbd></td><td>Paste copied items</td></tr>
+              <tr><td><kbd>Delete</kbd></td><td>Delete selected items</td></tr>
+              <tr><td><kbd>Esc</kbd></td><td>Cancel the current operation, close a window, or clear the selection</td></tr>
+            </tbody></table></section>
+            <section class="shortcutSection" id="shortcutPanelInterface" role="tabpanel" aria-labelledby="shortcutTabInterface" data-shortcut-panel="interface" hidden><table class="shortcutTable"><thead><tr><th>Shortcut</th><th>Action</th></tr></thead><tbody>
+              <tr><td><kbd>I</kbd></td><td>Toggle Insert Mode</td></tr>
+              <tr><td><kbd>V</kbd></td><td>Open or close Events</td></tr>
+              <tr><td><kbd>C</kbd></td><td>Open or close the sidebar</td></tr>
+              <tr><td><kbd>Home</kbd></td><td>Toggle Scene Info</td></tr>
+            </tbody></table></section>
+            <section class="shortcutSection" id="shortcutPanelViewport" role="tabpanel" aria-labelledby="shortcutTabViewport" data-shortcut-panel="viewport" hidden><table class="shortcutTable"><thead><tr><th>Shortcut</th><th>Action</th></tr></thead><tbody>
+              <tr><td><kbd>W</kbd></td><td>Use the move gizmo when camera look is inactive</td></tr>
+              <tr><td><kbd>E</kbd></td><td>Use the rotation gizmo when camera look is inactive</td></tr>
+              <tr><td><kbd>X</kbd></td><td>Switch the gizmo between World and Local space</td></tr>
+              <tr><td><kbd>T</kbd></td><td>Toggle Perspective and Top view</td></tr>
+              <tr><td><kbd>G</kbd></td><td>Cycle grid and Main Area visibility</td></tr>
+              <tr><td><kbd>H</kbd></td><td>Toggle item anchor points</td></tr>
+              <tr><td><kbd>F</kbd></td><td>Cycle item draw modes</td></tr>
+              <tr><td><kbd>R</kbd></td><td>Cycle Colormap, Heightmap, and Delta/Variation terrain modes</td></tr>
+            </tbody></table></section>
+            <section class="shortcutSection" id="shortcutPanelCamera" role="tabpanel" aria-labelledby="shortcutTabCamera" data-shortcut-panel="camera" hidden><table class="shortcutTable"><thead><tr><th>Shortcut</th><th>Action</th></tr></thead><tbody>
+              <tr><td><kbd>W</kbd> / <kbd>A</kbd> / <kbd>S</kbd> / <kbd>D</kbd></td><td>Move the camera while camera look is active</td></tr>
+              <tr><td><kbd>Q</kbd> / <kbd>E</kbd></td><td>Move the camera down or up while camera look is active</td></tr>
+              <tr><td><kbd>Mouse wheel</kbd></td><td>Change camera speed, or zoom in Top view</td></tr>
+              <tr><td><kbd>Right mouse drag</kbd></td><td>Look around in Perspective view, or pan in Top view</td></tr>
+              <tr><td><kbd>Shift</kbd> + <kbd>Click</kbd></td><td>Add an item to the current selection</td></tr>
+              <tr><td><kbd>Double-click</kbd></td><td>Open the selected item's attributes</td></tr>
+              <tr><td><kbd>Right-click</kbd></td><td>Open the item or canvas context menu</td></tr>
+            </tbody></table></section>
+          </div>
+        </div>
+      </div>
+
 
       <div id="globalReplaceOverlay" aria-hidden="true">
         <div id="globalReplaceWindow" role="dialog" aria-modal="true" aria-label="Global Replace">
@@ -2658,6 +2755,11 @@ end group
   const logsText = document.getElementById("logsText");
   const logsClearBtn = document.getElementById("logsClearBtn");
   const logsFilterBar = document.getElementById("logsFilterBar");
+  const keyboardShortcutsOverlay = document.getElementById("keyboardShortcutsOverlay");
+  const keyboardShortcutsCloseBtn = document.getElementById("keyboardShortcutsCloseBtn");
+  const keyboardShortcutsTabs = Array.from(document.querySelectorAll("[data-shortcut-tab]"));
+  const keyboardShortcutsPanels = Array.from(document.querySelectorAll("[data-shortcut-panel]"));
+  const keyboardShortcutsContent = document.getElementById("keyboardShortcutsContent");
   const globalReplaceOverlay = document.getElementById("globalReplaceOverlay");
   const globalReplaceCloseBtn = document.getElementById("globalReplaceCloseBtn");
   const grCancelBtn = document.getElementById("grCancelBtn");
@@ -3219,6 +3321,36 @@ end group
     state.logsOpen = false;
     logsOverlay.classList.remove("open");
     logsOverlay.setAttribute("aria-hidden", "true");
+  }
+
+  let keyboardShortcutsPreviousFocus = null;
+  function activateKeyboardShortcutsTab(category, { focus = false } = {}){
+    const activeTab = keyboardShortcutsTabs.find(tab => tab.dataset.shortcutTab === category) || keyboardShortcutsTabs[0];
+    if (!activeTab) return;
+    for (const tab of keyboardShortcutsTabs){
+      const active = tab === activeTab;
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+      tab.tabIndex = active ? 0 : -1;
+    }
+    for (const panel of keyboardShortcutsPanels) panel.hidden = panel.dataset.shortcutPanel !== activeTab.dataset.shortcutTab;
+    keyboardShortcutsContent.scrollTop = 0;
+    if (focus) activeTab.focus();
+  }
+
+  function openKeyboardShortcuts(){
+    keyboardShortcutsPreviousFocus = document.activeElement;
+    keyboardShortcutsOverlay.classList.add("open");
+    keyboardShortcutsOverlay.setAttribute("aria-hidden", "false");
+    const selected = keyboardShortcutsTabs.find(tab => tab.getAttribute("aria-selected") === "true");
+    activateKeyboardShortcutsTab(selected?.dataset.shortcutTab || "editing", { focus: true });
+  }
+
+  function closeKeyboardShortcuts(){
+    if (!keyboardShortcutsOverlay.classList.contains("open")) return;
+    keyboardShortcutsOverlay.classList.remove("open");
+    keyboardShortcutsOverlay.setAttribute("aria-hidden", "true");
+    if (keyboardShortcutsPreviousFocus?.isConnected) keyboardShortcutsPreviousFocus.focus();
+    keyboardShortcutsPreviousFocus = null;
   }
   buildWpNameOptions();
 
@@ -7028,6 +7160,21 @@ end group
 
   logsCloseBtn.addEventListener("click", closeLogsWindow);
   logsOverlay.addEventListener("mousedown", (e) => { if (e.target === logsOverlay) closeLogsWindow(); });
+  keyboardShortcutsCloseBtn.addEventListener("click", closeKeyboardShortcuts);
+  keyboardShortcutsOverlay.addEventListener("mousedown", (e) => { if (e.target === keyboardShortcutsOverlay) closeKeyboardShortcuts(); });
+  keyboardShortcutsTabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => activateKeyboardShortcutsTab(tab.dataset.shortcutTab));
+    tab.addEventListener("keydown", (e) => {
+      let nextIndex = null;
+      if (e.key === "ArrowRight") nextIndex = (index + 1) % keyboardShortcutsTabs.length;
+      if (e.key === "ArrowLeft") nextIndex = (index - 1 + keyboardShortcutsTabs.length) % keyboardShortcutsTabs.length;
+      if (e.key === "Home") nextIndex = 0;
+      if (e.key === "End") nextIndex = keyboardShortcutsTabs.length - 1;
+      if (nextIndex == null) return;
+      e.preventDefault();
+      activateKeyboardShortcutsTab(keyboardShortcutsTabs[nextIndex].dataset.shortcutTab, { focus: true });
+    });
+  });
   logsClearBtn.addEventListener("click", () => { state.logs = []; renderLogsFilterBar(); renderLogsWindow(); addLog("Logs cleared by user.", { category: "general" }); });
   globalReplaceCloseBtn?.addEventListener("click", closeGlobalReplace);
   grCancelBtn?.addEventListener("click", closeGlobalReplace);
@@ -8034,6 +8181,7 @@ end group
     if (e.key === "Escape" && state.modalOpen) closeModalCancel();
     if (e.key === "Escape" && state.sectionEditorOpen) closeSectionEditor();
     if (e.key === "Escape" && state.liveMisOpen) closeLiveMisWindow();
+    if (e.key === "Escape" && keyboardShortcutsOverlay.classList.contains("open")) closeKeyboardShortcuts();
     if (e.key === "Escape") {
       setCanvasShowPanelOpen(false);
       setLayerVisibilityPanelOpen(false);
@@ -9282,6 +9430,7 @@ end group
     "view.showAnchorPoints": () => toggleViewOption("showAnchorPoints"),
     "mis.liveChanges": openLiveMisWindow,
     "logs.open": openLogsWindow,
+    "more.keyboardShortcuts": openKeyboardShortcuts,
     "uiStyle.default": () => setTheme("default"),
     "uiStyle.night": () => setTheme("night"),
     "uiStyle.forest": () => setTheme("forest")
@@ -9381,6 +9530,8 @@ end group
       {
         label: "More",
         children: [
+          { label: "Keyboard Shortcuts", command: "more.keyboardShortcuts" },
+          { separator: true },
           { label: "Logs", command: "logs.open" },
           { label: "MIS Code", command: "mis.liveChanges" },
           { separator: true },
@@ -9561,6 +9712,7 @@ end group
 
   document.addEventListener("keydown", (e) => {
     if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== "s") return;
+    if (keyboardShortcutsOverlay.classList.contains("open")) return;
     e.preventDefault();
     if (e.repeat) return;
     if (e.shiftKey) menuHandlers["file.saveAs"]();
@@ -11465,13 +11617,33 @@ end group
   function createItemCircle(it){
     if (!state.glb.THREE) return null;
     const { THREE } = state.glb;
-    const positions = new Float32Array(ITEM_CIRCLE_SEGMENTS * 3);
+    // LineSegments lets the circumference and its two crossing diameters share
+    // one renderable without adding chords between otherwise separate lines.
+    const positions = new Float32Array((ITEM_CIRCLE_SEGMENTS * 2 + 4) * 3);
     for (let i = 0; i < ITEM_CIRCLE_SEGMENTS; i++){
       const angle = i / ITEM_CIRCLE_SEGMENTS * Math.PI * 2;
-      positions[i * 3] = Math.cos(angle);
-      positions[i * 3 + 1] = Math.sin(angle);
-      positions[i * 3 + 2] = 0;
+      const nextAngle = (i + 1) / ITEM_CIRCLE_SEGMENTS * Math.PI * 2;
+      const offset = i * 6;
+      positions[offset] = Math.cos(angle);
+      positions[offset + 1] = Math.sin(angle);
+      positions[offset + 2] = 0;
+      positions[offset + 3] = Math.cos(nextAngle);
+      positions[offset + 4] = Math.sin(nextAngle);
+      positions[offset + 5] = 0;
     }
+    const diameterOffset = ITEM_CIRCLE_SEGMENTS * 6;
+    positions[diameterOffset] = -1;
+    positions[diameterOffset + 1] = 0;
+    positions[diameterOffset + 2] = 0;
+    positions[diameterOffset + 3] = 1;
+    positions[diameterOffset + 4] = 0;
+    positions[diameterOffset + 5] = 0;
+    positions[diameterOffset + 6] = 0;
+    positions[diameterOffset + 7] = -1;
+    positions[diameterOffset + 8] = 0;
+    positions[diameterOffset + 9] = 0;
+    positions[diameterOffset + 10] = 1;
+    positions[diameterOffset + 11] = 0;
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     const material = new THREE.LineBasicMaterial({
@@ -11482,7 +11654,7 @@ end group
       fog: false,
       toneMapped: false,
     });
-    const circle = new THREE.LineLoop(geometry, material);
+    const circle = new THREE.LineSegments(geometry, material);
     circle.name = `ITEM_RADIUS_CIRCLE_${it.id}`;
     circle.userData.itemId = it.id;
     circle.userData.isItemCircle = true;
@@ -11495,6 +11667,7 @@ end group
     const radiusMeters = getItemCircleRadius(it);
     circle.material.color.setHex(ITEM_CIRCLE_COLOR);
     circle.position.set(rawToWorld(it.x, "x"), rawToWorld(it.y, "y"), getItemWorldZ(it) + ITEM_CIRCLE_Z_OFFSET);
+    circle.rotation.set(0, 0, getItemArrowHeadingRadians(it.heading));
     circle.scale.set(radiusMeters, radiusMeters, 1);
     circle.visible = radiusMeters > 0 && isItemVisibilityFilterMatch(it);
   }
@@ -12631,7 +12804,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     camVel=vec3(0,0,0); requestRender();
   }
   function toggleTopView(){setTopView(!topViewLocked);}
-  addEventListener('keydown',e=>{ if(hasTypingFocus()) return; const k=e.key.toLowerCase(); const lookActive=(document.pointerLockElement===cv&&state.cameraLookActive); if(k==='delete'){ e.preventDefault(); deleteSelectedItem(); return; } if(k==='c'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); setSidebarOpen(appLayoutEl?.classList.contains('sidebarClosed')); return; } if(k==='t'&&!e.repeat){ e.preventDefault(); toggleTopView(); } if(k==='g'&&!e.repeat){ e.preventDefault(); cycleGridMainAreaVisibility(); } if(k==='home'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleSceneInfo(); } if(k==='i'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleInsertMode(); } if(k==='h'&&!e.repeat){ toggleViewOption('showAnchorPoints'); } if(k==='f'){ e.preventDefault(); if(!e.repeat) cycleGlbViewMode(); } if(k==='x'&&!lookActive&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat){ toggleTransformSpace(); } if(k==='w'&&!lookActive){ state.transformMode='translate'; updateItemGizmo(); } if(k==='e'&&!lookActive){ state.transformMode='rotate'; updateItemGizmo(); } if(k==='w'&&lookActive) move.w=1; if(k==='a'&&lookActive) move.a=1; if(k==='s'&&lookActive) move.s=1; if(k==='d'&&lookActive) move.d=1; if(k==='q'&&lookActive) move.q=1; if(k==='e'&&lookActive) move.e=1; if(k==='r') setRenderMode(renderMode==='C'?'H':(renderMode==='H'?'D':'C')); state.keysDown.add(e.code); });
+  addEventListener('keydown',e=>{ if(hasTypingFocus()||keyboardShortcutsOverlay.classList.contains('open')) return; const k=e.key.toLowerCase(); const lookActive=(document.pointerLockElement===cv&&state.cameraLookActive); if(k==='delete'){ e.preventDefault(); deleteSelectedItem(); return; } if(k==='c'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); setSidebarOpen(appLayoutEl?.classList.contains('sidebarClosed')); return; } if(k==='t'&&!e.repeat){ e.preventDefault(); toggleTopView(); } if(k==='g'&&!e.repeat){ e.preventDefault(); cycleGridMainAreaVisibility(); } if(k==='home'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleSceneInfo(); } if(k==='i'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleInsertMode(); } if(k==='h'&&!e.repeat){ toggleViewOption('showAnchorPoints'); } if(k==='f'){ e.preventDefault(); if(!e.repeat) cycleGlbViewMode(); } if(k==='x'&&!lookActive&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat){ toggleTransformSpace(); } if(k==='w'&&!lookActive){ state.transformMode='translate'; updateItemGizmo(); } if(k==='e'&&!lookActive){ state.transformMode='rotate'; updateItemGizmo(); } if(k==='w'&&lookActive) move.w=1; if(k==='a'&&lookActive) move.a=1; if(k==='s'&&lookActive) move.s=1; if(k==='d'&&lookActive) move.d=1; if(k==='q'&&lookActive) move.q=1; if(k==='e'&&lookActive) move.e=1; if(k==='r') setRenderMode(renderMode==='C'?'H':(renderMode==='H'?'D':'C')); state.keysDown.add(e.code); });
   addEventListener('keyup',e=>{ if(hasTypingFocus()) return; const k=e.key.toLowerCase(); if(k==='w') move.w=0; if(k==='a') move.a=0; if(k==='s') move.s=0; if(k==='d') move.d=0; if(k==='q') move.q=0; if(k==='e') move.e=0; state.keysDown.delete(e.code); });
   addEventListener('mousemove',e=>{
     if(document.pointerLockElement!==cv) return;
