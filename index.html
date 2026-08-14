@@ -1429,7 +1429,7 @@
     <input id="fileMis" type="file" accept=".mis,.txt" style="display:none;" />
 
     <div id="sidebarHeaderActions">
-      <button id="sidebarCloseBtn" type="button" class="modeBtn" title="Close sidebar (C)" aria-label="Close sidebar" aria-keyshortcuts="C"><img class="toolbarIcon" src="editor_images/icons/sidebar_close.svg" alt="" /></button>
+      <button id="sidebarCloseBtn" type="button" class="modeBtn" title="Close sidebar (C)" aria-label="Close sidebar" aria-keyshortcuts="C"><img class="toolbarIcon" src="resources/editor_icons/sidebar_close.svg" alt="" /></button>
     </div>
 
 <div class="hint" id="defStatus" style="margin-top:6px;">Item catalog loaded (embedded ITEMS.DEF).</div>
@@ -1461,7 +1461,7 @@
 
   <div id="main">
     <div id="topbar">
-      <button id="sidebarOpenBtn" type="button" class="modeBtn" title="Open sidebar (C)" aria-label="Open sidebar" aria-keyshortcuts="C"><img class="toolbarIcon" src="editor_images/icons/sidebar_open.svg" alt="" /></button>
+      <button id="sidebarOpenBtn" type="button" class="modeBtn" title="Open sidebar (C)" aria-label="Open sidebar" aria-keyshortcuts="C"><img class="toolbarIcon" src="resources/editor_icons/sidebar_open.svg" alt="" /></button>
             <label class="tbCtl gridCtl">Grid (G):
         <button id="gridPlus" type="button" class="modeBtn" title="Increase grid size">+</button>
         <button id="gridMinus" type="button" class="modeBtn" title="Decrease grid size">-</button>
@@ -1476,7 +1476,7 @@
 
     <div id="canvasWrap">
       <div id="canvasModeToolbar" class="canvasFloatingToolbar">
-        <button id="showPanelBtn" type="button" class="modeBtn iconBtn" aria-label="Show" title="Show"><img class="toolbarIcon" src="editor_images/icons/eye_visibility.svg" alt="" /></button>
+        <button id="showPanelBtn" type="button" class="modeBtn iconBtn" aria-label="Show" title="Show"><img class="toolbarIcon" src="resources/editor_icons/eye_visibility.svg" alt="" /></button>
         <button id="showLayersBtn" type="button" class="modeBtn">Layers</button>
         <button id="showGroupsBtn" type="button" class="modeBtn">Groups</button>
         <button id="showWaypointsBtn" type="button" class="modeBtn">Waypoints</button>
@@ -1484,13 +1484,13 @@
       </div>
       <div id="canvasViewToolbar" class="canvasFloatingToolbar">
         <button id="debugFogBtn" type="button" class="modeBtn">Debug Fog</button>
-        <button id="transformSpaceBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Transformation Mode: World" title="Transformation Mode: World (X)"><img class="toolbarIcon" src="editor_images/icons/space_world.svg" alt="" /></button>
+        <button id="transformSpaceBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Transformation Mode: World" title="Transformation Mode: World (X)"><img class="toolbarIcon" src="resources/editor_icons/space_world.svg" alt="" /></button>
         <div class="toolbarSplit">
-          <button id="rotationSnapToggleBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Rotation Snap" title="Enable or disable rotation snapping"><img class="toolbarIcon" src="editor_images/icons/snap_to_angle.svg" alt="" /></button>
+          <button id="rotationSnapToggleBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Rotation Snap" title="Enable or disable rotation snapping"><img class="toolbarIcon" src="resources/editor_icons/snap_to_angle.svg" alt="" /></button>
           <button id="rotationSnapMenuBtn" type="button" class="modeBtn" aria-haspopup="true" aria-expanded="false" aria-label="Rotation Snap settings">&#x25BE;</button>
         </div>
-        <button id="viewportToolsBtn" type="button" class="modeBtn" aria-haspopup="true" aria-expanded="false" aria-label="Viewport Tools: Perspective" title="Viewport Tools"><img class="toolbarIcon" src="editor_images/icons/camera.svg" alt="" /><span id="viewportProjectionLabel">Perspective</span></button>
-        <button id="viewModeBtn" type="button" class="modeBtn iconBtn" aria-haspopup="true" aria-expanded="false" aria-label="Draw Mode" title="Draw Mode"><img class="toolbarIcon" src="editor_images/icons/draw_mode.svg" alt="" /></button>
+        <button id="viewportToolsBtn" type="button" class="modeBtn" aria-haspopup="true" aria-expanded="false" aria-label="Viewport Tools: Perspective" title="Viewport Tools"><img class="toolbarIcon" src="resources/editor_icons/camera.svg" alt="" /><span id="viewportProjectionLabel">Perspective</span></button>
+        <button id="viewModeBtn" type="button" class="modeBtn iconBtn" aria-haspopup="true" aria-expanded="false" aria-label="Draw Mode" title="Draw Mode"><img class="toolbarIcon" src="resources/editor_icons/draw_mode.svg" alt="" /></button>
         <div id="fpsCounter">0 FPS</div>
       </div>
       <canvas id="cv"></canvas>
@@ -1594,13 +1594,13 @@
         <section class="floatingPanelSection">
           <div class="floatingPanelTitle">Perspective</div>
           <div class="viewportViewOptions">
-            <button id="perspectiveViewBtn" type="button" class="modeBtn active" aria-pressed="true"><img class="toolbarIcon" src="editor_images/icons/perspective_view.svg" alt="" /> Perspective</button>
+            <button id="perspectiveViewBtn" type="button" class="modeBtn active" aria-pressed="true"><img class="toolbarIcon" src="resources/editor_icons/perspective_view.svg" alt="" /> Perspective</button>
           </div>
         </section>
         <section class="floatingPanelSection">
           <div class="floatingPanelTitle">Orthographic</div>
           <div class="viewportViewOptions">
-            <button id="topViewBtn" type="button" class="modeBtn" aria-pressed="false"><img class="toolbarIcon" src="editor_images/icons/top_view.svg" alt="" /> Top <span class="shortcutHint">T</span></button>
+            <button id="topViewBtn" type="button" class="modeBtn" aria-pressed="false"><img class="toolbarIcon" src="resources/editor_icons/top_view.svg" alt="" /> Top <span class="shortcutHint">T</span></button>
           </div>
         </section>
         <section class="floatingPanelSection">
@@ -5654,7 +5654,7 @@ end group
     const isLocal=state.transformSpace==='local';
     const modeLabel=isLocal?'Local':'World';
     const icon=transformSpaceBtn.querySelector('.toolbarIcon');
-    if(icon)icon.src=isLocal?'editor_images/icons/space_local.svg':'editor_images/icons/space_world.svg';
+    if(icon)icon.src=isLocal?'resources/editor_icons/space_local.svg':'resources/editor_icons/space_world.svg';
     transformSpaceBtn.setAttribute('aria-pressed',isLocal?'true':'false');
     transformSpaceBtn.setAttribute('aria-label',`Transformation Mode: ${modeLabel}`);
     transformSpaceBtn.title=`Transformation Mode: ${modeLabel} (X)`;
