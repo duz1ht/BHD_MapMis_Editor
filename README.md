@@ -24,7 +24,9 @@ Todo:
 ## How to use
 Download the repository files and extract them to any folder.
 Download the rest of the files from the resources folder using this link https://drive.google.com/file/d/1oQTO6digk8jT5PJ63xNG84RsM0UKE845/view?usp=sharing, then extract them into the editor folder.
+
 Open index.html, click File > Set Editor Folder so the editor can read the files in the folder. After that, you can open any map you want.
+The resources folder already has a folder called mis_examples, so you don't have to prepare any maps. You can test those.
 
 ## Keep working on it.
 Feel free to continue what’s already been done.
