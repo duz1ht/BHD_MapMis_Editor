@@ -2422,6 +2422,10 @@ end group
       group: null,
       instances: new Map(),
     },
+    itemCircles: {
+      group: null,
+      instances: new Map(),
+    },
     terrainLoad: {
       phase: "idle",
       revision: 0,
@@ -3828,6 +3832,17 @@ end group
     return Number.isFinite(arrow) && arrow > 0 ? arrow : 0;
   }
 
+  function itemDrawsCircle(it){
+    return Number(getDefForItem(it)?.drawCircle) === 1;
+  }
+
+  function getItemCircleRadius(it){
+    if (!itemDrawsCircle(it)) return 0;
+    const distanceKey = kvFindKey(it, ["wpdistance", "waypoint_distance"]);
+    const radius = Number(distanceKey ? it.kv[distanceKey] : 0);
+    return Number.isFinite(radius) && radius > 0 ? radius : 0;
+  }
+
   // DEF parser (ITEMS.DEF)
   function extractSoundDefinitionFromOtherItems(rawText){
     const text = String(rawText || "");
@@ -3866,6 +3881,7 @@ end group
           graphicScale: 1,
           tint: "",
           arrow: 0,
+          drawCircle: 0,
           attrib: [],
           kv: {},
         };
@@ -3908,6 +3924,7 @@ end group
           const numericArrow = Number(v);
           if (Number.isFinite(numericArrow) && numericArrow > 0) cur.arrow = numericArrow;
         }
+        if (k === "draw_circle") cur.drawCircle = Number(v) === 1 ? 1 : 0;
         if (k === "graphic_scale"){
           const numericScale = Number(v);
           if (Number.isFinite(numericScale) && numericScale > 0) cur.graphicScale = numericScale;
@@ -3958,6 +3975,7 @@ end group
         graphicScale: Object.prototype.hasOwnProperty.call(supplementKv, "graphic_scale") ? supplement.graphicScale : base.graphicScale,
         tint: Object.prototype.hasOwnProperty.call(supplementKv, "tint") ? supplement.tint : base.tint,
         arrow: Object.prototype.hasOwnProperty.call(supplementKv, "arrow") ? supplement.arrow : base.arrow,
+        drawCircle: Object.prototype.hasOwnProperty.call(supplementKv, "draw_circle") ? supplement.drawCircle : base.drawCircle,
         attrib,
         kv: { ...(base.kv || {}), ...supplementKv },
       });
@@ -4463,6 +4481,7 @@ end group
       type_id: toMisTypeIdFromDefId(def.id), name: quoteMisString(def.name), id: String(misId),
       position: `${x} ${y} ${z}`, facing: `${heading} 0`, layer: "0"
     };
+    if (Number(def.drawCircle) === 1) kv.wpdistance = "20";
     const lines = Object.entries(kv).map(([key, value]) => `  ${key} ${value}`);
     const start = Number.MAX_SAFE_INTEGER - (state.sectionBlocks.reduce((max, sec) => Math.max(max, sec.id), 0) + 1);
     const beginLine = `begin item ${blockNumber}`;
@@ -11310,6 +11329,7 @@ end group
     for (const instance of state.glb.itemInstances.values()) removeGlbItemInstance(instance);
     state.glb.itemInstances.clear();
     clearItemArrows();
+    clearItemCircles();
     state.glb.lastSelectedVisualIds.clear();
     state.glb.transformDirtyIds.clear();
     state.glb.structureDirty = true;
@@ -11339,6 +11359,9 @@ end group
   const ITEM_ARROW_HEAD_WIDTH_RATIO = 2.4;
   const ITEM_ARROW_Z_OFFSET = 0.15;
   const ITEM_ARROW_COLOR = 0xffffff;
+  const ITEM_CIRCLE_SEGMENTS = 96;
+  const ITEM_CIRCLE_Z_OFFSET = 0.18;
+  const ITEM_CIRCLE_COLOR = 0xffd54a;
 
   function disposeItemArrow(arrow){
     if (!arrow) return;
@@ -11424,6 +11447,82 @@ end group
       if (wanted.has(itemId)) continue;
       disposeItemArrow(arrow);
       state.itemArrows.instances.delete(itemId);
+    }
+  }
+
+  function disposeItemCircle(circle){
+    if (!circle) return;
+    circle.parent?.remove?.(circle);
+    circle.geometry?.dispose?.();
+    circle.material?.dispose?.();
+  }
+
+  function clearItemCircles(){
+    for (const circle of state.itemCircles.instances.values()) disposeItemCircle(circle);
+    state.itemCircles.instances.clear();
+  }
+
+  function createItemCircle(it){
+    if (!state.glb.THREE) return null;
+    const { THREE } = state.glb;
+    const positions = new Float32Array(ITEM_CIRCLE_SEGMENTS * 3);
+    for (let i = 0; i < ITEM_CIRCLE_SEGMENTS; i++){
+      const angle = i / ITEM_CIRCLE_SEGMENTS * Math.PI * 2;
+      positions[i * 3] = Math.cos(angle);
+      positions[i * 3 + 1] = Math.sin(angle);
+      positions[i * 3 + 2] = 0;
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const material = new THREE.LineBasicMaterial({
+      color: ITEM_CIRCLE_COLOR,
+      depthTest: true,
+      depthWrite: false,
+      transparent: false,
+      fog: false,
+      toneMapped: false,
+    });
+    const circle = new THREE.LineLoop(geometry, material);
+    circle.name = `ITEM_RADIUS_CIRCLE_${it.id}`;
+    circle.userData.itemId = it.id;
+    circle.userData.isItemCircle = true;
+    circle.renderOrder = 18;
+    circle.raycast = () => null;
+    return circle;
+  }
+
+  function updateItemCircle(circle, it){
+    const radiusMeters = getItemCircleRadius(it);
+    circle.material.color.setHex(ITEM_CIRCLE_COLOR);
+    circle.position.set(rawToWorld(it.x, "x"), rawToWorld(it.y, "y"), getItemWorldZ(it) + ITEM_CIRCLE_Z_OFFSET);
+    circle.scale.set(radiusMeters, radiusMeters, 1);
+    circle.visible = radiusMeters > 0 && isItemVisibilityFilterMatch(it);
+  }
+
+  function syncItemCircles(){
+    if (!state.glb.ready || !state.glb.THREE || !state.glb.scene) return;
+    if (!state.itemCircles.group){
+      state.itemCircles.group = new state.glb.THREE.Group();
+      state.itemCircles.group.name = "ITEM_RADIUS_CIRCLES";
+      state.glb.scene.add(state.itemCircles.group);
+    }
+    const wanted = new Set();
+    for (const it of state.items || []){
+      if (getItemCircleRadius(it) <= 0) continue;
+      wanted.add(it.id);
+      let circle = state.itemCircles.instances.get(it.id);
+      if (!circle){
+        circle = createItemCircle(it);
+        if (!circle) continue;
+        state.itemCircles.group.add(circle);
+        state.itemCircles.instances.set(it.id, circle);
+      }
+      updateItemCircle(circle, it);
+    }
+    for (const [itemId, circle] of state.itemCircles.instances){
+      if (wanted.has(itemId)) continue;
+      disposeItemCircle(circle);
+      state.itemCircles.instances.delete(itemId);
     }
   }
 
@@ -11558,6 +11657,7 @@ end group
     }
     updateGlbTransformsFromState();
     syncItemArrows();
+    syncItemCircles();
 
     const { renderer, scene } = state.glb;
     applyThreeCameraFromPV(P, V);

@@ -135,6 +135,7 @@ end
 begin "KOTH center"
 	type_id 106006
 	graphic
+	draw_circle 1
 end  
 
 
