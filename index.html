@@ -488,6 +488,7 @@
     label:focus-within > .visibilityOnlyBtn,
     .visibilityOnlyBtn:hover,
     .visibilityOnlyBtn:focus-visible{ opacity:1; color:var(--text); border-color:var(--line-strong); }
+    .visibilityOnlyBtn.active{ opacity:1; color:#fff; border-color:var(--accent); background:var(--accent); }
     .waypointColorSwatch,
     .areaTriggerColorSwatch{
       width:12px;
@@ -5607,9 +5608,17 @@ end group
     return isItemLayerVisible(it) && isItemGroupVisible(it) && isItemWaypointVisible(it) && isItemAreaTriggerVisible(it) && isItemShowCategoryVisible(it);
   }
 
-  function visibilityOnlyButton(label){
-    const accessibleLabel = `Show only ${label}`;
-    return `<button type="button" class="visibilityOnlyBtn" title="${escapeHtml(accessibleLabel)}" aria-label="${escapeHtml(accessibleLabel)}">Only</button>`;
+  const visibilityOnlyState = {
+    layer: null,
+    group: null,
+    waypoint: null,
+    areaTrigger: null,
+    show: null,
+  };
+
+  function visibilityOnlyButton(label, active = false){
+    const accessibleLabel = active ? `Restore visibility before showing only ${label}` : `Show only ${label}`;
+    return `<button type="button" class="visibilityOnlyBtn${active ? " active" : ""}" data-only-label="${escapeHtml(label)}" title="${escapeHtml(accessibleLabel)}" aria-label="${escapeHtml(accessibleLabel)}" aria-pressed="${active ? "true" : "false"}">${active ? "Restore" : "Only"}</button>`;
   }
 
   function bindVisibilityOnlyActions(listEl, inputSelector, isolate){
@@ -5630,6 +5639,17 @@ end group
     });
   }
 
+  function clearActiveVisibilityOnlyButton(listEl){
+    listEl?.querySelectorAll(".visibilityOnlyBtn.active").forEach((button) => {
+      const optionLabel = button.dataset.onlyLabel || "this option";
+      button.classList.remove("active");
+      button.textContent = "Only";
+      button.title = `Show only ${optionLabel}`;
+      button.setAttribute("aria-label", `Show only ${optionLabel}`);
+      button.setAttribute("aria-pressed", "false");
+    });
+  }
+
   function renderLayerVisibilityPanel(){
     if (!layerVisibilityListEl) return;
     const itemCountByLayer = new Map();
@@ -5645,13 +5665,15 @@ end group
       const label = desc ? `${n} - ${desc}` : String(n);
       const count = itemCountByLayer.get(n) || 0;
       const checked = getLayerVisibility(String(n)) ? "checked" : "";
-      rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-layer-vis="${n}" ${checked}/><span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`layer ${label}`)}</label>`);
+      rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-layer-vis="${n}" ${checked}/><span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`layer ${label}`, visibilityOnlyState.layer?.key === String(n))}</label>`);
     }
     layerVisibilityListEl.innerHTML = rows.join("");
     layerVisibilityListEl.querySelectorAll('input[data-layer-vis]').forEach((el) => {
       el.addEventListener('change', (ev) => {
         const key = String(ev.target.dataset.layerVis || "");
         if (!key) return;
+        visibilityOnlyState.layer = null;
+        clearActiveVisibilityOnlyButton(layerVisibilityListEl);
         state.layerVisibility.set(key, !!ev.target.checked);
         requestRender();
         syncGlbItems();
@@ -5686,13 +5708,15 @@ end group
       const label = `${n} - ${desc || ""}`;
       const count = itemCountByGroup.get(n) || 0;
       const checked = getGroupVisibility(String(n)) ? "checked" : "";
-      rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-group-vis="${n}" ${checked}/><span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`group ${label}`)}</label>`);
+      rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-group-vis="${n}" ${checked}/><span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`group ${label}`, visibilityOnlyState.group?.key === String(n))}</label>`);
     }
     groupVisibilityListEl.innerHTML = rows.join("");
     groupVisibilityListEl.querySelectorAll('input[data-group-vis]').forEach((el) => {
       el.addEventListener('change', (ev) => {
         const key = String(ev.target.dataset.groupVis || "");
         if (!key) return;
+        visibilityOnlyState.group = null;
+        clearActiveVisibilityOnlyButton(groupVisibilityListEl);
         state.groupVisibility.set(key, !!ev.target.checked);
         requestRender();
         syncGlbItems();
@@ -5726,7 +5750,7 @@ end group
     }
     const unlinkedPeopleChecked = getWaypointVisibility(UNLINKED_PEOPLE_WAYPOINT_VISIBILITY_KEY) ? "checked" : "";
     const rows = [
-      `<label class="${unlinkedPeopleCount === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-waypoint-vis="${UNLINKED_PEOPLE_WAYPOINT_VISIBILITY_KEY}" ${unlinkedPeopleChecked}/><span>Person Not Linked to Waypoints</span><span class="visibilityItemCount">(${unlinkedPeopleCount})</span>${visibilityOnlyButton("people not linked to waypoints")}</label>`,
+      `<label class="${unlinkedPeopleCount === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-waypoint-vis="${UNLINKED_PEOPLE_WAYPOINT_VISIBILITY_KEY}" ${unlinkedPeopleChecked}/><span>Person Not Linked to Waypoints</span><span class="visibilityItemCount">(${unlinkedPeopleCount})</span>${visibilityOnlyButton("people not linked to waypoints", visibilityOnlyState.waypoint?.key === UNLINKED_PEOPLE_WAYPOINT_VISIBILITY_KEY)}</label>`,
     ];
     for (let n = 1; n <= 127; n++){
       const sec = getWaypointSectionByNumber(n);
@@ -5742,13 +5766,15 @@ end group
       const swatch = hasValidColor
         ? `<span class="waypointColorSwatch" style="background-color:${colorHex}" title="Color: ${escapeHtml(colorName)}" aria-label="Color: ${escapeHtml(colorName)}"></span>`
         : "";
-      rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-waypoint-vis="${n}" ${checked}/> ${swatch}<span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`waypoint ${label}`)}</label>`);
+      rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-waypoint-vis="${n}" ${checked}/> ${swatch}<span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`waypoint ${label}`, visibilityOnlyState.waypoint?.key === String(n))}</label>`);
     }
     waypointVisibilityListEl.innerHTML = rows.join("");
     waypointVisibilityListEl.querySelectorAll('input[data-waypoint-vis]').forEach((el) => {
       el.addEventListener('change', (ev) => {
         const key = String(ev.target.dataset.waypointVis || "");
         if (!key) return;
+        visibilityOnlyState.waypoint = null;
+        clearActiveVisibilityOnlyButton(waypointVisibilityListEl);
         state.waypointVisibility.set(key, !!ev.target.checked);
         requestRender();
         syncGlbItems();
@@ -5789,13 +5815,15 @@ end group
       const colorHex = `#${AREA_TRIGGER_COLOR_HEX[colorIndex].toString(16).padStart(6, "0")}`;
       const colorName = AREA_TRIGGER_COLORS[colorIndex];
       const swatch = `<span class="areaTriggerColorSwatch" style="background-color:${colorHex}" title="Color: ${escapeHtml(colorName)}" aria-label="Color: ${escapeHtml(colorName)}"></span>`;
-      rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-area-trigger-vis="${n}" ${checked}/> ${swatch}<span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`area trigger ${label}`)}</label>`);
+      rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-area-trigger-vis="${n}" ${checked}/> ${swatch}<span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`area trigger ${label}`, visibilityOnlyState.areaTrigger?.key === String(n))}</label>`);
     }
     areaTriggerVisibilityListEl.innerHTML = rows.join("");
     areaTriggerVisibilityListEl.querySelectorAll('input[data-area-trigger-vis]').forEach((el) => {
       el.addEventListener('change', (ev) => {
         const key = String(ev.target.dataset.areaTriggerVis || "");
         if (!key) return;
+        visibilityOnlyState.areaTrigger = null;
+        clearActiveVisibilityOnlyButton(areaTriggerVisibilityListEl);
         state.areaTriggerVisibility.set(key, !!ev.target.checked);
         requestRender();
         syncGlbItems();
@@ -5922,6 +5950,7 @@ end group
   }
 
   function setAllLayerVisibility(visible){
+    visibilityOnlyState.layer = null;
     for (let n = 0; n <= 31; n++){
       state.layerVisibility.set(String(n), !!visible);
     }
@@ -5931,6 +5960,7 @@ end group
   }
 
   function setAllGroupVisibility(visible){
+    visibilityOnlyState.group = null;
     for (let n = 1; n <= 63; n++){
       state.groupVisibility.set(String(n), !!visible);
     }
@@ -5940,6 +5970,7 @@ end group
   }
 
   function setAllWaypointVisibility(visible){
+    visibilityOnlyState.waypoint = null;
     state.waypointVisibility.set(UNLINKED_PEOPLE_WAYPOINT_VISIBILITY_KEY, !!visible);
     for (let n = 1; n <= 127; n++){
       state.waypointVisibility.set(String(n), !!visible);
@@ -5950,6 +5981,7 @@ end group
   }
 
   function setAllAreaTriggerVisibility(visible){
+    visibilityOnlyState.areaTrigger = null;
     for (let n = 1; n <= 99; n++){
       state.areaTriggerVisibility.set(String(n), !!visible);
     }
@@ -5958,30 +5990,46 @@ end group
     syncGlbItems();
   }
 
+  function toggleOnlyMapVisibility(type, key, keys, visibilityMap, getVisibility){
+    const normalizedKey = String(key);
+    const current = visibilityOnlyState[type];
+    if (current?.key === normalizedKey){
+      for (const itemKey of keys) visibilityMap.set(itemKey, current.snapshot.get(itemKey));
+      visibilityOnlyState[type] = null;
+      return;
+    }
+    const snapshot = current?.snapshot || new Map(keys.map((itemKey) => [itemKey, getVisibility(itemKey)]));
+    visibilityOnlyState[type] = { key: normalizedKey, snapshot };
+    for (const itemKey of keys) visibilityMap.set(itemKey, itemKey === normalizedKey);
+  }
+
   function isolateLayerVisibility(key){
-    for (let n = 0; n <= 31; n++) state.layerVisibility.set(String(n), String(n) === String(key));
+    const keys = Array.from({ length: 32 }, (_, n) => String(n));
+    toggleOnlyMapVisibility("layer", key, keys, state.layerVisibility, getLayerVisibility);
     renderLayerVisibilityPanel();
     requestRender();
     syncGlbItems();
   }
 
   function isolateGroupVisibility(key){
-    for (let n = 1; n <= 63; n++) state.groupVisibility.set(String(n), String(n) === String(key));
+    const keys = Array.from({ length: 63 }, (_, n) => String(n + 1));
+    toggleOnlyMapVisibility("group", key, keys, state.groupVisibility, getGroupVisibility);
     renderGroupVisibilityPanel();
     requestRender();
     syncGlbItems();
   }
 
   function isolateWaypointVisibility(key){
-    state.waypointVisibility.set(UNLINKED_PEOPLE_WAYPOINT_VISIBILITY_KEY, String(key) === UNLINKED_PEOPLE_WAYPOINT_VISIBILITY_KEY);
-    for (let n = 1; n <= 127; n++) state.waypointVisibility.set(String(n), String(n) === String(key));
+    const keys = [UNLINKED_PEOPLE_WAYPOINT_VISIBILITY_KEY, ...Array.from({ length: 127 }, (_, n) => String(n + 1))];
+    toggleOnlyMapVisibility("waypoint", key, keys, state.waypointVisibility, getWaypointVisibility);
     renderWaypointVisibilityPanel();
     requestRender();
     syncGlbItems();
   }
 
   function isolateAreaTriggerVisibility(key){
-    for (let n = 1; n <= 99; n++) state.areaTriggerVisibility.set(String(n), String(n) === String(key));
+    const keys = Array.from({ length: 99 }, (_, n) => String(n + 1));
+    toggleOnlyMapVisibility("areaTrigger", key, keys, state.areaTriggerVisibility, getAreaTriggerVisibility);
     renderAreaTriggerVisibilityPanel();
     requestRender();
     syncGlbItems();
@@ -8902,20 +8950,47 @@ end group
   });
 
   function setAllShowOptions(visible){
+    visibilityOnlyState.show = null;
     canvasShowPanelEl?.querySelectorAll('input[type="checkbox"]').forEach((input) => {
       input.checked = !!visible;
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
+    syncShowOnlyButtonState();
     requestRender();
   }
 
   function isolateShowOption(selectedInput){
-    canvasShowPanelEl?.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-      input.checked = input === selectedInput;
-    });
+    const inputs = Array.from(canvasShowPanelEl?.querySelectorAll('input[type="checkbox"]') || []);
+    const key = selectedInput.id;
+    const current = visibilityOnlyState.show;
+    if (current?.key === key){
+      for (const input of inputs) input.checked = current.snapshot.get(input.id) ?? false;
+      visibilityOnlyState.show = null;
+    } else {
+      const snapshot = current?.snapshot || new Map(inputs.map((input) => [input.id, input.checked]));
+      visibilityOnlyState.show = { key, snapshot };
+      for (const input of inputs) input.checked = input === selectedInput;
+    }
+    syncShowOnlyButtonState();
     state.glb.structureDirty = true;
     requestRender();
     syncGlbItems();
+  }
+
+  function syncShowOnlyButtonState(){
+    canvasShowPanelEl?.querySelectorAll("#canvasShowPanelList label").forEach((label) => {
+      const input = label.querySelector('input[type="checkbox"]');
+      const button = label.querySelector(".visibilityOnlyBtn");
+      if (!input || !button) return;
+      const active = visibilityOnlyState.show?.key === input.id;
+      const optionLabel = button.dataset.onlyLabel || "this option";
+      const accessibleLabel = active ? `Restore visibility before showing only ${optionLabel}` : `Show only ${optionLabel}`;
+      button.classList.toggle("active", active);
+      button.textContent = active ? "Restore" : "Only";
+      button.title = accessibleLabel;
+      button.setAttribute("aria-label", accessibleLabel);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
   }
 
   function initializeShowOnlyActions(){
@@ -8950,6 +9025,8 @@ end group
   });
   canvasShowPanelEl?.addEventListener("change", (event) => {
     if (!(event.target instanceof HTMLInputElement)) return;
+    visibilityOnlyState.show = null;
+    syncShowOnlyButtonState();
     if (!event.target.closest("[data-show-category]")) return;
     state.glb.structureDirty = true;
     requestRender();
