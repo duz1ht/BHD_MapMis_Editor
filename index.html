@@ -4700,7 +4700,7 @@ end group
     if (!state.editorFolderHandle) return null;
     try{
       let dir = state.editorFolderHandle;
-      for (const part of ["resources", "terrains"]){
+      for (const part of ["resources", "BHD", "terrains"]){
         dir = await dir.getDirectoryHandle(part);
       }
 
@@ -12077,10 +12077,11 @@ end group
   }
   async function listTerrainFilesFromEditorFolder(terrainName){
     if (!state.editorFolderHandle) return null;
+    const terrainRootParts = ["resources", "BHD", "terrains"];
+    const terrainRootPath = terrainRootParts.join("/");
     try{
-      const parts = ["resources", "terrains"];
       let dir = state.editorFolderHandle;
-      for (const part of parts){
+      for (const part of terrainRootParts){
         dir = await dir.getDirectoryHandle(part);
       }
 
@@ -12093,15 +12094,21 @@ end group
           break;
         }
       }
-      if (!matchedDir) return null;
+      if (!matchedDir){
+        addLog(`[terrain] terrain folder not found: ${terrainRootPath}/${terrainName}`);
+        return null;
+      }
 
       const files = [];
       for await (const [name, handle] of matchedDir.handle.entries()){
         if (handle.kind === "file") files.push(name);
       }
+      if (!files.length){
+        addLog(`[terrain] terrain folder contains no files: ${terrainRootPath}/${matchedDir.name}`);
+      }
       return { folder: matchedDir.name, files };
     } catch (err){
-      addLog(`[terrain] error listing terrain folder from editor folder: ${err?.message || err}`);
+      addLog(`[terrain] error listing terrain folder ${terrainRootPath}/${terrainName}: ${err?.message || err}`);
       return null;
     }
   }
