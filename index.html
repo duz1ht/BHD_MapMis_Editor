@@ -11465,9 +11465,9 @@ end group
   function createItemCircle(it){
     if (!state.glb.THREE) return null;
     const { THREE } = state.glb;
-    // LineSegments lets the circumference and its pivot-to-front radius share
-    // one renderable without adding a chord between otherwise separate lines.
-    const positions = new Float32Array((ITEM_CIRCLE_SEGMENTS * 2 + 2) * 3);
+    // LineSegments lets the circumference and its two crossing diameters share
+    // one renderable without adding chords between otherwise separate lines.
+    const positions = new Float32Array((ITEM_CIRCLE_SEGMENTS * 2 + 4) * 3);
     for (let i = 0; i < ITEM_CIRCLE_SEGMENTS; i++){
       const angle = i / ITEM_CIRCLE_SEGMENTS * Math.PI * 2;
       const nextAngle = (i + 1) / ITEM_CIRCLE_SEGMENTS * Math.PI * 2;
@@ -11479,13 +11479,19 @@ end group
       positions[offset + 4] = Math.sin(nextAngle);
       positions[offset + 5] = 0;
     }
-    const radiusOffset = ITEM_CIRCLE_SEGMENTS * 6;
-    positions[radiusOffset] = 0;
-    positions[radiusOffset + 1] = 0;
-    positions[radiusOffset + 2] = 0;
-    positions[radiusOffset + 3] = 1;
-    positions[radiusOffset + 4] = 0;
-    positions[radiusOffset + 5] = 0;
+    const diameterOffset = ITEM_CIRCLE_SEGMENTS * 6;
+    positions[diameterOffset] = -1;
+    positions[diameterOffset + 1] = 0;
+    positions[diameterOffset + 2] = 0;
+    positions[diameterOffset + 3] = 1;
+    positions[diameterOffset + 4] = 0;
+    positions[diameterOffset + 5] = 0;
+    positions[diameterOffset + 6] = 0;
+    positions[diameterOffset + 7] = -1;
+    positions[diameterOffset + 8] = 0;
+    positions[diameterOffset + 9] = 0;
+    positions[diameterOffset + 10] = 1;
+    positions[diameterOffset + 11] = 0;
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     const material = new THREE.LineBasicMaterial({
