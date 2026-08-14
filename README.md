@@ -24,32 +24,6 @@ Todo:
 All 3D .glb items should be in the resources/BHD/3d_items folder, and you should download the items here: https://drive.google.com/file/d/1Ra4pI8aTDwG5vO3h0fLZYzqPM6YveKQH/view?usp=sharing
 How to load a map: https://youtu.be/opW0PqfdUr4
 
-## Shortcuts and menu options
-WASD = Camera movement
-Q/E = Move the camera up and down
-Mouse scroll = Increases camera speed, like in a traditional map editor such as Unreal Engine
-Speed Scalar = Changes the speed scale controlled by the mouse scroll
-Ground Clamp = Prevents the camera from going below the terrain
-Clearance = Adjusts the camera’s minimum height
-Draw Radius = Maximum terrain render distance (helps improve FPS)
-Main Area = Shows the main map area before it starts repeating infinitely
-Show Sectors = Shows each terrain subdivision
-Go To = Lets you jump directly to a coordinate
-R = Switches the view mode between colormap, heightmap, and depth map
-T = Toggles an orthographic top view at the Perspective View focus point; drag to pan and use the mouse wheel to zoom, then press T to return while preserving that focus<br>
-E = Changes the item gizmo to rotation mode (yaw and pitch)
-W = Changes the item gizmo to standard XYZ movement mode
-Gizmo Space = Switches the transform axes between world and item-local orientation<br>
-Gizmo Pivot = Uses the selection center, active item, or individual item origins<br>
-Rotation Snap = Toolbar toggle that quantizes gizmo rotation; use its arrow to configure the angle increment and relative or absolute mode<br>
-Snap to Floor = Context-menu command that moves selected items vertically until the bottom of their transformed geometry rests on terrain or the highest item surface below<br>
-Work Grid = Uses the XY top plane; the infinite grid follows the camera while keeping a stable world origin<br>
-F = Toggles item wireframe view
-G = Cycles guide visibility: grid + Main Area, hidden, Main Area only, grid only<br>
-H = Toggles item anchor points
-I = Toggles the scene info box on the canvas<br>
-C = Closes or opens the left sidebar<br>
-
 ## Keep working on it.
 Feel free to continue what’s already been done.
 Use AI to better understand the index.html file since it’s a simple file, to see what is and isn’t implemented.
@@ -57,6 +31,3 @@ If you have any questions, feel free to contact me on Discord at @duz1ht.
 
 ## Contributors so far
 biggy, Demonic, dataspiller, Scott (NovaHQ), AngelExalted
-
-### 3D item color precedence
-GLB item colors are applied in this order: the model's base material, the item-definition `tint`, waypoint or Area Trigger colors, and finally temporary viewport modes or selection visuals. Each later layer intentionally overrides the earlier layers while it applies.
