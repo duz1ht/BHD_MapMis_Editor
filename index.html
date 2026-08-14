@@ -303,9 +303,16 @@
     }
     body[data-theme="night"] .toolbarIcon,
     .modeBtn.active .toolbarIcon{ filter:invert(1); }
+    #viewportStatus{
+      flex:0 0 auto;
+      min-width:108px;
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:3px;
+      pointer-events:none;
+    }
     #fpsCounter{
-      flex:0 0 64px;
-      width:64px;
       height:24px;
       display:flex;
       align-items:center;
@@ -318,6 +325,14 @@
       line-height:1;
       white-space:nowrap;
       pointer-events:none;
+    }
+    #kothZoneStatus{
+      display:none;
+      color:#ffd54a;
+      font-size:13px;
+      font-weight:600;
+      line-height:1;
+      white-space:nowrap;
     }
     #gizmoCanvas{
       position:absolute;
@@ -1538,7 +1553,10 @@
         </div>
         <button id="viewportToolsBtn" type="button" class="modeBtn" aria-haspopup="true" aria-expanded="false" aria-label="Viewport Tools: Perspective" title="Viewport Tools"><img class="toolbarIcon" src="resources/BHD/editor_icons/camera.svg" alt="" /><span id="viewportProjectionLabel">Perspective</span></button>
         <button id="viewModeBtn" type="button" class="modeBtn iconBtn" aria-haspopup="true" aria-expanded="false" aria-label="Draw Mode" title="Draw Mode"><img class="toolbarIcon" src="resources/BHD/editor_icons/draw_mode.svg" alt="" /></button>
-        <div id="fpsCounter">0 FPS</div>
+        <div id="viewportStatus">
+          <div id="fpsCounter">0 FPS</div>
+          <div id="kothZoneStatus" aria-live="polite"></div>
+        </div>
       </div>
       <canvas id="cv"></canvas>
       <div id="insertPreviewLabel" aria-hidden="true"></div>
@@ -3973,6 +3991,33 @@ end group
     const distanceKey = kvFindKey(it, ["wpdistance", "waypoint_distance"]);
     const radius = Number(distanceKey ? it.kv[distanceKey] : 0);
     return Number.isFinite(radius) && radius > 0 ? radius : 0;
+  }
+
+  function isKothCenterItem(it){
+    const def = getDefForItem(it);
+    return String(def?.id || def?.typeId || "") === "106006"
+      || String(def?.name || "").trim().toLowerCase() === "koth center";
+  }
+
+  function getCameraKothZonePercent(){
+    let highestPercent = null;
+    for (const it of state.items || []){
+      if (!isKothCenterItem(it)) continue;
+      const radius = getItemCircleRadius(it);
+      if (radius <= 0) continue;
+      const distance = Math.hypot(cam.pos.x - rawToWorld(it.x, "x"), cam.pos.y - rawToWorld(it.y, "y"));
+      if (distance > radius) continue;
+      const percent = Math.round(100 - 99 * Math.min(1, distance / radius));
+      highestPercent = highestPercent == null ? percent : Math.max(highestPercent, percent);
+    }
+    return highestPercent;
+  }
+
+  function updateKothZoneStatus(){
+    if (!kothZoneStatusEl) return;
+    const percent = getCameraKothZonePercent();
+    kothZoneStatusEl.style.display = percent == null ? "none" : "block";
+    kothZoneStatusEl.textContent = percent == null ? "" : `In the Zone: ${percent}%`;
   }
 
   // DEF parser (ITEMS.DEF)
@@ -9798,6 +9843,7 @@ end group
   const camDebugEl = document.getElementById("camDebug");
   const sceneInfoHintEl = document.getElementById("sceneInfoHint");
   const fpsCounterEl = document.getElementById("fpsCounter");
+  const kothZoneStatusEl = document.getElementById("kothZoneStatus");
   const gizmoCanvasEl = document.getElementById("gizmoCanvas");
   const gizmoCtx = gizmoCanvasEl?.getContext("2d");
   const itemDrawScratch = {
@@ -12681,6 +12727,7 @@ end group
     }
     const {forwardXY,right,forward}=cameraBasis(); const canMoveWithKeys=(document.pointerLockElement===cv && state.cameraLookActive); let dir=vec3(0,0,0); if(canMoveWithKeys&&move.w) dir=vec3Add(dir,forwardXY); if(canMoveWithKeys&&move.s) dir=vec3Sub(dir,forwardXY); if(canMoveWithKeys&&move.d) dir=vec3Add(dir,right); if(canMoveWithKeys&&move.a) dir=vec3Sub(dir,right); if(canMoveWithKeys&&move.e) dir=vec3Add(dir,vec3(0,0,1)); if(canMoveWithKeys&&move.q) dir=vec3Sub(dir,vec3(0,0,1)); const dlen=vec3Len(dir); const speedTable=[12.5,25,50,100,200,300,450,600]; const lvl=Math.max(1,Math.min(8,renderUiState.speedLevel|0)); const scalar=Math.max(0.1,renderUiState.speedScalar||1); const base=speedTable[lvl-1]*scalar; const spd=base; state.camera.speed=spd; const targetVel=dlen>0?vec3Scale(dir,spd/dlen):vec3(0,0,0); const smoothBoost=1.3; const accel=12.0/smoothBoost, decel=10.0/smoothBoost; const blend=Math.min(1, (dlen>0?accel:decel)*dt); camVel=vec3Add(camVel, vec3Scale(vec3Sub(targetVel,camVel), blend)); cam.pos=vec3Add(cam.pos,vec3Scale(camVel,dt));
     if(renderUiState.groundClamp && lastDepth){ const h=heightAtWorld(cam.pos.x,cam.pos.y,1.0); if(h>-1e8){ const clearance=renderUiState.clearance; if(cam.pos.z < h+clearance) cam.pos.z = h+clearance; } }
+    updateKothZoneStatus();
     const clearCol = { r: 0.05, g: 0.06, b: 0.08 };
     if (state.glb.renderer){
       state.glb.renderer.setClearColor(new state.glb.THREE.Color(clearCol.r, clearCol.g, clearCol.b), 1);
