@@ -2573,10 +2573,12 @@ end group
       filename: "",
       atlasName: "",
       atlasImage: null,
-      atlasTexture: null,
+      overlayTexture: null,
+      overlayResolution: 0,
+      paintedTiles: 0,
+      lastBuildMs: 0,
       records: [],
       byPosition: new Map(),
-      instances: new Map(),
       tileSize: 1,
       error: "",
       generation: 0,
@@ -10192,10 +10194,9 @@ end group
 
   function resetMapTiles(){
     state.mapTiles.generation++;
-    for(const [id,obj] of state.mapTiles.instances){if(state.glb.itemInstances.get(id)===obj)state.glb.itemInstances.delete(id);removeGlbItemInstance(obj);}
-    state.mapTiles.instances.clear();
-    state.mapTiles.atlasTexture?.dispose?.();
-    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,atlasTexture:null,records:[],byPosition:new Map(),tileSize:1,error:""});
+    state.mapTiles.overlayTexture?.dispose?.();
+    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],byPosition:new Map(),tileSize:1,error:""});
+    state.threeTerrain.dirty=true;
   }
 
   function generalTerrainTileName(){
@@ -10222,15 +10223,9 @@ end group
       if(generation!==state.mapTiles.generation)return;
       state.mapTiles.atlasName=atlasFile;state.mapTiles.atlasImage=decodeTGA(atlasBuf,true);
       addLog(`[map_tiles] loaded ${tilName}: ${parsed.records.length} records, atlas=${atlasFile}`);
-      await syncGlbItems();syncMapTileInstances();requestRender();
+      buildMapTileOverlay();
+      await syncGlbItems();requestRender();
     }catch(err){state.mapTiles.error=err?.message||String(err);addLog(`[map_tiles] ERROR: ${state.mapTiles.error}`);statusEl.textContent=state.mapTiles.error;}
-  }
-
-  function ensureMapTileTexture(){
-    if(state.mapTiles.atlasTexture||!state.mapTiles.atlasImage||!state.glb.THREE)return state.mapTiles.atlasTexture;
-    const {THREE}=state.glb,img=state.mapTiles.atlasImage,texture=new THREE.DataTexture(img.pixels,img.w,img.h,THREE.RGBAFormat);
-    texture.flipY=true;texture.colorSpace=THREE.SRGBColorSpace;texture.magFilter=THREE.LinearFilter;texture.minFilter=THREE.LinearMipmapLinearFilter;texture.generateMipmaps=true;texture.needsUpdate=true;
-    state.mapTiles.atlasTexture=texture;return texture;
   }
 
   function mapTileRecordForItem(it){
@@ -10242,32 +10237,28 @@ end group
     const index=Math.trunc(Number(it?.kv?.extra_bheight));return index>=0&&index<64?index:null;
   }
 
-  function createMapTileInstance(it,record,tileIndex){
-    const {THREE}=state.glb,texture=ensureMapTileTexture();if(!THREE||!texture)return null;
-    const size=state.mapTiles.tileSize,segments=8,count=(segments+1)*(segments+1),positions=new Float32Array(count*3),uvs=new Float32Array(count*2),indices=[];
-    const col=tileIndex%8,row=Math.floor(tileIndex/8),padU=.5/state.mapTiles.atlasImage.w,padV=.5/state.mapTiles.atlasImage.h;
-    let p=0,u=0;for(let y=0;y<=segments;y++)for(let x=0;x<=segments;x++){
-      const fx=x/segments,fy=y/segments,wx=rawToWorld(record.x,"x")+fx*size,wy=rawToWorld(record.y,"y")-fy*size;
-      positions[p++]=wx;positions[p++]=wy;positions[p++]=heightAtWorld(wx,wy,1)+.025;
-      uvs[u++]=(col+fx)/8+(1-2*fx)*padU;uvs[u++]=1-(row+fy)/8+(2*fy-1)*padV;
-    }
-    for(let y=0;y<segments;y++)for(let x=0;x<segments;x++){const a=y*(segments+1)+x,b=a+1,c=a+segments+1,d=c+1;indices.push(a,b,c,b,d,c);}
-    const geometry=new THREE.BufferGeometry();geometry.setAttribute("position",new THREE.BufferAttribute(positions,3));geometry.setAttribute("uv",new THREE.BufferAttribute(uvs,2));geometry.setIndex(indices);geometry.computeVertexNormals();
-    const material=new THREE.MeshStandardMaterial({map:texture,side:THREE.DoubleSide,roughness:1,metalness:0});const mesh=new THREE.Mesh(geometry,material);
-    mesh.userData.itemId=it.id;mesh.userData.isMapTile=true;mesh.userData.tileIndex=tileIndex;mesh.userData.visualSignature=`maptile:${record.recordIndex}:${tileIndex}:${state.mapTiles.atlasName}`;mesh.name=`MAP_TILE_${it.id}`;return mesh;
-  }
-
-  function syncMapTileInstances(){
-    if(!state.glb.ready||!state.mapTiles.atlasImage)return;
-    const wanted=new Set();
+  function buildMapTileOverlay(){
+    const started=performance.now();
+    state.mapTiles.overlayTexture?.dispose?.();state.mapTiles.overlayTexture=null;state.mapTiles.overlayResolution=0;state.mapTiles.paintedTiles=0;
+    const img=state.mapTiles.atlasImage,THREE=state.glb.THREE;if(!img||!THREE||!state.mapTiles.records.length)return;
+    const span=Math.max(1,Math.max(terrainSpanX(),terrainSpanY())),resolution=Math.min(4096,Math.max(512,Math.ceil(span))),pixels=new Uint8Array(resolution*resolution*4);
+    const ox=originWorldX(),oy=originWorldY(),tilePixels=Math.max(1,Math.round(state.mapTiles.tileSize/span*resolution)),cellW=img.w/8,cellH=img.h/8;
+    let painted=0;
     for(const it of state.items.filter(isMapTileItem)){
-      const record=mapTileRecordForItem(it),tileIndex=mapTileAtlasIndex(it);if(!record||tileIndex===null)continue;wanted.add(it.id);
-      let obj=state.mapTiles.instances.get(it.id);const sig=`maptile:${record.recordIndex}:${tileIndex}:${state.mapTiles.atlasName}`;
-      if(obj&&obj.userData.visualSignature!==sig){removeGlbItemInstance(obj);state.glb.itemInstances.delete(it.id);state.mapTiles.instances.delete(it.id);obj=null;}
-      if(!obj){obj=createMapTileInstance(it,record,tileIndex);if(!obj)continue;state.glb.scene.add(obj);state.mapTiles.instances.set(it.id,obj);state.glb.itemInstances.set(it.id,obj);}
-      obj.visible=isItemVisibilityFilterMatch(it);
+      const record=mapTileRecordForItem(it),tileIndex=mapTileAtlasIndex(it);if(!record||tileIndex===null)continue;
+      const left=rawToWorld(record.x,"x"),top=rawToWorld(record.y,"y"),baseX=Math.round((left-ox)/span*resolution),baseY=Math.round((top-state.mapTiles.tileSize-oy)/span*resolution);
+      const col=tileIndex%8,row=Math.floor(tileIndex/8);
+      for(let py=0;py<tilePixels;py++)for(let px=0;px<tilePixels;px++){
+        const dx=baseX+px,dy=baseY+py;if(dx<0||dy<0||dx>=resolution||dy>=resolution)continue;
+        const sx=Math.min(img.w-1,Math.floor(col*cellW+(px+.5)/tilePixels*cellW)),sy=Math.min(img.h-1,Math.floor(row*cellH+(tilePixels-py-.5)/tilePixels*cellH));
+        const src=(sy*img.w+sx)*4,dst=(dy*resolution+dx)*4,alpha=img.pixels[src+3]/255,oldAlpha=pixels[dst+3]/255,outAlpha=alpha+oldAlpha*(1-alpha);
+        if(outAlpha>0)for(let c=0;c<3;c++){const srgb=img.pixels[src+c]/255,linear=(srgb<=.04045?srgb/12.92:Math.pow((srgb+.055)/1.055,2.4))*255;pixels[dst+c]=Math.round((linear*alpha+pixels[dst+c]*oldAlpha*(1-alpha))/outAlpha);}pixels[dst+3]=Math.round(outAlpha*255);
+      }
+      painted++;
     }
-    for(const [id,obj] of state.mapTiles.instances)if(!wanted.has(id)){removeGlbItemInstance(obj);state.mapTiles.instances.delete(id);if(state.glb.itemInstances.get(id)===obj)state.glb.itemInstances.delete(id);}
+    const texture=new THREE.DataTexture(pixels,resolution,resolution,THREE.RGBAFormat,THREE.UnsignedByteType);texture.flipY=false;texture.wrapS=THREE.ClampToEdgeWrapping;texture.wrapT=THREE.ClampToEdgeWrapping;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.needsUpdate=true;
+    state.mapTiles.overlayTexture=texture;state.mapTiles.overlayResolution=resolution;state.mapTiles.paintedTiles=painted;state.mapTiles.lastBuildMs=performance.now()-started;state.threeTerrain.dirty=true;
+    addLog(`[map_tiles] material overlay rebuilt: tiles=${painted}, resolution=${resolution}x${resolution}, time=${state.mapTiles.lastBuildMs.toFixed(2)}ms`);
   }
   function getSectorOffset(sectorIndex){ switch(sectorIndex|0){ case 1:return {x:0,y:0}; case 2:return {x:0,y:512}; case 3:return {x:512,y:0}; case 4:return {x:512,y:512}; default:return {x:0,y:0}; } }
   function heightSample(sectorIndex,x,y){ if(!lastDepth) return 0; const off=getSectorOffset(sectorIndex); const sx=(x>=SECTOR_SIZE)?(SECTOR_SIZE-1):x, sy=(y>=SECTOR_SIZE)?(SECTOR_SIZE-1):y, ix=off.x+sx, iy=off.y+sy; if(ix<0||iy<0||ix>=DEPTH_W||iy>=DEPTH_H) return 0; return lastDepth[iy*DEPTH_W+ix]/256.0; }
@@ -10322,8 +10313,7 @@ end group
       return lod;
     });
     state.threeTerrain.dirty = true;
-    for(const [id,obj] of state.mapTiles.instances){removeGlbItemInstance(obj);state.mapTiles.instances.delete(id);if(state.glb.itemInstances.get(id)===obj)state.glb.itemInstances.delete(id);}
-    syncMapTileInstances();
+    if(state.mapTiles.atlasImage)buildMapTileOverlay();
   }
 
   function mapSrcIdx(g,wrap){ if(wrap===1) return posMod(g,sectorCount); if(g<0) return 0; if(g>=sectorCount) return sectorCount-1; return g; }
@@ -10536,6 +10526,7 @@ end group
     if (!state.glb.ready || !state.glb.THREE || !state.threeTerrain.dirty) return state.threeTerrain.ready;
     const { THREE } = state.glb;
     const terrain = state.threeTerrain;
+    if(state.mapTiles.atlasImage&&!state.mapTiles.overlayTexture)buildMapTileOverlay();
     if (!terrain.scene){
       terrain.scene = new THREE.Scene();
     }
@@ -10604,8 +10595,30 @@ end group
         transparent: false,
         depthWrite: true,
       });
+      terrain.material.onBeforeCompile=(shader)=>{
+        shader.uniforms.mapTileOverlay={value:state.mapTiles.overlayTexture};
+        shader.uniforms.mapTileBounds={value:new THREE.Vector4(originWorldX(),originWorldY(),terrainSpanX(),terrainSpanY())};
+        shader.uniforms.mapTileEnabled={value:0};
+        shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vMapTileWorld;').replace('#include <begin_vertex>','#include <begin_vertex>\nvMapTileWorld=(modelMatrix*vec4(transformed,1.0)).xyz;');
+        shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D mapTileOverlay;\nuniform vec4 mapTileBounds;\nuniform float mapTileEnabled;\nvarying vec3 vMapTileWorld;').replace('#include <map_fragment>',`#include <map_fragment>
+          if(mapTileEnabled>0.5){
+            vec2 tileUv=(vMapTileWorld.xy-mapTileBounds.xy)/mapTileBounds.zw;
+            if(tileUv.x>=0.0&&tileUv.x<=1.0&&tileUv.y>=0.0&&tileUv.y<=1.0){
+              vec4 tileColor=texture2D(mapTileOverlay,tileUv);
+              diffuseColor.rgb=mix(diffuseColor.rgb,tileColor.rgb,tileColor.a);
+            }
+          }`);
+        terrain.material.userData.mapTileShader=shader;
+      };
+      terrain.material.customProgramCacheKey=()=>"terrain-map-tile-overlay-v1";
     }
     terrain.material.map = getThreeTerrainTextureByMode();
+    const tileShader=terrain.material.userData.mapTileShader;
+    if(tileShader){
+      tileShader.uniforms.mapTileOverlay.value=state.mapTiles.overlayTexture;
+      tileShader.uniforms.mapTileBounds.value.set(originWorldX(),originWorldY(),terrainSpanX(),terrainSpanY());
+      tileShader.uniforms.mapTileEnabled.value=renderMode==='C'&&state.mapTiles.overlayTexture?1:0;
+    }
     terrain.material.needsUpdate = true;
     terrain.ready = true;
     terrain.dirty = false;
@@ -10654,6 +10667,8 @@ end group
 
     const nextKeys = new Set();
     terrain.material.map = getThreeTerrainTextureByMode();
+    const tileShader=terrain.material.userData.mapTileShader;
+    if(tileShader)tileShader.uniforms.mapTileEnabled.value=renderMode==='C'&&state.mapTiles.overlayTexture?1:0;
 
     for (const tile of vis.visibleTiles){
       const meshKey = `${tile.gx}:${tile.gy}:${tile.lodLevel}:${tile.sectorIndex}`;
@@ -12085,7 +12100,6 @@ end group
       if (generation !== state.glb.documentGeneration) return;
       const { entries, stats } = getRenderableGlbEntries();
       const wantedIds = new Set(entries.map(x => x.it.id));
-      for(const it of state.items||[])if(isMapTileItem(it))wantedIds.add(it.id);
 
       for (const [itemId, obj] of state.glb.itemInstances.entries()){
         if (wantedIds.has(itemId)) continue;
@@ -12170,7 +12184,6 @@ end group
       state.glb.transformDirtyIds.clear();
       state.glb.syncCount += 1;
       state.glb.lastSyncMs = performance.now() - started;
-      syncMapTileInstances();
     })();
 
     try {
@@ -12193,7 +12206,6 @@ end group
       const it = byId.get(itemId);
       const instance = state.glb.itemInstances.get(itemId);
       if (!it || !instance) continue;
-      if(instance.userData?.isMapTile)continue;
       applyItemTransformToObject(instance, it);
     }
     state.glb.transformDirtyIds.clear();
@@ -13095,6 +13107,7 @@ Top view lock: ${topViewLocked?'on':'off'}
 Top view span: ${topViewLocked?(topViewScale*2).toFixed(2):'-'}
 Draw calls: ${drawCalls}
 Terrain cull (frustum/back): ${state.terrainPerf?.culledFrustum ?? '-'} / ${state.terrainPerf?.culledBackface ?? '-'}
+MapTile paint: ${state.mapTiles.paintedTiles} tiles, ${state.mapTiles.overlayResolution || '-'}px (${state.mapTiles.lastBuildMs.toFixed(2)} ms)
 GLB instances: ${state.glb.itemInstances.size}
 GLB sync: #${state.glb.syncCount} (${state.glb.lastSyncMs.toFixed(2)} ms)
 GLB total/render: ${state.glb.lastStats?.totalItems ?? '-'} / ${state.glb.lastStats?.renderableItems ?? '-'}
