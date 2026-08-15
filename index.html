@@ -1504,6 +1504,7 @@
   <div id="appLayout">
   <div id="sidebar">
     <input id="fileMis" type="file" accept=".mis,.til,.txt" multiple style="display:none;" />
+    <input id="mapFolderInput" type="file" accept=".mis,.til" webkitdirectory multiple style="display:none;" />
 
     <div id="sidebarHeaderActions">
       <button id="sidebarCloseBtn" type="button" class="modeBtn" title="Close sidebar (C)" aria-label="Close sidebar" aria-keyshortcuts="C"><img class="toolbarIcon" src="resources/BHD/editor_icons/sidebar_close.svg" alt="" /></button>
@@ -2485,6 +2486,7 @@ end group
     isLocalRuntime: window.location.protocol === "file:",
     editorFolderHandle: null,
     currentMisFileHandle: null,
+    currentMapDirectoryHandle: null,
     generalTerrainNames: [],
     generalInfoLoadGeneration: 0,
     soundGraphicFromOtherItems: "",
@@ -2690,6 +2692,7 @@ end group
 
   // UI refs
   const fileMisEl = document.getElementById("fileMis");
+  const mapFolderInputEl = document.getElementById("mapFolderInput");
   const defStatusEl = document.getElementById("defStatus");
   const searchEl = document.getElementById("search");
   const listEl = document.getElementById("list");
@@ -9432,6 +9435,7 @@ end group
     insertPreviewLabel.style.display = "none";
     cv.style.cursor = "";
 
+    state.currentMapDirectoryHandle = null;
     state.rawText = DEFAULT_NEW_MAP_MIS;
     const parsed = parseMIS(DEFAULT_NEW_MAP_MIS);
     state.items = parsed.items;
@@ -9597,29 +9601,29 @@ end group
   const menuHandlers = {
     "file.new": async () => handleNewProject(),
     "file.open": async () => {
-      if (window.showOpenFilePicker){
+      // A FileSystemFileHandle cannot access sibling files. Selecting the map
+      // directory gives the editor permission to locate <map>.til automatically.
+      if (window.showDirectoryPicker){
         try{
-          const handles = await window.showOpenFilePicker({
-            multiple: true,
-            types: [{
-              description: "Mission and companion tile files",
-              accept: { "application/octet-stream": [".mis", ".til"] }
-            }]
-          });
-          const files = await Promise.all(handles.map(handle => handle.getFile()));
-          const misIndex = files.findIndex(file => /\.mis$/i.test(file.name));
-          if (misIndex < 0) throw new Error("No .mis file selected");
-          const tilFile = files.find(file => /\.til$/i.test(file.name)) || null;
-          await loadMisFile(files[misIndex], handles[misIndex], tilFile);
+          const directory = await window.showDirectoryPicker({ mode: "read" });
+          const entries = [];
+          for await (const [name, handle] of directory.entries()){
+            if (handle.kind === "file" && /\.(mis|til)$/i.test(name)) entries.push({ name, handle });
+          }
+          const pair = findMissionTilePair(entries.map(entry => entry.name));
+          if (!pair) throw new Error("The selected folder has no .mis/.til pair with the same name");
+          const misEntry = entries.find(entry => entry.name.toLowerCase() === pair.mis.toLowerCase());
+          state.currentMapDirectoryHandle = directory;
+          await loadMisFile(await misEntry.handle.getFile(), misEntry.handle);
           return;
         } catch (err){
           if (err?.name === "AbortError") return;
-          addLog(`ERROR opening .mis: ${err?.message || "unknown error"}`);
-          statusEl.textContent = "Failed to open file (see Logs).";
+          addLog(`ERROR opening map folder: ${err?.message || "unknown error"}`);
+          statusEl.textContent = err?.message || "Failed to open map folder (see Logs).";
           return;
         }
       }
-      fileMisEl.click();
+      mapFolderInputEl.click();
     },
     "file.saveAs": async () => {
       if (!await saveCurrentMap({ forcePicker: true })) return showNotImplemented("Save As");
@@ -10018,12 +10022,36 @@ end group
     return records;
   }
 
+  function findMissionTilePair(names){
+    const byLower = new Map((names || []).map(name => [String(name).toLowerCase(), String(name)]));
+    for (const name of names || []){
+      if (!/\.mis$/i.test(name)) continue;
+      const tilName = String(name).replace(/\.mis$/i, ".til");
+      const match = byLower.get(tilName.toLowerCase());
+      if (match) return { mis: String(name), til: match };
+    }
+    return null;
+  }
+
+  async function fileFromDirectoryCaseInsensitive(directory, wantedName){
+    if (!directory) return null;
+    for await (const [name, handle] of directory.entries()){
+      if (handle.kind !== "file" || name.toLowerCase() !== wantedName.toLowerCase()) continue;
+      return handle.getFile();
+    }
+    return null;
+  }
+
   async function loadCompanionTiles(misFile, explicitTilFile = null){
     clearMapTiles();
     const baseName = String(misFile?.name || state.filename || "").replace(/\.[^.]+$/, "");
     const wantedName = `${baseName}.til`;
     let buffer = null;
     if (explicitTilFile?.name?.toLowerCase() === wantedName.toLowerCase()) buffer = await explicitTilFile.arrayBuffer();
+    if (!buffer && state.currentMapDirectoryHandle){
+      const sibling = await fileFromDirectoryCaseInsensitive(state.currentMapDirectoryHandle, wantedName);
+      if (sibling) buffer = await sibling.arrayBuffer();
+    }
     if (!buffer && !state.isLocalRuntime) buffer = await loadBinaryResource(`resources/BHD/mis_examples/${wantedName}`);
     if (!buffer){ addLog(`[map_tiles] companion ${wantedName} was not available; select the .mis and .til together.`); return; }
     const records = parseTil(buffer), tiles = state.mapTiles;
@@ -10077,12 +10105,17 @@ end group
     refreshLiveMisWindow(true, { force: true });
   }
 
-  fileMisEl.addEventListener("change", async (e) => {
-    const files = Array.from(e.target.files || []);
-    const f = files.find(file => /\.mis$/i.test(file.name)) || files[0];
-    const til = files.find(file => /\.til$/i.test(file.name));
-    await loadMisFile(f, null, til);
-  });
+  async function loadMapPairFromFiles(files){
+    const list = Array.from(files || []), pair = findMissionTilePair(list.map(file => file.name));
+    if (!pair){ statusEl.textContent = "Select a folder containing .mis and .til files with the same name."; return; }
+    const mis = list.find(file => file.name.toLowerCase() === pair.mis.toLowerCase());
+    const til = list.find(file => file.name.toLowerCase() === pair.til.toLowerCase());
+    state.currentMapDirectoryHandle = null;
+    await loadMisFile(mis, null, til);
+  }
+
+  fileMisEl.addEventListener("change", e => loadMapPairFromFiles(e.target.files));
+  mapFolderInputEl.addEventListener("change", e => loadMapPairFromFiles(e.target.files));
   // Canvas (WebGL terrain viewer + editor items)
   const cv = document.getElementById("cv");
   const camDebugEl = document.getElementById("camDebug");
