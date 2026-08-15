@@ -1503,7 +1503,7 @@
 
   <div id="appLayout">
   <div id="sidebar">
-    <input id="fileMis" type="file" accept=".mis,.txt" style="display:none;" />
+    <input id="fileMis" type="file" accept=".mis,.til,.txt" multiple style="display:none;" />
 
     <div id="sidebarHeaderActions">
       <button id="sidebarCloseBtn" type="button" class="modeBtn" title="Close sidebar (C)" aria-label="Close sidebar" aria-keyshortcuts="C"><img class="toolbarIcon" src="resources/BHD/editor_icons/sidebar_close.svg" alt="" /></button>
@@ -2544,6 +2544,15 @@ end group
       waypointLines: null,
       ready: false,
     },
+    mapTiles: {
+      scene: null,
+      meshes: [],
+      textures: [],
+      records: [],
+      atlas: null,
+      ready: false,
+      generation: 0,
+    },
     areaTriggerVolumes: {
       group: null,
       signature: "",
@@ -2666,6 +2675,7 @@ end group
     const result = { drawCalls: 0 };
     if (!state.glb.ready) ensureGlbRendererReady();
     result.drawCalls = drawTerrainThree(P, V, forward);
+    drawMapTilesThree(P, V);
     drawOverlaysThree(P, V, forward);
     drawItemsThree(P, V);
     drawGlbItems(P, V);
@@ -9423,6 +9433,9 @@ end group
     state.multiSelectedIds.clear();
     state.filename = "";
     state.currentMisFileHandle = null;
+    ++state.mapTiles.generation;
+    clearMapTiles();
+    state.mapTiles.atlas = null;
     state.itemClipboard = null;
     state.itemClipboardSection = null;
     state.itemClipboardItems = [];
@@ -9965,7 +9978,7 @@ end group
   }
 
   // File inputs
-  async function loadMisFile(file, fileHandle = null){
+  async function loadMisFile(file, fileHandle = null, companionFile = null){
     if (!file) return;
     const documentGeneration = clearGlbItemInstances();
     state.filename = file.name;
@@ -9995,6 +10008,9 @@ end group
     state.selectedWaypointMarkerIds.clear();
     updateWaypointMarkerCount(0);
 
+    await loadMapTilesForMis(file, fileHandle, companionFile);
+    if (documentGeneration !== state.glb.documentGeneration) return;
+
 
     buildLayerOptions();
     buildWaypointList();
@@ -10008,8 +10024,11 @@ end group
   }
 
   fileMisEl.addEventListener("change", async (e) => {
-    const f = e.target.files?.[0];
-    await loadMisFile(f);
+    const selectedFiles = Array.from(e.target.files || []);
+    const f = selectedFiles.find(file => /\.mis$/i.test(file.name)) || selectedFiles[0];
+    const companionName = mapTileCompanionName(f?.name);
+    const companion = selectedFiles.find(file => file.name.toLowerCase() === companionName.toLowerCase()) || null;
+    await loadMisFile(f, null, companion);
   });
   // Canvas (WebGL terrain viewer + editor items)
   const cv = document.getElementById("cv");
@@ -10114,6 +10133,215 @@ end group
   function resetCamera(){ const spanX=terrainSpanX(),spanY=terrainSpanY(), cx=originWorldX()+spanX*0.5, cy=originWorldY()+spanY*0.5, span=Math.max(spanX,spanY); cam.pos=vec3(cx,cy+span*0.65,220); cam.yaw=Math.PI; cam.pitch=-0.25; }
 
   function decodeTGA(buf){ const d=new DataView(buf); const id=d.getUint8(0), type=d.getUint8(2), w=d.getUint16(12,true), h=d.getUint16(14,true), bpp=d.getUint8(16); let off=18+id; const out=new Uint8Array(w*h*4); let i=0; if(type===2){ for(let p=0;p<w*h;p++){ const b=d.getUint8(off++), g=d.getUint8(off++), r=d.getUint8(off++), a=bpp===32?d.getUint8(off++):255; out[i++]=r; out[i++]=g; out[i++]=b; out[i++]=a; } } else if(type===3){ for(let p=0;p<w*h;p++){ const v=d.getUint8(off++); out[i++]=v; out[i++]=v; out[i++]=v; out[i++]=255; } } else throw new Error('Unsupported TGA type '+type); return {w,h,pixels:out}; }
+
+  const MAP_TILE_SIZE_PIXELS = 64;
+  const MAP_TILE_TERRAIN_OFFSET = 0.035;
+
+  function clearMapTiles(){
+    const tiles = state.mapTiles;
+    if (tiles.scene){
+      for (const mesh of tiles.meshes) tiles.scene.remove(mesh);
+    }
+    for (const mesh of tiles.meshes){
+      mesh.geometry?.dispose?.();
+      mesh.material?.dispose?.();
+    }
+    for (const texture of tiles.textures) texture.dispose?.();
+    tiles.meshes = [];
+    tiles.textures = [];
+    tiles.records = [];
+    tiles.ready = false;
+  }
+
+  function parseTilFile(buffer){
+    if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 16) throw new Error('TIL header is missing or truncated');
+    const view = new DataView(buffer);
+    if (view.getUint32(0, true) !== 0x74696c30) throw new Error('Invalid TIL signature (expected til0)');
+    const count = view.getUint32(4, true);
+    const declaredSize = view.getUint32(8, true);
+    const expectedSize = 16 + count * 12;
+    if (declaredSize !== buffer.byteLength || expectedSize !== buffer.byteLength){
+      throw new Error(`Invalid TIL size (declared=${declaredSize}, expected=${expectedSize}, actual=${buffer.byteLength})`);
+    }
+    const records = new Array(count);
+    for (let i = 0, offset = 16; i < count; i++, offset += 12){
+      const packed = view.getUint32(offset + 8, true);
+      records[i] = {
+        x: view.getInt32(offset, true),
+        y: view.getInt32(offset + 4, true),
+        tileIndex: packed & 0xff,
+        orientation: (packed >>> 8) & 7,
+        packed,
+      };
+    }
+    return records;
+  }
+
+  async function findSiblingFileInEditorFolder(fileHandle, siblingName){
+    if (!state.editorFolderHandle || !fileHandle || typeof state.editorFolderHandle.resolve !== 'function') return null;
+    try{
+      const path = await state.editorFolderHandle.resolve(fileHandle);
+      if (!path) return null;
+      let directory = state.editorFolderHandle;
+      for (const part of path.slice(0, -1)) directory = await directory.getDirectoryHandle(part);
+      for await (const [name, handle] of directory.entries()){
+        if (handle.kind === 'file' && name.toLowerCase() === siblingName.toLowerCase()) return handle.getFile();
+      }
+    } catch (err){
+      addLog(`[map_tiles] unable to resolve MIS folder: ${err?.message || err}`);
+    }
+    return null;
+  }
+
+  function mapTileCompanionName(misName){
+    return String(misName || '').replace(/\.mis$/i, '') + '.til';
+  }
+
+  function extractTerrainTileAtlasName(){
+    const general = state.sectionBlocks.find(section => section.kind === 'general_information');
+    return String(general?.kv?.terrain_tile_tga || '').trim().replace(/\.tga$/i, '');
+  }
+
+  async function loadMapTilesForMis(misFile, fileHandle, suppliedCompanionFile = null){
+    const generation = ++state.mapTiles.generation;
+    clearMapTiles();
+    const companionName = mapTileCompanionName(misFile?.name);
+    if (!companionName || companionName.toLowerCase() === '.til') return;
+
+    let tilFile = suppliedCompanionFile || await findSiblingFileInEditorFolder(fileHandle, companionName);
+    let tilBuffer = tilFile ? await tilFile.arrayBuffer() : null;
+    if (!tilBuffer && !state.isLocalRuntime){
+      const examplePath = `resources/BHD/mis_examples/${encodeURIComponent(companionName)}`;
+      try{
+        const response = await fetch(examplePath);
+        if (response.ok) tilBuffer = await response.arrayBuffer();
+      } catch (_) { /* A user-selected MIS has no browser-readable sibling path. */ }
+    }
+    if (generation !== state.mapTiles.generation) return;
+    if (!tilBuffer){
+      addLog(`[map_tiles] companion file not found beside ${misFile?.name || 'MIS'}: ${companionName}`);
+      return;
+    }
+
+    try{
+      const records = parseTilFile(tilBuffer);
+      const atlasName = extractTerrainTileAtlasName();
+      if (!atlasName) throw new Error('general_information has no terrain_tile_tga value');
+      const atlasResource = await loadMapTileAtlas(atlasName);
+      if (generation !== state.mapTiles.generation) return;
+      if (!atlasResource?.buffer) throw new Error(`Tile atlas not found: resources/BHD/terrain_tiles/${atlasName}.tga`);
+      const atlas = decodeTGA(atlasResource.buffer);
+      await ensureGlbRendererReady();
+      if (generation !== state.mapTiles.generation) return;
+      if (!state.glb.ready) throw new Error('Three.js renderer is unavailable');
+      buildMapTileMeshes(records, atlas);
+      state.mapTiles.records = records;
+      state.mapTiles.atlas = atlas;
+      state.mapTiles.ready = true;
+      addLog(`[map_tiles] rendered ${records.length} tiles from ${companionName} with ${atlasName}.tga (${atlas.w}x${atlas.h})`);
+      requestRender();
+    } catch (err){
+      clearMapTiles();
+      addLog(`[map_tiles] failed to load ${companionName}: ${err?.message || err}`);
+    }
+  }
+
+  const MAP_TILE_ATLAS_FILENAMES = [
+    'trntile1.tga', 'trntile2.tga', 'trntile3.tga', 'Trntile4.tga', 'Trntile5.tga',
+    'Trntile6.tga', 'Trntile7.tga', 'Trntile8.tga', 'trntile9.tga', 'trntile10.tga',
+    'trntile11.tga', 'trntile12.tga', 'trntile13.TGA',
+  ];
+
+  async function loadMapTileAtlas(atlasName){
+    const wanted = `${atlasName}.tga`.toLowerCase();
+    if (state.isLocalRuntime && state.editorFolderHandle){
+      try{
+        let directory = state.editorFolderHandle;
+        for (const part of ['resources', 'BHD', 'terrain_tiles']) directory = await directory.getDirectoryHandle(part);
+        for await (const [name, handle] of directory.entries()){
+          if (handle.kind !== 'file' || name.toLowerCase() !== wanted) continue;
+          const file = await handle.getFile();
+          return { name, buffer: await file.arrayBuffer() };
+        }
+      } catch (err){
+        addLog(`[map_tiles] unable to read terrain_tiles folder: ${err?.message || err}`);
+      }
+      return null;
+    }
+    const filename = MAP_TILE_ATLAS_FILENAMES.find(name => name.toLowerCase() === wanted) || `${atlasName}.tga`;
+    const buffer = await loadBinaryResource(`resources/BHD/terrain_tiles/${filename}`);
+    return buffer ? { name: filename, buffer } : null;
+  }
+
+  function orientedTilePixels(atlas, tileIndex, orientation){
+    const size = MAP_TILE_SIZE_PIXELS;
+    const columns = Math.floor(atlas.w / size);
+    const rows = Math.floor(atlas.h / size);
+    if (columns < 1 || rows < 1 || tileIndex >= columns * rows) return null;
+    const sourceX = (tileIndex % columns) * size;
+    const sourceY = Math.floor(tileIndex / columns) * size;
+    const pixels = new Uint8Array(size * size * 4);
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++){
+      let sx = x, sy = y;
+      if (orientation & 4) sx = size - 1 - sx;
+      for (let turn = 0; turn < (orientation & 3); turn++) [sx, sy] = [sy, size - 1 - sx];
+      const src = ((sourceY + sy) * atlas.w + sourceX + sx) * 4;
+      const dst = (y * size + x) * 4;
+      pixels[dst] = atlas.pixels[src]; pixels[dst + 1] = atlas.pixels[src + 1];
+      pixels[dst + 2] = atlas.pixels[src + 2]; pixels[dst + 3] = atlas.pixels[src + 3];
+    }
+    return pixels;
+  }
+
+  function buildMapTileMeshes(records, atlas){
+    clearMapTiles();
+    if (!state.glb.THREE) return;
+    const { THREE } = state.glb;
+    const tiles = state.mapTiles;
+    if (!tiles.scene) tiles.scene = new THREE.Scene();
+    const buckets = new Map();
+    for (const record of records){
+      const key = `${record.tileIndex}:${record.orientation}`;
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(record);
+    }
+    const matrix = new THREE.Matrix4();
+    for (const [key, bucket] of buckets){
+      const [tileIndex, orientation] = key.split(':').map(Number);
+      const pixels = orientedTilePixels(atlas, tileIndex, orientation);
+      if (!pixels){ addLog(`[map_tiles] atlas index outside image: ${tileIndex}`); continue; }
+      const texture = new THREE.DataTexture(pixels, MAP_TILE_SIZE_PIXELS, MAP_TILE_SIZE_PIXELS, THREE.RGBAFormat, THREE.UnsignedByteType);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.needsUpdate = true;
+      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, alphaTest: 0.01, side: THREE.DoubleSide, depthWrite: false, toneMapped: false });
+      const geometry = new THREE.PlaneGeometry(1, 1);
+      const mesh = new THREE.InstancedMesh(geometry, material, bucket.length);
+      mesh.renderOrder = 2;
+      mesh.frustumCulled = false;
+      bucket.forEach((record, index) => {
+        const x = rawToWorld(record.x, 'x');
+        const y = rawToWorld(record.y, 'y');
+        const terrainZ = heightAtWorld(x, y, 1.0);
+        matrix.makeTranslation(x, y, (Number.isFinite(terrainZ) && terrainZ > -1e8 ? terrainZ : 0) + MAP_TILE_TERRAIN_OFFSET);
+        mesh.setMatrixAt(index, matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      tiles.scene.add(mesh);
+      tiles.meshes.push(mesh);
+      tiles.textures.push(texture);
+    }
+  }
+
+  function drawMapTilesThree(P, V){
+    if (!state.mapTiles.ready || !state.mapTiles.scene || !state.glb.ready) return;
+    applyThreeCameraFromPV(P, V);
+    const renderer = state.glb.renderer;
+    renderer.resetState();
+    renderer.render(state.mapTiles.scene, state.glb.camera);
+    renderer.resetState();
+  }
   function getSectorOffset(sectorIndex){ switch(sectorIndex|0){ case 1:return {x:0,y:0}; case 2:return {x:0,y:512}; case 3:return {x:512,y:0}; case 4:return {x:512,y:512}; default:return {x:0,y:0}; } }
   function heightSample(sectorIndex,x,y){ if(!lastDepth) return 0; const off=getSectorOffset(sectorIndex); const sx=(x>=SECTOR_SIZE)?(SECTOR_SIZE-1):x, sy=(y>=SECTOR_SIZE)?(SECTOR_SIZE-1):y, ix=off.x+sx, iy=off.y+sy; if(ix<0||iy<0||ix>=DEPTH_W||iy>=DEPTH_H) return 0; return lastDepth[iy*DEPTH_W+ix]/256.0; }
   function buildMeshSingleSector(sectorIndex,step,heightMul){ if(!lastDepth) return {verts:new Float32Array(0),idx:new Uint32Array(0)}; const uvOff=getSectorOffset(sectorIndex); const xs=[],ys=[]; for(let v=0;v<=SECTOR_MESH_MAX;v+=step) xs.push(v); if(xs.at(-1)!==SECTOR_MESH_MAX) xs.push(SECTOR_MESH_MAX); for(let v=0;v<=SECTOR_MESH_MAX;v+=step) ys.push(v); if(ys.at(-1)!==SECTOR_MESH_MAX) ys.push(SECTOR_MESH_MAX); const gw=xs.length,gh=ys.length; const verts=new Float32Array(gw*gh*5), idx=new Uint32Array((gw-1)*(gh-1)*6); let vb=0; for(let y=0;y<gh;y++) for(let x=0;x<gw;x++){ const lx=xs[x],ly=ys[y],sampleY=TERRAIN_BASE_FLIP_Y?(SECTOR_SIZE-ly):ly,h=heightSample(sectorIndex,lx,sampleY)*heightMul; const su=(lx>=SECTOR_SIZE)?(SECTOR_SIZE-1):lx, sv=(sampleY>=SECTOR_SIZE)?(SECTOR_SIZE-1):sampleY; const u=(uvOff.x+su)/1024.0,v=(uvOff.y+sv)/1024.0,o=vb*5; verts[o]=lx;verts[o+1]=ly;verts[o+2]=h;verts[o+3]=u;verts[o+4]=v; vb++; } let ib=0; for(let y=0;y<gh-1;y++) for(let x=0;x<gw-1;x++){ const a=y*gw+x,b=a+1,c=a+gw,d=c+1; idx[ib++]=a;idx[ib++]=b;idx[ib++]=c; idx[ib++]=b;idx[ib++]=d;idx[ib++]=c; } return {verts,idx}; }
@@ -13364,9 +13592,17 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
   window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();updateItemGizmo();});
 
   const _origLoadMisFile = loadMisFile;
-  loadMisFile = async function(file, fileHandle = null){
-    await _origLoadMisFile(file, fileHandle);
+  loadMisFile = async function(file, fileHandle = null, companionFile = null){
+    await _origLoadMisFile(file, fileHandle, companionFile);
     try{ await loadTerrainFromMis(); }catch(err){ addLog(`[terrain] load error: ${err?.message || err}`); camDebugEl.textContent = `Failed to load terrain: ${err.message||err}`; }
+    if (state.mapTiles.ready && state.mapTiles.atlas){
+      const records = state.mapTiles.records;
+      const atlas = state.mapTiles.atlas;
+      buildMapTileMeshes(records, atlas);
+      state.mapTiles.records = records;
+      state.mapTiles.atlas = atlas;
+      state.mapTiles.ready = true;
+    }
     fitView();
     requestRender();
   };
