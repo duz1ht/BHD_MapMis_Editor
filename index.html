@@ -1503,7 +1503,7 @@
 
   <div id="appLayout">
   <div id="sidebar">
-    <input id="fileMis" type="file" accept=".mis,.txt" style="display:none;" />
+    <input id="fileMis" type="file" accept=".mis,.til,.txt" multiple style="display:none;" />
 
     <div id="sidebarHeaderActions">
       <button id="sidebarCloseBtn" type="button" class="modeBtn" title="Close sidebar (C)" aria-label="Close sidebar" aria-keyshortcuts="C"><img class="toolbarIcon" src="resources/BHD/editor_icons/sidebar_close.svg" alt="" /></button>
@@ -2544,6 +2544,10 @@ end group
       waypointLines: null,
       ready: false,
     },
+    mapTiles: {
+      records: [], byPivot: new Map(), textureName: "", sourceName: "",
+      scene: null, mesh: null, texture: null, revision: 0,
+    },
     areaTriggerVolumes: {
       group: null,
       signature: "",
@@ -2666,6 +2670,7 @@ end group
     const result = { drawCalls: 0 };
     if (!state.glb.ready) ensureGlbRendererReady();
     result.drawCalls = drawTerrainThree(P, V, forward);
+    drawMapTilesThree(P, V);
     drawOverlaysThree(P, V, forward);
     drawItemsThree(P, V);
     drawGlbItems(P, V);
@@ -9238,6 +9243,22 @@ end group
     itemContextMenu.setAttribute("aria-hidden", "true");
   }
 
+  function isMapTileItem(item){
+    return String(item?.kv?.name || "").trim().toLowerCase() === "maptile";
+  }
+
+  function tileRecordForItem(item){
+    if (!isMapTileItem(item)) return null;
+    return state.mapTiles.byPivot.get(`${Math.trunc(item.x)}:${Math.trunc(item.y)}`) || null;
+  }
+
+  function showTileProperties(item){
+    const record = tileRecordForItem(item);
+    const texture = state.mapTiles.textureName || "(not loaded)";
+    const tile = record ? `${record.tileIndex} (raw value ${record.tileCode})` : "(not found in the companion .til file)";
+    window.alert(`Tile properties\n\nTexture: ${texture}\nTile: ${tile}\nTIL file: ${state.mapTiles.sourceName || "(not loaded)"}`);
+  }
+
   function runSelectionTransformCommand(label, transform){
     const items=selectedTransformItems().filter(it=>kvHas(it,'position'));
     if(!items.length){statusEl.textContent=`${label}: no positioned items selected.`;return;}
@@ -9297,6 +9318,7 @@ end group
 
     const itemsToRender = menuItems || [
       { label: "Edit Item Attributes", action: () => openModal() },
+      ...(isMapTileItem(selected) ? [{ label: "Tile properties", action: () => showTileProperties(selected) }] : []),
       { separator: true },
       { label: "Cut", action: () => cutSelectedItems() },
       { label: "Copy", action: () => copySelectedItem() },
@@ -9368,6 +9390,7 @@ end group
 
   async function clearEditorMap(){
     clearGlbItemInstances();
+    clearMapTiles();
     // Cancel every interaction that belongs to the previous mission before its
     // item ids and sections are replaced.
     state.keysDown.clear();
@@ -9576,16 +9599,18 @@ end group
     "file.open": async () => {
       if (window.showOpenFilePicker){
         try{
-          const [handle] = await window.showOpenFilePicker({
-            multiple: false,
+          const handles = await window.showOpenFilePicker({
+            multiple: true,
             types: [{
-              description: "Mission Files",
-              accept: { "text/plain": [".mis"] }
+              description: "Mission and companion tile files",
+              accept: { "application/octet-stream": [".mis", ".til"] }
             }]
           });
-          if (!handle) return;
-          const file = await handle.getFile();
-          await loadMisFile(file, handle);
+          const files = await Promise.all(handles.map(handle => handle.getFile()));
+          const misIndex = files.findIndex(file => /\.mis$/i.test(file.name));
+          if (misIndex < 0) throw new Error("No .mis file selected");
+          const tilFile = files.find(file => /\.til$/i.test(file.name)) || null;
+          await loadMisFile(files[misIndex], handles[misIndex], tilFile);
           return;
         } catch (err){
           if (err?.name === "AbortError") return;
@@ -9964,8 +9989,52 @@ end group
     return { text: utf8, encoding: "utf-8" };
   }
 
+  // MapTile companion data. The binary format is a 16-byte header followed
+  // by count records of { cornerX:int32, cornerY:int32, tileCode:uint32 }.
+  function generalTileTextureName(){
+    const general = state.sectionBlocks.find(section => section.kind === "general_information");
+    const raw = String(general?.kv?.terrain_tile_tga || "").trim();
+    return raw ? (/\.tga$/i.test(raw) ? raw : `${raw}.tga`) : "";
+  }
+
+  function clearMapTiles(){
+    const tiles = state.mapTiles;
+    tiles.revision += 1; tiles.records = []; tiles.byPivot.clear();
+    tiles.textureName = ""; tiles.sourceName = "";
+    if (tiles.mesh){ tiles.scene?.remove(tiles.mesh); tiles.mesh.geometry?.dispose(); tiles.mesh.material?.dispose(); }
+    tiles.texture?.dispose?.(); tiles.mesh = null; tiles.texture = null;
+  }
+
+  function parseTil(buffer){
+    const view = new DataView(buffer);
+    if (view.byteLength < 16 || String.fromCharCode(...new Uint8Array(buffer, 0, 4)) !== "0lit") throw new Error("Invalid TIL signature");
+    const count = view.getUint32(4, true), declaredSize = view.getUint32(8, true);
+    if (declaredSize !== view.byteLength || 16 + count * 12 !== view.byteLength) throw new Error("Invalid TIL size or record count");
+    const records = [];
+    for (let offset = 16; offset < view.byteLength; offset += 12){
+      const x = view.getInt32(offset, true), y = view.getInt32(offset + 4, true), tileCode = view.getUint32(offset + 8, true);
+      records.push({ x, y, tileCode, tileIndex: tileCode & 0xff });
+    }
+    return records;
+  }
+
+  async function loadCompanionTiles(misFile, explicitTilFile = null){
+    clearMapTiles();
+    const baseName = String(misFile?.name || state.filename || "").replace(/\.[^.]+$/, "");
+    const wantedName = `${baseName}.til`;
+    let buffer = null;
+    if (explicitTilFile?.name?.toLowerCase() === wantedName.toLowerCase()) buffer = await explicitTilFile.arrayBuffer();
+    if (!buffer && !state.isLocalRuntime) buffer = await loadBinaryResource(`resources/BHD/mis_examples/${wantedName}`);
+    if (!buffer){ addLog(`[map_tiles] companion ${wantedName} was not available; select the .mis and .til together.`); return; }
+    const records = parseTil(buffer), tiles = state.mapTiles;
+    tiles.records = records; tiles.sourceName = wantedName; tiles.textureName = generalTileTextureName();
+    // TIL coordinates are the upper-left corner. A MapTile pivot is 8 m right/down.
+    for (const record of records) tiles.byPivot.set(`${record.x + 8 * MIS_POS_SCALE}:${record.y - 8 * MIS_POS_SCALE}`, record);
+    addLog(`[map_tiles] loaded ${records.length} records from ${wantedName}; texture=${tiles.textureName || '<none>'}.`);
+  }
+
   // File inputs
-  async function loadMisFile(file, fileHandle = null){
+  async function loadMisFile(file, fileHandle = null, companionTilFile = null){
     if (!file) return;
     const documentGeneration = clearGlbItemInstances();
     state.filename = file.name;
@@ -9981,6 +10050,7 @@ end group
     const parsed = parseMIS(text);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
+    await loadCompanionTiles(file, companionTilFile);
     state.sectionSelectedId = null;
     state.eventSelectedId = null;
     eventUi.selectedTrigger = -1;
@@ -10008,8 +10078,10 @@ end group
   }
 
   fileMisEl.addEventListener("change", async (e) => {
-    const f = e.target.files?.[0];
-    await loadMisFile(f);
+    const files = Array.from(e.target.files || []);
+    const f = files.find(file => /\.mis$/i.test(file.name)) || files[0];
+    const til = files.find(file => /\.til$/i.test(file.name));
+    await loadMisFile(f, null, til);
   });
   // Canvas (WebGL terrain viewer + editor items)
   const cv = document.getElementById("cv");
@@ -10114,6 +10186,61 @@ end group
   function resetCamera(){ const spanX=terrainSpanX(),spanY=terrainSpanY(), cx=originWorldX()+spanX*0.5, cy=originWorldY()+spanY*0.5, span=Math.max(spanX,spanY); cam.pos=vec3(cx,cy+span*0.65,220); cam.yaw=Math.PI; cam.pitch=-0.25; }
 
   function decodeTGA(buf){ const d=new DataView(buf); const id=d.getUint8(0), type=d.getUint8(2), w=d.getUint16(12,true), h=d.getUint16(14,true), bpp=d.getUint8(16); let off=18+id; const out=new Uint8Array(w*h*4); let i=0; if(type===2){ for(let p=0;p<w*h;p++){ const b=d.getUint8(off++), g=d.getUint8(off++), r=d.getUint8(off++), a=bpp===32?d.getUint8(off++):255; out[i++]=r; out[i++]=g; out[i++]=b; out[i++]=a; } } else if(type===3){ for(let p=0;p<w*h;p++){ const v=d.getUint8(off++); out[i++]=v; out[i++]=v; out[i++]=v; out[i++]=255; } } else throw new Error('Unsupported TGA type '+type); return {w,h,pixels:out}; }
+
+
+  async function loadTerrainTileTextureBuffer(name){
+    if (!name) return null;
+    const stem = name.replace(/\.tga$/i, "");
+    const candidates = [...new Set([name, `${stem}.tga`, `${stem}.TGA`, `${stem[0]?.toUpperCase() || ""}${stem.slice(1)}.tga`])];
+    for (const candidate of candidates){
+      const buffer = await loadBinaryResource(`resources/BHD/terrain_tiles/${candidate}`);
+      if (buffer) return buffer;
+    }
+    return null;
+  }
+
+  async function buildMapTileMesh(){
+    const tiles = state.mapTiles, revision = ++tiles.revision;
+    if (!tiles.records.length || !tiles.textureName) return;
+    if (!await ensureGlbRendererReady() || revision !== tiles.revision) return;
+    const buffer = await loadTerrainTileTextureBuffer(tiles.textureName);
+    if (!buffer || revision !== tiles.revision){ addLog(`[map_tiles] texture not found: ${tiles.textureName}`); return; }
+    const image = decodeTGA(buffer), { THREE } = state.glb;
+    const texture = new THREE.DataTexture(image.pixels, image.w, image.h, THREE.RGBAFormat);
+    texture.colorSpace = THREE.SRGBColorSpace; texture.flipY = false;
+    texture.magFilter = THREE.LinearFilter; texture.minFilter = THREE.LinearMipmapLinearFilter; texture.generateMipmaps = true; texture.needsUpdate = true;
+    const positions = [], uvs = [], indices = [];
+    const atlasColumns = Math.max(1, Math.floor(image.w / 64)), atlasRows = Math.max(1, Math.floor(image.h / 64));
+    for (const record of tiles.records){
+      const x0 = rawToWorld(record.x, "x"), y0 = rawToWorld(record.y, "y"), x1 = x0 + 16, y1 = y0 - 16;
+      const corners = [[x0,y0],[x1,y0],[x1,y1],[x0,y1]], base = positions.length / 3;
+      for (const [x,y] of corners){ const h = heightAtWorld(x,y,1); positions.push(x,y,(Number.isFinite(h) && h > -1e8 ? h : 0) + 0.04); }
+      const column = record.tileIndex % atlasColumns, row = Math.floor(record.tileIndex / atlasColumns) % atlasRows;
+      const u0 = column / atlasColumns, u1 = (column + 1) / atlasColumns;
+      const v0 = 1 - (row + 1) / atlasRows, v1 = 1 - row / atlasRows;
+      let tileUvs = [[u0,v1],[u1,v1],[u1,v0],[u0,v0]];
+      const flags = record.tileCode >>> 8, turns = flags & 3;
+      for (let turn = 0; turn < turns; turn++) tileUvs.unshift(tileUvs.pop());
+      if (flags & 4) tileUvs = [tileUvs[1],tileUvs[0],tileUvs[3],tileUvs[2]];
+      for (const uv of tileUvs) uvs.push(uv[0],uv[1]);
+      indices.push(base,base+1,base+2,base,base+2,base+3);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions,3));
+    geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs,2)); geometry.setIndex(indices); geometry.computeBoundingSphere();
+    const material = new THREE.MeshBasicMaterial({ map:texture, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-1, polygonOffsetUnits:-1 });
+    const mesh = new THREE.Mesh(geometry,material); mesh.name="MISSION_MAP_TILES"; mesh.renderOrder=2; mesh.raycast=()=>null;
+    if (!tiles.scene) tiles.scene = new THREE.Scene();
+    if (tiles.mesh){ tiles.scene.remove(tiles.mesh); tiles.mesh.geometry.dispose(); tiles.mesh.material.dispose(); tiles.texture?.dispose(); }
+    tiles.mesh=mesh; tiles.texture=texture; tiles.scene.add(mesh); requestRender();
+    addLog(`[map_tiles] rendered ${tiles.records.length} tiles from ${tiles.textureName} (${atlasColumns}x${atlasRows} atlas).`);
+  }
+
+  function drawMapTilesThree(P,V){
+    if (!state.glb.ready || !state.mapTiles.mesh || !state.mapTiles.scene) return;
+    applyThreeCameraFromPV(P,V); state.glb.renderer.resetState();
+    state.glb.renderer.render(state.mapTiles.scene,state.glb.camera); state.glb.renderer.resetState();
+  }
   function getSectorOffset(sectorIndex){ switch(sectorIndex|0){ case 1:return {x:0,y:0}; case 2:return {x:0,y:512}; case 3:return {x:512,y:0}; case 4:return {x:512,y:512}; default:return {x:0,y:0}; } }
   function heightSample(sectorIndex,x,y){ if(!lastDepth) return 0; const off=getSectorOffset(sectorIndex); const sx=(x>=SECTOR_SIZE)?(SECTOR_SIZE-1):x, sy=(y>=SECTOR_SIZE)?(SECTOR_SIZE-1):y, ix=off.x+sx, iy=off.y+sy; if(ix<0||iy<0||ix>=DEPTH_W||iy>=DEPTH_H) return 0; return lastDepth[iy*DEPTH_W+ix]/256.0; }
   function buildMeshSingleSector(sectorIndex,step,heightMul){ if(!lastDepth) return {verts:new Float32Array(0),idx:new Uint32Array(0)}; const uvOff=getSectorOffset(sectorIndex); const xs=[],ys=[]; for(let v=0;v<=SECTOR_MESH_MAX;v+=step) xs.push(v); if(xs.at(-1)!==SECTOR_MESH_MAX) xs.push(SECTOR_MESH_MAX); for(let v=0;v<=SECTOR_MESH_MAX;v+=step) ys.push(v); if(ys.at(-1)!==SECTOR_MESH_MAX) ys.push(SECTOR_MESH_MAX); const gw=xs.length,gh=ys.length; const verts=new Float32Array(gw*gh*5), idx=new Uint32Array((gw-1)*(gh-1)*6); let vb=0; for(let y=0;y<gh;y++) for(let x=0;x<gw;x++){ const lx=xs[x],ly=ys[y],sampleY=TERRAIN_BASE_FLIP_Y?(SECTOR_SIZE-ly):ly,h=heightSample(sectorIndex,lx,sampleY)*heightMul; const su=(lx>=SECTOR_SIZE)?(SECTOR_SIZE-1):lx, sv=(sampleY>=SECTOR_SIZE)?(SECTOR_SIZE-1):sampleY; const u=(uvOff.x+su)/1024.0,v=(uvOff.y+sv)/1024.0,o=vb*5; verts[o]=lx;verts[o+1]=ly;verts[o+2]=h;verts[o+3]=u;verts[o+4]=v; vb++; } let ib=0; for(let y=0;y<gh-1;y++) for(let x=0;x<gw-1;x++){ const a=y*gw+x,b=a+1,c=a+gw,d=c+1; idx[ib++]=a;idx[ib++]=b;idx[ib++]=c; idx[ib++]=b;idx[ib++]=d;idx[ib++]=c; } return {verts,idx}; }
@@ -13364,9 +13491,10 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
   window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();updateItemGizmo();});
 
   const _origLoadMisFile = loadMisFile;
-  loadMisFile = async function(file, fileHandle = null){
-    await _origLoadMisFile(file, fileHandle);
+  loadMisFile = async function(file, fileHandle = null, companionTilFile = null){
+    await _origLoadMisFile(file, fileHandle, companionTilFile);
     try{ await loadTerrainFromMis(); }catch(err){ addLog(`[terrain] load error: ${err?.message || err}`); camDebugEl.textContent = `Failed to load terrain: ${err.message||err}`; }
+    await buildMapTileMesh();
     fitView();
     requestRender();
   };
