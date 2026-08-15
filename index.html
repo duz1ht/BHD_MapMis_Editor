@@ -1503,7 +1503,7 @@
 
   <div id="appLayout">
   <div id="sidebar">
-    <input id="fileMis" type="file" accept=".mis,.txt" style="display:none;" />
+    <input id="fileMis" type="file" accept=".mis,.til,.txt" multiple style="display:none;" />
 
     <div id="sidebarHeaderActions">
       <button id="sidebarCloseBtn" type="button" class="modeBtn" title="Close sidebar (C)" aria-label="Close sidebar" aria-keyshortcuts="C"><img class="toolbarIcon" src="resources/BHD/editor_icons/sidebar_close.svg" alt="" /></button>
@@ -2417,6 +2417,10 @@ end group
     suppressContextMenu: false,
     lastMouse: null,
     filename: "",
+    tileFileName: "",
+    tileRecords: [],
+    tileTextureName: "",
+    tileTextureImage: null,
     modalOpen: false,
     modalSnapshot: null,
 
@@ -2544,6 +2548,7 @@ end group
       waypointLines: null,
       ready: false,
     },
+    threeMapTiles: { scene: null, material: null, texture: null, meshes: [], signature: "" },
     areaTriggerVolumes: {
       group: null,
       signature: "",
@@ -2667,6 +2672,7 @@ end group
     if (!state.glb.ready) ensureGlbRendererReady();
     result.drawCalls = drawTerrainThree(P, V, forward);
     drawOverlaysThree(P, V, forward);
+    drawMapTilesThree(P, V);
     drawItemsThree(P, V);
     drawGlbItems(P, V);
     drawWaypointLinesThree(P, V);
@@ -3949,6 +3955,10 @@ end group
       return catalogName.startsWith("snd:") ? "markerSound" : "markerGameplay";
     }
     return Object.prototype.hasOwnProperty.call(SHOW_ITEM_CATEGORIES, type) ? type : "";
+  }
+
+  function isMapTileItem(it){
+    return String(it?.kv?.name || "").trim().toLowerCase() === "maptile";
   }
 
   const GLB_VIEW_MODE_ELIGIBLE_CATEGORIES = new Set(["building", "foliage", "decoration", "object", "vehicle"]);
@@ -9297,6 +9307,7 @@ end group
 
     const itemsToRender = menuItems || [
       { label: "Edit Item Attributes", action: () => openModal() },
+      ...(isMapTileItem(selected) ? [{ label: "Tile properties", action: () => showTileProperties(selected) }] : []),
       { separator: true },
       { label: "Cut", action: () => cutSelectedItems() },
       { label: "Copy", action: () => copySelectedItem() },
@@ -9354,6 +9365,20 @@ end group
     if (menuRect.bottom > host.bottom - 4) y -= (menuRect.bottom - host.bottom + 4);
     itemContextMenu.style.left = `${Math.max(4, x)}px`;
     itemContextMenu.style.top = `${Math.max(4, y)}px`;
+  }
+
+  function getMapTileProperties(it){
+    const recordIndex = Math.trunc(Number(it?.kv?.extra_val2));
+    const record = Number.isInteger(recordIndex) ? state.tileRecords[recordIndex] : null;
+    const tileIndex = record ? record.tileIndex : Math.max(0, Math.trunc(Number(it?.kv?.extra_val1) || 0));
+    return { recordIndex, tileIndex, column: tileIndex % 8, row: Math.floor(tileIndex / 8), texture: state.tileTextureName || extractTerrainTileNameFromMis() || "(not specified)" };
+  }
+
+  function showTileProperties(it){
+    const p = getMapTileProperties(it);
+    const details = `Texture: ${p.texture}.tga\nTile: ${p.tileIndex} (column ${p.column + 1}, row ${p.row + 1})\n.til record: ${p.recordIndex}`;
+    window.alert(`Tile properties\n\n${details}`);
+    statusEl.textContent = details.replaceAll("\n", " · ");
   }
 
   const menuBar = document.getElementById("menuBar");
@@ -9576,16 +9601,20 @@ end group
     "file.open": async () => {
       if (window.showOpenFilePicker){
         try{
-          const [handle] = await window.showOpenFilePicker({
-            multiple: false,
+          const handles = await window.showOpenFilePicker({
+            multiple: true,
             types: [{
-              description: "Mission Files",
-              accept: { "text/plain": [".mis"] }
+              description: "Mission and tile files",
+              accept: { "text/plain": [".mis", ".til"] }
             }]
           });
-          if (!handle) return;
-          const file = await handle.getFile();
-          await loadMisFile(file, handle);
+          if (!handles?.length) return;
+          const files = await Promise.all(handles.map(h => h.getFile()));
+          const misIndex = files.findIndex(f => /\.mis$/i.test(f.name));
+          if (misIndex < 0) throw new Error("Select a .mis file (and its same-named .til file when the map uses MapTile items).");
+          const stem = files[misIndex].name.replace(/\.mis$/i, "");
+          const til = files.find(f => f.name.toLowerCase() === `${stem}.til`.toLowerCase()) || null;
+          await loadMisFile(files[misIndex], handles[misIndex], til);
           return;
         } catch (err){
           if (err?.name === "AbortError") return;
@@ -9964,8 +9993,69 @@ end group
     return { text: utf8, encoding: "utf-8" };
   }
 
+  function extractTerrainTileNameFromMis(){
+    const general = String(state.rawText || "").match(/begin\s+general_information\b([\s\S]*?)end\s+general_information/i)?.[1] || "";
+    return String(general.match(/^\s*terrain_tile_tga\s+"?([^\s";]+)/im)?.[1] || "").replace(/\.tga$/i, "");
+  }
+
+  function parseTilFile(buffer){
+    if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 16) throw new Error("Invalid .til file: header is missing.");
+    const view = new DataView(buffer);
+    const signature = String.fromCharCode(...new Uint8Array(buffer, 0, 4));
+    if (signature !== "0lit") throw new Error(`Invalid .til signature '${signature}'.`);
+    const count = view.getUint32(4, true);
+    const declaredSize = view.getUint32(8, true);
+    if (declaredSize !== buffer.byteLength || 16 + count * 12 !== buffer.byteLength) throw new Error("Invalid .til size or record count.");
+    const records = [];
+    for (let i = 0; i < count; i++){
+      const offset = 16 + i * 12;
+      const packed = view.getUint16(offset + 8, true);
+      records.push({
+        flags: view.getInt16(offset, true),
+        x: view.getInt16(offset + 2, true),
+        y: view.getInt16(offset + 6, true),
+        height: packed & 0xff,
+        tileIndex: packed >>> 8,
+        trailing: view.getInt16(offset + 10, true),
+      });
+    }
+    return records;
+  }
+
+  async function loadMapTileResources(misName, companionTilFile){
+    disposeMapTileLayer();
+    state.tileRecords = [];
+    state.tileFileName = "";
+    const mapTiles = state.items.filter(isMapTileItem);
+    if (!mapTiles.length) return;
+    const stem = String(misName || "").replace(/\.mis$/i, "");
+    let tilBuffer = companionTilFile ? await companionTilFile.arrayBuffer() : null;
+    if (!tilBuffer){
+      // Built-in examples are addressable resources; user files must be selected as a same-named pair.
+      tilBuffer = await loadBinaryResource(`resources/BHD/mis_examples/${encodeURIComponent(stem)}.til`);
+    }
+    if (!tilBuffer){
+      addLog(`[tiles] ${stem}.til not loaded; select the same-named .mis and .til files together.`);
+      statusEl.textContent = `MapTile data requires ${stem}.til. Open both files together.`;
+      return;
+    }
+    state.tileRecords = parseTilFile(tilBuffer);
+    state.tileFileName = `${stem}.til`;
+    if (state.tileRecords.length !== mapTiles.length) addLog(`[tiles] warning: ${state.tileRecords.length} .til records for ${mapTiles.length} MapTile items.`);
+    const textureName = extractTerrainTileNameFromMis();
+    state.tileTextureName = textureName;
+    if (!textureName) throw new Error("Map has MapTile items but terrain_tile_tga is empty.");
+    const caseVariants = [textureName, textureName.charAt(0).toUpperCase() + textureName.slice(1)];
+    const candidates = caseVariants.flatMap(name => [`resources/BHD/terrain_tiles/${name}.tga`, `resources/BHD/terrain_tiles/${name}.TGA`]);
+    let textureBuffer = null;
+    for (const path of candidates){ textureBuffer = await loadBinaryResource(path); if (textureBuffer) break; }
+    if (!textureBuffer) throw new Error(`Tile texture ${textureName}.tga was not found.`);
+    state.tileTextureImage = decodeTGA(textureBuffer);
+    addLog(`[tiles] loaded ${state.tileFileName}: ${state.tileRecords.length} records; atlas=${textureName}.tga (${state.tileTextureImage.w}x${state.tileTextureImage.h}).`);
+  }
+
   // File inputs
-  async function loadMisFile(file, fileHandle = null){
+  async function loadMisFile(file, fileHandle = null, companionTilFile = null){
     if (!file) return;
     const documentGeneration = clearGlbItemInstances();
     state.filename = file.name;
@@ -9989,6 +10079,8 @@ end group
     markItemsChanged({ structure: true });
     state.selectedId = null;
     state.multiSelectedIds.clear();
+    try { await loadTerrainFromMis(); } catch (err) { addLog(`[terrain] ${err?.message || err}`); }
+    await loadMapTileResources(file.name, companionTilFile);
     state.itemClipboard = null;
     state.itemClipboardSection = null;
     state.itemClipboardItems = [];
@@ -10008,8 +10100,12 @@ end group
   }
 
   fileMisEl.addEventListener("change", async (e) => {
-    const f = e.target.files?.[0];
-    await loadMisFile(f);
+    const files = Array.from(e.target.files || []);
+    const f = files.find(file => /\.mis$/i.test(file.name));
+    if (!f) return;
+    const stem = f.name.replace(/\.mis$/i, "");
+    const til = files.find(file => file.name.toLowerCase() === `${stem}.til`.toLowerCase()) || null;
+    await loadMisFile(f, null, til);
   });
   // Canvas (WebGL terrain viewer + editor items)
   const cv = document.getElementById("cv");
@@ -10919,6 +11015,98 @@ end group
     items.ready = true;
     addLog('[items_three] item points layer initialized.');
     return true;
+  }
+
+  function disposeMapTileLayer(){
+    const layer = state.threeMapTiles;
+    for (const mesh of layer.meshes || []){
+      layer.scene?.remove(mesh);
+      mesh.geometry?.dispose?.();
+    }
+    layer.meshes = [];
+    layer.texture?.dispose?.();
+    layer.material?.dispose?.();
+    layer.texture = null;
+    layer.material = null;
+    layer.signature = "";
+  }
+
+  function buildMapTileGeometry(items){
+    const { THREE } = state.glb;
+    const subdivisions = 4;
+    const side = subdivisions + 1;
+    const verticesPerTile = side * side;
+    const positions = new Float32Array(items.length * verticesPerTile * 3);
+    const uvs = new Float32Array(items.length * verticesPerTile * 2);
+    const indices = new Uint32Array(items.length * subdivisions * subdivisions * 6);
+    let po = 0, uo = 0, io = 0, vertexBase = 0;
+    for (const it of items){
+      const p = getMapTileProperties(it);
+      const centerX = rawToWorld(it.x, "x"), centerY = rawToWorld(it.y, "y");
+      const col = Math.max(0, Math.min(7, p.column)), row = Math.max(0, Math.min(7, p.row));
+      const inset = 0.5 / Math.max(1, state.tileTextureImage?.w || 512);
+      const u0 = col / 8 + inset, u1 = (col + 1) / 8 - inset;
+      const v0 = row / 8 + inset, v1 = (row + 1) / 8 - inset;
+      for (let gy = 0; gy <= subdivisions; gy++){
+        for (let gx = 0; gx <= subdivisions; gx++){
+          const fx = gx / subdivisions, fy = gy / subdivisions;
+          const x = centerX - 8 + fx * 16, y = centerY + 8 - fy * 16;
+          const terrainHeight = heightAtWorld(x, y, 1.0);
+          positions[po++] = x; positions[po++] = y;
+          positions[po++] = Number.isFinite(terrainHeight) && terrainHeight > -1e8 ? terrainHeight + 0.06 : getItemWorldZ(it);
+          uvs[uo++] = u0 + (u1 - u0) * fx;
+          uvs[uo++] = v0 + (v1 - v0) * fy;
+        }
+      }
+      for (let gy = 0; gy < subdivisions; gy++) for (let gx = 0; gx < subdivisions; gx++){
+        const a = vertexBase + gy * side + gx, b = a + 1, c = a + side, d = c + 1;
+        indices[io++] = a; indices[io++] = c; indices[io++] = b;
+        indices[io++] = b; indices[io++] = c; indices[io++] = d;
+      }
+      vertexBase += verticesPerTile;
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
+  function ensureMapTileLayerReady(){
+    if (!state.glb.ready || !state.tileRecords.length || !state.tileTextureImage?.pixels) return false;
+    const items = state.items.filter(isMapTileItem);
+    const signature = `${state.tileFileName}:${items.length}:${state.tileTextureName}:${state.terrainLoad.generation}`;
+    const layer = state.threeMapTiles;
+    if (layer.signature === signature && layer.meshes.length) return true;
+    disposeMapTileLayer();
+    const { THREE } = state.glb;
+    layer.scene ||= new THREE.Scene();
+    const image = state.tileTextureImage;
+    layer.texture = new THREE.DataTexture(image.pixels, image.w, image.h, THREE.RGBAFormat, THREE.UnsignedByteType);
+    layer.texture.needsUpdate = true;
+    layer.texture.flipY = true;
+    layer.texture.colorSpace = THREE.SRGBColorSpace;
+    layer.texture.minFilter = THREE.LinearFilter;
+    layer.texture.magFilter = THREE.LinearFilter;
+    layer.material = new THREE.MeshBasicMaterial({ map: layer.texture, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+    // Split large maps to stay within conservative GPU index/vertex limits.
+    for (let start = 0; start < items.length; start += 2000){
+      const mesh = new THREE.Mesh(buildMapTileGeometry(items.slice(start, start + 2000)), layer.material);
+      mesh.frustumCulled = true;
+      layer.scene.add(mesh);
+      layer.meshes.push(mesh);
+    }
+    layer.signature = signature;
+    return true;
+  }
+
+  function drawMapTilesThree(P, V){
+    if (!ensureMapTileLayerReady()) return;
+    applyThreeCameraFromPV(P, V);
+    state.glb.renderer.resetState();
+    state.glb.renderer.render(state.threeMapTiles.scene, state.glb.camera);
+    state.glb.renderer.resetState();
   }
 
   function updateThreeItemGroup(group, srcBuf, srcLen){
