@@ -4395,7 +4395,7 @@ end group
   function insertGraphicAvailability(def){
     const filename = insertGraphicFilename(def);
     if (!filename) return "missing";
-    if (state.availableGlbFiles instanceof Set){
+    if (state.availableGlbFiles instanceof Set || state.availableGlbFiles instanceof Map){
       return state.availableGlbFiles.has(filename) ? "available" : "missing";
     }
     return state.glbAvailability.get(filename) || "unknown";
@@ -4405,10 +4405,10 @@ end group
     if (!state.editorFolderHandle) return null;
     try{
       let dir = state.editorFolderHandle;
-      for (const part of ["resources", "3d_items"]) dir = await dir.getDirectoryHandle(part);
-      const files = new Set();
+      for (const part of ["resources", "BHD", "3d_items"]) dir = await dir.getDirectoryHandle(part);
+      const files = new Map();
       for await (const [fileName, handle] of dir.entries()){
-        if (handle.kind === "file" && /\.glb$/i.test(fileName)) files.add(fileName.toLowerCase());
+        if (handle.kind === "file" && /\.glb$/i.test(fileName)) files.set(fileName.toLowerCase(), fileName);
       }
       addLog(`[3d_items] folder indexed: ${files.size} GLB files`);
       return files;
@@ -11589,11 +11589,16 @@ end group
 
 
   async function loadGraphicTemplate(graphic){
-    const key = String(graphic || "").trim();
-    if (!key) return null;
+    const requested = String(graphic || "").trim();
+    if (!requested) return null;
+    const requestedFilename = /\.glb$/i.test(requested) ? requested : `${requested}.glb`;
+    const normalizedFilename = requestedFilename.toLowerCase();
+    const key = normalizedFilename.replace(/\.glb$/, "");
     if (state.glb.templateByGraphic.has(key)) return state.glb.templateByGraphic.get(key);
 
-    const path = `resources/BHD/3d_items/${key}.glb`;
+    const indexedFilename = state.availableGlbFiles?.get?.(normalizedFilename);
+    const actualFilename = typeof indexedFilename === "string" && indexedFilename ? indexedFilename : requestedFilename;
+    const path = `resources/BHD/3d_items/${actualFilename}`;
     try {
       const glbData = await loadBinaryResource(path);
       if (!glbData) throw new Error(`Failed to read GLB: ${path}`);
@@ -11655,12 +11660,12 @@ end group
     } catch (err) {
       const placeholder = createMissingGlbPlaceholder(key);
       state.glb.templateByGraphic.set(key, placeholder);
-      state.glbAvailability.set(`${key}.glb`.toLowerCase(), "missing");
-      const failedDef = state.defsSorted.find(def => insertGraphicFilename(def) === `${key}.glb`.toLowerCase());
+      state.glbAvailability.set(normalizedFilename, "missing");
+      const failedDef = state.defsSorted.find(def => insertGraphicFilename(def) === normalizedFilename);
       if (failedDef) updateInsertGlbOption(failedDef);
       if (!state.glb.missingGraphics.has(key)){
         state.glb.missingGraphics.add(key);
-        addLog(`[3d_items] GLB missing or invalid: ${path}`);
+        addLog(`[3d_items] GLB missing or invalid: requested=${requestedFilename} path=${path}`);
       }
       return placeholder;
     }
@@ -12117,7 +12122,19 @@ end group
     return exactMatch || exactTokenMatch || aliasMatch || aliasTokenMatch;
   }
 
-  async function createGlbInstanceWithAddedWeapons(graphic, def, generation, visited = new Set()){
+  function createAddedWeaponStats(){
+    return {
+      requested: 0,
+      attached: 0,
+      missingDef: 0,
+      missingGraphic: 0,
+      missingGlb: 0,
+      missingSocket: 0,
+      cycles: 0,
+    };
+  }
+
+  async function createGlbInstanceWithAddedWeapons(graphic, def, generation, visited = new Set(), stats = createAddedWeaponStats()){
     const template = await loadGraphicTemplate(graphic);
     if (generation !== state.glb.documentGeneration || !template) return null;
     const instance = template.clone(true);
@@ -12129,20 +12146,50 @@ end group
     for (const entry of def?.addedWeapons || []){
       const socket = String(entry?.socket || "").trim();
       const addedDefId = String(entry?.defId || "").trim();
-      if (!socket || !addedDefId || nextVisited.has(addedDefId)) continue;
+      if (!socket || !addedDefId) continue;
+      stats.requested += 1;
+      if (nextVisited.has(addedDefId)){
+        stats.cycles += 1;
+        addLog(`[addeweap] cycle ignored: parent=${defId || '<unknown>'} socket=${socket} def=${addedDefId}`);
+        continue;
+      }
       const addedDef = state.defsById.get(addedDefId) || null;
+      if (!addedDef){
+        stats.missingDef += 1;
+        addLog(`[addeweap] definition missing: parent=${defId || '<unknown>'} socket=${socket} def=${addedDefId}`);
+        continue;
+      }
       const addedGraphic = String(addedDef?.graphic || "").trim();
-      if (!addedDef || !addedGraphic) continue;
-      const child = await createGlbInstanceWithAddedWeapons(addedGraphic, addedDef, generation, nextVisited);
+      if (!addedGraphic){
+        stats.missingGraphic += 1;
+        addLog(`[addeweap] graphic missing: parent=${defId || '<unknown>'} socket=${socket} def=${addedDefId}`);
+        continue;
+      }
+      const child = await createGlbInstanceWithAddedWeapons(addedGraphic, addedDef, generation, nextVisited, stats);
       if (!child) continue;
       const scale = Number(addedDef.graphicScale);
       const normalizedScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
-      child.scale.set(normalizedScale, normalizedScale, normalizedScale);
+      child.position.set(0, 0, 0);
+      child.quaternion.identity();
+      applyItemModelTransform(child, 0, 0, normalizedScale);
       child.userData.addedWeaponDefId = addedDefId;
       child.userData.addedWeaponSocket = socket;
       const attachment = findGlbAttachmentSocket(instance, socket) || instance;
       child.userData.addedWeaponSocketFound = attachment !== instance;
+      child.userData.addedWeaponSocketNode = attachment.name || '<root>';
       attachment.add(child);
+      if (child.userData.missingGraphic){
+        stats.missingGlb += 1;
+        addLog(`[addeweap] GLB missing or invalid: parent=${defId || '<unknown>'} socket=${socket} def=${addedDefId} graphic=${addedGraphic}`);
+      } else {
+        stats.attached += 1;
+      }
+      if (attachment === instance){
+        stats.missingSocket += 1;
+        addLog(`[addeweap] socket missing, attached to root: parent=${defId || '<unknown>'} socket=${socket} def=${addedDefId} graphic=${addedGraphic}`);
+      } else {
+        addLog(`[addeweap] attached: parent=${defId || '<unknown>'} socket=${socket} node=${attachment.name || '<unnamed>'} def=${addedDefId} graphic=${addedGraphic}`);
+      }
     }
     return instance;
   }
@@ -12418,9 +12465,11 @@ end group
         }
 
         if (!instance){
-          instance = await createGlbInstanceWithAddedWeapons(graphic, def, generation);
+          const addedWeaponStats = createAddedWeaponStats();
+          instance = await createGlbInstanceWithAddedWeapons(graphic, def, generation, new Set(), addedWeaponStats);
           if (generation !== state.glb.documentGeneration) return;
           if (!instance) continue;
+          instance.userData.addedWeaponStats = addedWeaponStats;
           applySolidTintToGlbObject(instance, getItemTint(it));
           applyWaypointColorToGlbObject(instance, it);
           applyAreaTriggerColorToGlbObject(instance, it);
@@ -12447,6 +12496,11 @@ end group
         .map(([graphic, count]) => `${graphic}:${count}`);
       const nonRenderable = stats.totalItems - stats.renderableItems;
       const finalInstances = state.glb.itemInstances.size;
+      const addedWeaponStats = createAddedWeaponStats();
+      for (const instance of state.glb.itemInstances.values()){
+        const instanceStats = instance?.userData?.addedWeaponStats || {};
+        for (const key of Object.keys(addedWeaponStats)) addedWeaponStats[key] += Number(instanceStats[key]) || 0;
+      }
       const syncReport = {
         totalItems: stats.totalItems,
         renderableItems: stats.renderableItems,
@@ -12459,6 +12513,13 @@ end group
         skippedMissingGraphicInDefAndItem: stats.skippedMissingGraphicInDefAndItem,
         distinctGraphics: stats.graphicsFrequency.size,
         topGraphics,
+        addedWeaponsRequested: addedWeaponStats.requested,
+        addedWeaponsAttached: addedWeaponStats.attached,
+        addedWeaponsMissingDef: addedWeaponStats.missingDef,
+        addedWeaponsMissingGraphic: addedWeaponStats.missingGraphic,
+        addedWeaponsMissingGlb: addedWeaponStats.missingGlb,
+        addedWeaponsMissingSocket: addedWeaponStats.missingSocket,
+        addedWeaponsCycles: addedWeaponStats.cycles,
         missingGlbFiles: Array.from(state.glb.missingGraphics.values())
           .sort((a,b) => a.localeCompare(b))
           .map((graphic) => `resources/BHD/3d_items/${graphic}.glb`),
@@ -12469,6 +12530,7 @@ end group
       state.glb.lastStats = syncReport;
       state.glb.lastSyncReport = syncReport;
       addLog(`[3d_items] cobertura GLB: total=${syncReport.totalItems} renderizaveis=${syncReport.renderableItems} instancias=${syncReport.finalInstances} sem_graphic=${syncReport.skippedMissingGraphic} sem_type_id=${syncReport.skippedMissingTypeId} sem_def_para_type=${syncReport.skippedDefNotFoundForTypeId} sem_graphic_def_item=${syncReport.skippedMissingGraphicInDefAndItem} ausentes_pos_sync=${syncReport.missingInstancesAfterSync} graficos_distintos=${syncReport.distinctGraphics} top=${topGraphics.join(', ') || '<none>'}`);
+      addLog(`[addeweap] requested=${syncReport.addedWeaponsRequested} attached=${syncReport.addedWeaponsAttached} missing_def=${syncReport.addedWeaponsMissingDef} missing_graphic=${syncReport.addedWeaponsMissingGraphic} missing_glb=${syncReport.addedWeaponsMissingGlb} missing_socket=${syncReport.addedWeaponsMissingSocket} cycles=${syncReport.addedWeaponsCycles}`);
       addLog(`[3d_items] itens sem_def_para_type (${syncReport.itemsMissingDefForType.length}): ${formatGlbStatItems(syncReport.itemsMissingDefForType)}`);
       addLog(`[3d_items] itens sem_graphic_def_item (${syncReport.itemsMissingGraphicInDefAndItem.length}): ${formatGlbStatItems(syncReport.itemsMissingGraphicInDefAndItem)}`);
       if (!syncReport.missingGlbFiles.length){
