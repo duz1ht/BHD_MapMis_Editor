@@ -2585,6 +2585,7 @@ end group
       dragPreviewIds: new Set(),
       dragPreviewGroup: null,
       dragPreviewMeshes: new Map(),
+      pendingOverlayRebuild: 0,
     },
     threeOverlays: {
       scene: null,
@@ -6453,6 +6454,7 @@ end group
   function restoreHistoryText(text){
     state.undoRestoring = true;
     state.rawText = text;
+    const hadMapTiles=state.items.some(isMapTileItem);
     const parsed = parseMIS(text);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
@@ -6469,6 +6471,7 @@ end group
       modalOverlay.setAttribute("aria-hidden", "true");
     }
     markItemsChanged({ structure: true });
+    if(hadMapTiles||state.items.some(isMapTileItem))scheduleMapTileOverlayRebuild();
     buildLayerOptions();
     buildWaypointList();
     buildGroupOptions();
@@ -8516,12 +8519,15 @@ end group
     if (!copySelectedItem()) return false;
 
     const cutIds = new Set(state.itemClipboardItems.map(entry => entry.item.id));
+    const cutMapTile = state.itemClipboardItems.some(entry => isMapTileItem(entry.item));
+    if(cutMapTile&&Array.from(cutIds).some(id=>state.mapTiles.dragPreviewIds.has(id)))clearMapTileDragPreview(false);
     const cutStarts = new Set(state.items.filter(it => cutIds.has(it.id)).map(it => it.start));
     for (const id of cutIds) removeItemFromSpatialIndex(id);
     state.items = state.items.filter(it => !cutIds.has(it.id));
     state.sectionBlocks = state.sectionBlocks.filter(sec => !(sec.kind === "item" && cutStarts.has(sec.start)));
     normalizeItemBeginLineSequence();
     markItemsChanged({ structure: true });
+    if(cutMapTile)scheduleMapTileOverlayRebuild();
 
     state.selectedId = null;
     state.multiSelectedIds.clear();
@@ -8566,6 +8572,7 @@ end group
       pastedItems.push(pasted);
     }
     markItemsChanged({ structure: true });
+    if(pastedItems.some(isMapTileItem))scheduleMapTileOverlayRebuild();
     const pastedIds = pastedItems.map(it => it.id);
     state.selectedId = pastedIds[pastedIds.length - 1] ?? null;
     state.multiSelectedIds = new Set(pastedIds);
@@ -8603,17 +8610,21 @@ end group
     const sec = getItemSectionByStartFast(it.start);
     const copy = createPastedItemFrom(it, sec || null, { offset: true });
     markItemsChanged({ structure: true });
+    if(isMapTileItem(copy))scheduleMapTileOverlayRebuild();
     statusEl.textContent = `Duplicado: #${it.id} -> #${copy.id}`;
   });
 
   function deleteSelectedItem(){
     const it = getSelected();
     if (!it) return;
+    const deletingMapTile=isMapTileItem(it);
+    if(deletingMapTile&&state.mapTiles.dragPreviewIds.has(it.id))clearMapTileDragPreview(false);
     removeItemFromSpatialIndex(it.id);
     state.items = state.items.filter(x => x.id !== it.id);
     state.sectionBlocks = state.sectionBlocks.filter(s => !(s.kind === "item" && s.start === it.start));
     normalizeItemBeginLineSequence();
     markItemsChanged({ structure: true });
+    if(deletingMapTile)scheduleMapTileOverlayRebuild();
     state.selectedId = null;
     state.multiSelectedIds.clear();
     closeItemContextMenu();
@@ -10196,10 +10207,11 @@ end group
   }
 
   function resetMapTiles(){
+    if(state.mapTiles.pendingOverlayRebuild)cancelAnimationFrame(state.mapTiles.pendingOverlayRebuild);
     clearMapTileDragPreview(false);
     state.mapTiles.generation++;
     state.mapTiles.overlayTexture?.dispose?.();
-    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map()});
+    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),pendingOverlayRebuild:0});
     state.threeTerrain.dirty=true;
   }
 
@@ -10287,6 +10299,17 @@ end group
     const texture=new THREE.DataTexture(pixels,resolution,resolution,THREE.RGBAFormat,THREE.UnsignedByteType);texture.flipY=false;texture.wrapS=THREE.ClampToEdgeWrapping;texture.wrapT=THREE.ClampToEdgeWrapping;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.needsUpdate=true;
     state.mapTiles.overlayTexture=texture;state.mapTiles.overlayResolution=resolution;state.mapTiles.paintedTiles=painted;state.mapTiles.lastBuildMs=performance.now()-started;state.threeTerrain.dirty=true;
     addLog(`[map_tiles] material overlay rebuilt: tiles=${painted}, resolution=${resolution}x${resolution}, time=${state.mapTiles.lastBuildMs.toFixed(2)}ms`);
+  }
+
+  function scheduleMapTileOverlayRebuild(){
+    if(state.mapTiles.pendingOverlayRebuild)return;
+    const generation=state.mapTiles.generation;
+    state.mapTiles.pendingOverlayRebuild=requestAnimationFrame(()=>{
+      state.mapTiles.pendingOverlayRebuild=0;
+      if(generation!==state.mapTiles.generation||!state.mapTiles.atlasImage)return;
+      buildMapTileOverlay();
+      requestRender();
+    });
   }
 
   function createMapTilePreviewTexture(tileIndex){
