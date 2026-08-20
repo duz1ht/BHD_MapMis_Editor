@@ -2493,6 +2493,7 @@ end group
     isLocalRuntime: window.location.protocol === "file:",
     editorFolderHandle: null,
     currentMisFileHandle: null,
+    currentTilFileHandle: null,
     generalTerrainNames: [],
     generalInfoLoadGeneration: 0,
     soundGraphicFromOtherItems: "",
@@ -2517,6 +2518,7 @@ end group
     undoStack: [],
     redoStack: [],
     undoCurrentText: "",
+    undoCurrentTilFlags: [],
     undoCaptureTimer: 0,
     undoRestoring: false,
     undoTransactionDepth: 0,
@@ -2578,6 +2580,7 @@ end group
       paintedTiles: 0,
       lastBuildMs: 0,
       records: [],
+      headerReserved: 0,
       byPosition: new Map(),
       tileSize: 1,
       error: "",
@@ -2586,6 +2589,7 @@ end group
       dragPreviewGroup: null,
       dragPreviewMeshes: new Map(),
       pendingOverlayRebuild: 0,
+      dirty: false,
     },
     threeOverlays: {
       scene: null,
@@ -6410,6 +6414,7 @@ end group
     state.undoStack = [];
     state.redoStack = [];
     state.undoCurrentText = text == null ? getCurrentMisText() : text;
+    state.undoCurrentTilFlags = state.mapTiles.records.map(record=>record.flags);
     state.undoRestoring = false;
     state.undoTransactionDepth = 0;
   }
@@ -6419,15 +6424,18 @@ end group
     state.undoCaptureTimer = 0;
     if (state.undoRestoring || !state.rawText) return;
     const currentText = getCurrentMisText();
+    const currentTilFlags = state.mapTiles.records.map(record=>record.flags);
     if (!state.undoCurrentText){
       state.undoCurrentText = currentText;
+      state.undoCurrentTilFlags = currentTilFlags;
       return;
     }
-    if (currentText === state.undoCurrentText) return;
-    state.undoStack.push(state.undoCurrentText);
+    if (currentText === state.undoCurrentText && currentTilFlags.length === state.undoCurrentTilFlags.length && currentTilFlags.every((flag,index)=>flag===state.undoCurrentTilFlags[index])) return;
+    state.undoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice()});
     if (state.undoStack.length > UNDO_HISTORY_LIMIT) state.undoStack.shift();
     state.redoStack = [];
     state.undoCurrentText = currentText;
+    state.undoCurrentTilFlags = currentTilFlags;
   }
 
   function scheduleUndoCapture(){
@@ -6451,7 +6459,8 @@ end group
     }
   }
 
-  function restoreHistoryText(text){
+  function restoreHistoryText(snapshot){
+    const text=typeof snapshot==='string'?snapshot:snapshot.text;
     state.undoRestoring = true;
     state.rawText = text;
     const hadMapTiles=state.items.some(isMapTileItem);
@@ -6461,6 +6470,10 @@ end group
     disposeAreaTriggerVolumes();
     state.areaTriggerVolumes.signature = "";
     state.undoCurrentText = text;
+    const tilFlags=Array.isArray(snapshot?.tilFlags)?snapshot.tilFlags:[],tilChanged=tilFlags.some((flag,index)=>state.mapTiles.records[index]?.flags!==flag);
+    for(let i=0;i<tilFlags.length&&i<state.mapTiles.records.length;i++)state.mapTiles.records[i].flags=tilFlags[i];
+    state.undoCurrentTilFlags=state.mapTiles.records.map(record=>record.flags);
+    if(tilChanged)state.mapTiles.dirty=true;
     state.selectedId = null;
     state.multiSelectedIds.clear();
     state.selectedWaypointMarkerIds.clear();
@@ -6484,26 +6497,26 @@ end group
 
   function undoLastChange(){
     captureUndoState();
-    const previousText = state.undoStack.pop();
-    if (previousText == null){
+    const previousState = state.undoStack.pop();
+    if (previousState == null){
       statusEl.textContent = "Nothing to undo.";
       return;
     }
-    state.redoStack.push(state.undoCurrentText);
-    restoreHistoryText(previousText);
+    state.redoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice()});
+    restoreHistoryText(previousState);
     statusEl.textContent = `Undo complete. ${state.undoStack.length} earlier change${state.undoStack.length === 1 ? "" : "s"} available.`;
   }
 
   function redoLastChange(){
     captureUndoState();
-    const nextText = state.redoStack.pop();
-    if (nextText == null){
+    const nextState = state.redoStack.pop();
+    if (nextState == null){
       statusEl.textContent = "Nothing to redo.";
       return;
     }
-    state.undoStack.push(state.undoCurrentText);
+    state.undoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice()});
     if (state.undoStack.length > UNDO_HISTORY_LIMIT) state.undoStack.shift();
-    restoreHistoryText(nextText);
+    restoreHistoryText(nextState);
     statusEl.textContent = `Redo complete. ${state.redoStack.length} later change${state.redoStack.length === 1 ? "" : "s"} available.`;
   }
 
@@ -7799,6 +7812,14 @@ end group
   }
   function downloadText(name, text){
     const blob = new Blob([text], { type:"text/plain;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  function downloadBinary(name, data){
+    const blob = new Blob([data], { type:"application/octet-stream" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = name;
@@ -9487,6 +9508,7 @@ end group
     state.multiSelectedIds.clear();
     state.filename = "";
     state.currentMisFileHandle = null;
+    state.currentTilFileHandle = null;
     state.itemClipboard = null;
     state.itemClipboardSection = null;
     state.itemClipboardItems = [];
@@ -9541,7 +9563,8 @@ end group
         await writable.close();
         state.currentMisFileHandle = handle;
         state.filename = handle.name || state.filename;
-        statusEl.textContent = "File saved.";
+        const tilResult=await saveTilCompanion(forcePicker);
+        if(tilResult!==false)statusEl.textContent = tilResult ? "MIS and TIL files saved." : "File saved.";
         return true;
       } catch (err){
         if (err?.name === "AbortError"){
@@ -9554,7 +9577,8 @@ end group
       }
     }
     downloadText(state.filename || "edited.mis", out);
-    statusEl.textContent = "File saved.";
+    const tilResult=await saveTilCompanion(forcePicker);
+    if(tilResult!==false)statusEl.textContent = tilResult ? "MIS and TIL files downloaded." : "File saved.";
     return true;
   }
 
@@ -10205,12 +10229,39 @@ end group
     if(magic!=="0lit")throw new Error(`Invalid TIL signature '${magic}'`);
     const count=d.getUint32(4,true),declaredSize=d.getUint32(8,true),expected=16+count*12;
     if(declaredSize!==buf.byteLength||expected!==buf.byteLength)throw new Error(`Invalid TIL size (declared ${declaredSize}, expected ${expected}, actual ${buf.byteLength})`);
-    const records=[],byPosition=new Map();
+    const records=[],byPosition=new Map(),headerReserved=d.getUint32(12,true);
     for(let i=0,off=16;i<count;i++,off+=12){
       const record={x:d.getInt32(off,true),y:d.getInt32(off+4,true),tileIndex:d.getUint8(off+8),flags:d.getUint8(off+9),reserved:d.getUint16(off+10,true),recordIndex:i};
       const key=mapTilePositionKey(record.x,record.y);if(byPosition.has(key))addLog(`[map_tiles] duplicate TIL position ${key}`);else byPosition.set(key,record);records.push(record);
     }
-    return {records,byPosition};
+    return {records,byPosition,headerReserved};
+  }
+
+  function serializeTil(records=state.mapTiles.records){
+    const out=new ArrayBuffer(16+records.length*12),d=new DataView(out);
+    for(const [i,ch] of Array.from("0lit").entries())d.setUint8(i,ch.charCodeAt(0));
+    d.setUint32(4,records.length,true);d.setUint32(8,out.byteLength,true);d.setUint32(12,Number(state.mapTiles.headerReserved)||0,true);
+    for(let i=0,off=16;i<records.length;i++,off+=12){const record=records[i];d.setInt32(off,record.x,true);d.setInt32(off+4,record.y,true);d.setUint8(off+8,record.tileIndex);d.setUint8(off+9,record.flags);d.setUint16(off+10,record.reserved,true);}
+    return out;
+  }
+
+  async function writeBinaryToEditorFolder(path,data){
+    if(!state.editorFolderHandle)return false;
+    const parts=String(path||"").split("/").filter(Boolean);let dir=state.editorFolderHandle;
+    for(let i=0;i<parts.length-1;i++)dir=await dir.getDirectoryHandle(parts[i]);
+    const handle=await dir.getFileHandle(parts[parts.length-1],{create:true}),writable=await handle.createWritable();
+    await writable.write(data);await writable.close();return true;
+  }
+
+  async function saveTilCompanion(forcePicker=false){
+    if(!state.mapTiles.dirty||!state.mapTiles.records.length)return null;
+    const name=String(state.filename||"edited.mis").replace(/\.mis$/i,"")+".til",data=serializeTil();
+    try{
+      if(state.editorFolderHandle){await writeBinaryToEditorFolder(`resources/BHD/mis_examples/${name}`,data);}
+      else if(window.showSaveFilePicker){const handle=(!forcePicker&&state.currentTilFileHandle)?state.currentTilFileHandle:await window.showSaveFilePicker({suggestedName:name,types:[{description:"Terrain Tile Files",accept:{"application/octet-stream":[".til"]}}]});const writable=await handle.createWritable();await writable.write(data);await writable.close();state.currentTilFileHandle=handle;}
+      else downloadBinary(name,data);
+      state.mapTiles.dirty=false;state.undoCurrentTilFlags=state.mapTiles.records.map(record=>record.flags);return true;
+    }catch(err){if(err?.name==='AbortError')addLog("TIL save canceled; MIS was saved but tile rotations remain unsaved.");else addLog(`ERROR saving .til: ${err?.message||"unknown error"}`);statusEl.textContent="MIS saved, but the companion TIL was not saved.";return false;}
   }
 
   function resetMapTiles(){
@@ -10218,7 +10269,7 @@ end group
     clearMapTileDragPreview(false);
     state.mapTiles.generation++;
     state.mapTiles.overlayTexture?.dispose?.();
-    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),pendingOverlayRebuild:0});
+    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),pendingOverlayRebuild:0,dirty:false});
     state.threeTerrain.dirty=true;
   }
 
@@ -10237,7 +10288,8 @@ end group
       if(!tilBuf&&!state.isLocalRuntime)tilBuf=await loadBinaryResource(`resources/BHD/mis_examples/${encodeURIComponent(tilName)}`);
       if(!tilBuf)throw new Error(`Required companion file '${tilName}' was not found next to the MIS`);
       if(generation!==state.mapTiles.generation)return;
-      const parsed=parseTil(tilBuf);state.mapTiles.filename=tilName;state.mapTiles.records=parsed.records;state.mapTiles.byPosition=parsed.byPosition;
+      const parsed=parseTil(tilBuf);state.mapTiles.filename=tilName;state.mapTiles.records=parsed.records;state.mapTiles.headerReserved=parsed.headerReserved;state.mapTiles.byPosition=parsed.byPosition;
+      state.undoCurrentTilFlags=parsed.records.map(record=>record.flags);
       const sizes=mapItems.map(it=>{const r=parsed.records[Math.trunc(Number(it.kv?.extra_val2))];return r?Math.max(Math.abs(it.x-r.x),Math.abs(it.y-r.y))*2/65536:0;}).filter(v=>Number.isFinite(v)&&v>0).sort((a,b)=>a-b);
       state.mapTiles.tileSize=sizes.length?sizes[Math.floor(sizes.length/2)]:16;
       let atlasBase=generalTerrainTileName();if(!atlasBase)throw new Error("general_information has no Terrain_tile_tga");if(!/\.tga$/i.test(atlasBase))atlasBase+=".tga";
@@ -10266,6 +10318,19 @@ end group
     if(orientation&0x02)v=1-v;
     if(orientation&0x04){const oldU=u;u=1-v;v=oldU;}
     return {u,v};
+  }
+
+  function mapTileOrientationSignature(flags){
+    return [[0,0],[1,0],[0,1]].map(([u,v])=>{const p=transformMapTileUv(u,v,flags);return `${p.u},${p.v}`;}).join(";");
+  }
+
+  function rotateMapTileFlags(flags,quarterTurns){
+    let turns=((Math.trunc(quarterTurns)%4)+4)%4,orientation=Number(flags)&0x07;
+    while(turns--){
+      const target=[[0,0],[1,0],[0,1]].map(([u,v])=>{const p=transformMapTileUv(v,1-u,orientation);return `${p.u},${p.v}`;}).join(";");
+      orientation=Array.from({length:8},(_,candidate)=>candidate).find(candidate=>mapTileOrientationSignature(candidate)===target)??orientation;
+    }
+    return (Number(flags)&0xf8)|orientation;
   }
 
   function mapTileFlagLabels(flags){
@@ -12657,7 +12722,7 @@ end group
     const onlyMapTiles=items.length>0&&items.every(isMapTileItem);
     for(const [name,root] of state.glb.gizmoHandles){
       root.visible=state.transformMode==='translate'?name.startsWith('move'):name.startsWith('rot');
-      if(onlyMapTiles&&(name.startsWith('rot')||name==='moveZ'||name==='moveXZ'||name==='moveYZ'))root.visible=false;
+      if(onlyMapTiles&&((name.startsWith('rot')&&name!=='rotZ')||name==='moveZ'||name==='moveXZ'||name==='moveYZ'))root.visible=false;
     }
     updateGizmoMaterials();
     state.gizmoVisual={mode:state.transformMode,center:{world:center},basis,handles:{moveX:{kind:'axis',axis:basis.x},moveY:{kind:'axis',axis:basis.y},moveZ:{kind:'axis',axis:basis.z},moveXY:{kind:'plane',axisA:basis.x,axisB:basis.y},moveXZ:{kind:'plane',axisA:basis.x,axisB:basis.z},moveYZ:{kind:'plane',axisA:basis.y,axisB:basis.z},rotX:{kind:'ring',axis:basis.x},rotZ:{kind:'ring',axis:basis.z}}};
@@ -13680,8 +13745,8 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     if(!isGizmoHandleInteractive(mode))return null;
     const items=itemIds.map(id=>getItemByIdFast(id)).filter(Boolean),visual=state.gizmoVisual,h=visual?.handles?.[mode],pivot=visual?.center?.world;
     if(!items.length||!h||!pivot)return null;
-    const ray=screenRay(clientX-cv.getBoundingClientRect().left,clientY-cv.getBoundingClientRect().top),snapshots=items.map(it=>({id:it.id,x:it.x,y:it.y,z:it.z,heading:Number(it.heading)||0,pitch:Number(it.pitch)||0,world:vec3(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it))}));
-    const drag={mode,itemIds,lastX:clientX,lastY:clientY,pivot,basis:visual.basis,handle:h,snapshots,label:''};
+    const ray=screenRay(clientX-cv.getBoundingClientRect().left,clientY-cv.getBoundingClientRect().top),snapshots=items.map(it=>{const record=mapTileRecordForItem(it);return {id:it.id,x:it.x,y:it.y,z:it.z,heading:Number(it.heading)||0,pitch:Number(it.pitch)||0,tilRecordIndex:record?.recordIndex,tilFlags:record?.flags,world:vec3(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it))};});
+    const drag={mode,itemIds,lastX:clientX,lastY:clientY,pivot,basis:visual.basis,handle:h,snapshots,label:'',onlyMapTiles:items.every(isMapTileItem)};
     if(h.kind==='axis')drag.startScalar=rayAxisParameter(ray,pivot,h.axis);
     if(h.kind==='plane'){const normal=vec3Norm(vec3Cross(h.axisA,h.axisB));drag.startPoint=rayPlanePoint(ray,pivot,normal);drag.planeNormal=normal;}
     if(h.kind==='ring'){
@@ -13706,6 +13771,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }else if(d.handle.kind==='ring'){
       const hit=rayPlanePoint(ray,d.pivot,d.handle.axis);if(!hit||!d.lastVector)return;const cur=vec3Norm(vec3Sub(hit,d.pivot)),deltaAngle=Math.atan2(vec3Dot(d.handle.axis,vec3Cross(d.lastVector,cur)),vec3Dot(d.lastVector,cur));d.accumulatedAngle+=deltaAngle;d.lastVector=cur;
       const rawDegrees=d.accumulatedAngle*180/Math.PI,reference=d.snapshots[0];
+      if(d.onlyMapTiles){const quarterTurns=Math.round(gizmoRotationValueDegrees(d.mode,rawDegrees)/90),appliedDegrees=quarterTurns*90,seen=new Set();let changed=false;for(const start of d.snapshots){if(!Number.isInteger(start.tilRecordIndex)||seen.has(start.tilRecordIndex))continue;seen.add(start.tilRecordIndex);const record=state.mapTiles.records[start.tilRecordIndex],nextFlags=rotateMapTileFlags(start.tilFlags,quarterTurns);if(record&&record.flags!==nextFlags){record.flags=nextFlags;changed=true;}}d.appliedAngle=gizmoRotationGeometryDegrees(d.mode,appliedDegrees)*Math.PI/180;d.currentVector=vec3Norm(rotateAroundAxis(d.startVector,d.handle.axis,d.appliedAngle));d.label=`${appliedDegrees.toFixed(0)}°`;if(changed){state.mapTiles.dirty=true;buildMapTileOverlay();updateMapTileDragPreview();}updateItemGizmo();return;}
       let valueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);
       if(state.rotationSnapEnabled){if(state.rotationSnapMode==='absolute'){const initial=d.mode==='rotX'?reference.pitch:reference.heading;valueDegrees=snapValue(initial+valueDegrees,state.rotationSnap)-initial;}else valueDegrees=snapValue(valueDegrees,state.rotationSnap);}
       const geometryDegrees=gizmoRotationGeometryDegrees(d.mode,valueDegrees),angle=geometryDegrees*Math.PI/180;d.appliedAngle=angle;d.currentVector=vec3Norm(rotateAroundAxis(d.startVector,d.handle.axis,angle));d.label=`${valueDegrees.toFixed(1)}°`;
