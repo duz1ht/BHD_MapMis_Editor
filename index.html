@@ -10237,6 +10237,28 @@ end group
     const index=Math.trunc(Number(it?.kv?.extra_bheight));return index>=0&&index<64?index:null;
   }
 
+  // MapTiles are two-dimensional terrain decals. Keep their editable footprint
+  // independent from the item's stored Z (and from the invisible GLB marker).
+  function getMapTileFootprint(it){
+    if(!isMapTileItem(it))return null;
+    const record=mapTileRecordForItem(it),size=Number(state.mapTiles.tileSize);
+    if(!record||!Number.isFinite(size)||size<=0)return null;
+    const itemX=rawToWorld(it?.x,"x"),itemY=rawToWorld(it?.y,"y");
+    const hasItemPosition=Number.isFinite(Number(it?.x))&&Number.isFinite(Number(it?.y));
+    const left=hasItemPosition?itemX-size*.5:rawToWorld(record.x,"x");
+    const top=hasItemPosition?itemY+size*.5:rawToWorld(record.y,"y");
+    return {left,right:left+size,bottom:top-size,top,size,centerX:left+size*.5,centerY:top-size*.5};
+  }
+
+  function getItemInteractionAnchor(it){
+    const footprint=getMapTileFootprint(it);
+    if(footprint){
+      const terrainZ=heightAtWorld(footprint.centerX,footprint.centerY,1.0);
+      return vec3(footprint.centerX,footprint.centerY,Number.isFinite(terrainZ)&&terrainZ>-1e8?terrainZ+.05:getItemWorldZ(it));
+    }
+    return vec3(rawToWorld(it?.x,'x'),rawToWorld(it?.y,'y'),getItemWorldZ(it));
+  }
+
   function buildMapTileOverlay(){
     const started=performance.now();
     state.mapTiles.overlayTexture?.dispose?.();state.mapTiles.overlayTexture=null;state.mapTiles.overlayResolution=0;state.mapTiles.paintedTiles=0;
@@ -10246,7 +10268,8 @@ end group
     let painted=0;
     for(const it of state.items.filter(isMapTileItem)){
       const record=mapTileRecordForItem(it),tileIndex=mapTileAtlasIndex(it);if(!record||tileIndex===null)continue;
-      const left=rawToWorld(record.x,"x"),top=rawToWorld(record.y,"y"),baseX=Math.round((left-ox)/span*resolution),baseY=Math.round((top-state.mapTiles.tileSize-oy)/span*resolution);
+      const footprint=getMapTileFootprint(it);if(!footprint)continue;
+      const left=footprint.left,top=footprint.top,baseX=Math.round((left-ox)/span*resolution),baseY=Math.round((top-state.mapTiles.tileSize-oy)/span*resolution);
       const col=tileIndex%8,row=Math.floor(tileIndex/8);
       for(let py=0;py<tilePixels;py++)for(let px=0;px<tilePixels;px++){
         const dx=baseX+px,dy=baseY+py;if(dx<0||dy<0||dx>=resolution||dy>=resolution)continue;
@@ -12261,6 +12284,7 @@ end group
 
   function ensureGlbSelectionOutline(instance){
     if (!instance || !state.glb.THREE) return;
+    if (isMapTileItem(getItemByIdFast(instance.userData?.itemId))) return;
     const { THREE } = state.glb;
     instance.traverse((obj) => {
       if (!obj.isMesh || !obj.geometry) return;
@@ -12379,7 +12403,23 @@ end group
   }
 
   function pickItemAtCanvas(sx, sy){
-    return pickItemFromGlbAt(sx, sy) || pickItemAt(sx, sy);
+    const glbItem=pickItemFromGlbAt(sx,sy);
+    if(glbItem&&!isMapTileItem(glbItem))return glbItem;
+    const terrainPoint=screenToTerrain(sx,sy);
+    return (terrainPoint&&pickMapTileAtTerrainPoint(terrainPoint.x,terrainPoint.y)) || glbItem || pickItemAt(sx,sy);
+  }
+
+  function pickMapTileAtTerrainPoint(x,y){
+    const allowed=new Set(getFilteredItems().map(it=>it.id));
+    // The overlay is painted in item order, so the last matching tile is the
+    // visible/topmost one when footprints overlap.
+    for(let i=state.items.length-1;i>=0;i--){
+      const it=state.items[i];
+      if(!isMapTileItem(it)||!allowed.has(it.id)||!isItemVisibilityFilterMatch(it))continue;
+      const f=getMapTileFootprint(it);
+      if(f&&x>=f.left&&x<=f.right&&y>=f.bottom&&y<=f.top)return it;
+    }
+    return null;
   }
 
   function applyItemOrientationToKv(it){
@@ -12419,9 +12459,9 @@ end group
   function gizmoPivot(items=selectedTransformItems()){
     const active=getSelected();
     if (!items.length || !active) return null;
-    if (state.transformPivot === 'active' || state.transformPivot === 'individual') return vec3(rawToWorld(active.x,'x'),rawToWorld(active.y,'y'),getItemWorldZ(active));
+    if (state.transformPivot === 'active' || state.transformPivot === 'individual') return getItemInteractionAnchor(active);
     let out=vec3(0,0,0);
-    for(const it of items) out=vec3Add(out,vec3(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)));
+    for(const it of items) out=vec3Add(out,getItemInteractionAnchor(it));
     return vec3Scale(out,1/items.length);
   }
   function makeGizmoMaterial(THREE,color,opacity=1){
@@ -12469,9 +12509,32 @@ end group
     gizmoCtx.save();gizmoCtx.strokeStyle='#fff';gizmoCtx.fillStyle='#fff';gizmoCtx.lineWidth=2;gizmoCtx.beginPath();gizmoCtx.moveTo(c.sx,c.sy);gizmoCtx.lineTo(a.sx,a.sy);gizmoCtx.moveTo(c.sx,c.sy);gizmoCtx.lineTo(b.sx,b.sy);gizmoCtx.stroke();
     const screenRadius=Math.max(12,Math.hypot(a.sx-c.sx,a.sy-c.sy)),startAngle=Math.atan2(a.sy-c.sy,a.sx-c.sx),endAngle=Math.atan2(b.sy-c.sy,b.sx-c.sx);gizmoCtx.globalAlpha=.8;gizmoCtx.beginPath();gizmoCtx.arc(c.sx,c.sy,screenRadius,startAngle,endAngle,drag.appliedAngle<0);gizmoCtx.stroke();gizmoCtx.globalAlpha=1;gizmoCtx.font='12px sans-serif';gizmoCtx.fillText(drag.label,c.sx+14,c.sy-14);gizmoCtx.restore();
   }
+  function drawSelectedMapTileOutlines(){
+    if(!gizmoCtx)return;
+    const ids=state.multiSelectedIds.size?Array.from(state.multiSelectedIds):(state.selectedId!=null?[state.selectedId]:[]);
+    const rect=cv.getBoundingClientRect(),projection=getCameraProjection(),segments=12;
+    gizmoCtx.save();gizmoCtx.strokeStyle='#ffad00';gizmoCtx.lineWidth=2;gizmoCtx.lineJoin='round';gizmoCtx.lineCap='round';
+    for(const id of ids){
+      const it=getItemByIdFast(id),f=getMapTileFootprint(it);if(!f)continue;
+      const anchor=getItemInteractionAnchor(it),distance=Math.max(.01,Math.hypot(anchor.x-cam.pos.x,anchor.y-cam.pos.y,anchor.z-cam.pos.z));
+      const worldPerPixel=projection.orthographic?(2*projection.orthographicHalfHeight/Math.max(1,rect.height)):(2*distance*projection.tanHalfVerticalFov/Math.max(1,rect.height));
+      const inset=Math.min(f.size*.45,4*worldPerPixel),left=f.left+inset,right=f.right-inset,bottom=f.bottom+inset,top=f.top-inset;
+      const corners=[[left,bottom],[right,bottom],[right,top],[left,top],[left,bottom]];
+      gizmoCtx.beginPath();let started=false;
+      for(let edge=0;edge<4;edge++)for(let step=0;step<=segments;step++){
+        if(edge>0&&step===0)continue;
+        const t=step/segments,x=corners[edge][0]+(corners[edge+1][0]-corners[edge][0])*t,y=corners[edge][1]+(corners[edge+1][1]-corners[edge][1])*t;
+        const terrainZ=heightAtWorld(x,y,1.0),z=Number.isFinite(terrainZ)&&terrainZ>-1e8?terrainZ+.06:anchor.z;
+        const p=worldToScreen(x,y,z);if(!p.visible){started=false;continue;}if(!started){gizmoCtx.moveTo(p.sx,p.sy);started=true;}else gizmoCtx.lineTo(p.sx,p.sy);
+      }
+      gizmoCtx.stroke();
+    }
+    gizmoCtx.restore();
+  }
   function updateItemGizmo(){
     const rect=cv.getBoundingClientRect(),dpr=Math.max(1,Math.min(window.devicePixelRatio||1,2));
     if(gizmoCtx){gizmoCtx.setTransform(dpr,0,0,dpr,0,0);gizmoCtx.clearRect(0,0,rect.width,rect.height);}
+    drawSelectedMapTileOutlines();
     if(!ensureThreeGizmo()){state.gizmoVisual=null;return;}
     const group=state.glb.gizmoGroup,it=getSelected(),items=selectedTransformItems(),center=gizmoPivot(items);
     if(!it||!center||state.modalOpen||!isItemVisibilityFilterMatch(it)){group.visible=false;state.gizmoVisual=null;return;}
@@ -12481,7 +12544,11 @@ end group
     const viewportH=Math.max(1,rect.height),distance=Math.max(.01,Math.hypot(center.x-cam.pos.x,center.y-cam.pos.y,center.z-cam.pos.z));
     const worldPerPixel=orthographic?(2*orthographicHalfHeight/viewportH):(2*distance*tanHalfVerticalFov/viewportH);
     group.scale.setScalar(worldPerPixel*GIZMO_STYLE.screenSizePx);
-    for(const [name,root] of state.glb.gizmoHandles)root.visible=state.transformMode==='translate'?name.startsWith('move'):name.startsWith('rot');
+    const onlyMapTiles=items.length>0&&items.every(isMapTileItem);
+    for(const [name,root] of state.glb.gizmoHandles){
+      root.visible=state.transformMode==='translate'?name.startsWith('move'):name.startsWith('rot');
+      if(onlyMapTiles&&(name.startsWith('rot')||name==='moveZ'||name==='moveXZ'||name==='moveYZ'))root.visible=false;
+    }
     updateGizmoMaterials();
     state.gizmoVisual={mode:state.transformMode,center:{world:center},basis,handles:{moveX:{kind:'axis',axis:basis.x},moveY:{kind:'axis',axis:basis.y},moveZ:{kind:'axis',axis:basis.z},moveXY:{kind:'plane',axisA:basis.x,axisB:basis.y},moveXZ:{kind:'plane',axisA:basis.x,axisB:basis.z},moveYZ:{kind:'plane',axisA:basis.y,axisB:basis.z},rotX:{kind:'ring',axis:basis.x},rotZ:{kind:'ring',axis:basis.z}}};
     if(state.gizmoDrag?.label&&gizmoCtx){if(state.gizmoDrag.handle?.kind==='ring')drawRotationDragFeedback(center,state.gizmoDrag);else{const c=worldToScreen(center.x,center.y,center.z);gizmoCtx.font='12px sans-serif';gizmoCtx.fillStyle='#fff';gizmoCtx.fillText(state.gizmoDrag.label,c.sx+14,c.sy-14);}}
@@ -12501,6 +12568,7 @@ end group
     markItemTransformDirty(it.id);
     scheduleLiveMisRefresh();
     scheduleRenderList();
+    if(isMapTileItem(it))buildMapTileOverlay();
   }
 
   function commitGizmoUpdates(items){
@@ -13534,7 +13602,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }
     commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean));updateItemGizmo();
   });
-  window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();updateItemGizmo();});
+  window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;const movedMapTile=state.gizmoDrag.snapshots.some(start=>isMapTileItem(getItemByIdFast(start.id)));state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();if(movedMapTile)buildMapTileOverlay();updateItemGizmo();});
 
   const _origLoadMisFile = loadMisFile;
   loadMisFile = async function(file, fileHandle = null){
