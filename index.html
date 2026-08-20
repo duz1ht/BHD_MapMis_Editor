@@ -682,6 +682,14 @@
       padding: 18px;
     }
     #modalOverlay.open{ display:flex; }
+    #tilePropertiesOverlay{position:fixed;inset:0;background:var(--overlay);display:none;align-items:center;justify-content:center;z-index:90;padding:18px;}
+    #tilePropertiesOverlay.open{display:flex;}
+    #tilePropertiesOverlay .modal{background:var(--panel);border:1px solid var(--line-heavy);box-shadow:var(--shadow-md);}
+    #tilePropertiesOverlay .modalHeader,#tilePropertiesOverlay .modalFooter{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-bottom:1px solid var(--line);}
+    #tilePropertiesOverlay .modalFooter{justify-content:flex-end;border-top:1px solid var(--line);border-bottom:0;}
+    #tilePropertiesOverlay .modalBody{padding:16px;max-height:70vh;overflow:auto;}
+    #tilePropertiesOverlay dd{margin:0;overflow-wrap:anywhere;}
+    #tilePropertiesOverlay .dangerText{color:var(--danger,#d86161);}
     #insertOverlay{
       position:absolute; inset:0; background:var(--overlay); display:none;
       align-items:center; justify-content:center; z-index:58; padding:18px;
@@ -2559,6 +2567,20 @@ end group
     terrainLoad: {
       phase: "idle",
       revision: 0,
+      generation: 0,
+    },
+    mapTiles: {
+      filename: "",
+      atlasName: "",
+      atlasImage: null,
+      overlayTexture: null,
+      overlayResolution: 0,
+      paintedTiles: 0,
+      lastBuildMs: 0,
+      records: [],
+      byPosition: new Map(),
+      tileSize: 1,
+      error: "",
       generation: 0,
     },
     threeOverlays: {
@@ -9289,6 +9311,25 @@ end group
     });
   }
 
+  function showTileProperties(itemId){
+    const it=getItemByIdFast(itemId),record=it?mapTileRecordForItem(it):null;
+    let overlay=document.getElementById("tilePropertiesOverlay");
+    if(!overlay){
+      overlay=document.createElement("div");overlay.id="tilePropertiesOverlay";overlay.className="modalOverlay";overlay.setAttribute("aria-hidden","true");
+      overlay.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="tilePropertiesTitle" style="width:min(520px,calc(100vw - 32px))"><div class="modalHeader"><strong id="tilePropertiesTitle">Tile properties</strong><button type="button" data-close aria-label="Close">×</button></div><div class="modalBody" data-content></div><div class="modalFooter"><button type="button" data-close>Close</button></div></div>`;
+      document.body.appendChild(overlay);overlay.querySelectorAll("[data-close]").forEach(btn=>btn.addEventListener("click",()=>{overlay.classList.remove("open");overlay.setAttribute("aria-hidden","true");}));
+      overlay.addEventListener("mousedown",e=>{if(e.target===overlay)overlay.querySelector("[data-close]").click();});
+    }
+    const content=overlay.querySelector("[data-content]"),index=mapTileAtlasIndex(it),recordIndex=Math.trunc(Number(it?.kv?.extra_val2));
+    content.innerHTML=`<dl style="display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0 0 16px"><dt>TIL file</dt><dd>${escapeHtml(state.mapTiles.filename||"Not loaded")}</dd><dt>TIL record</dt><dd>${record?recordIndex:"No matching TIL record"}</dd><dt>Texture</dt><dd>${escapeHtml(state.mapTiles.atlasName||"Not loaded")}</dd><dt>Tile index</dt><dd>${Number.isInteger(index)?index:"Invalid extra_bheight value"}</dd><dt>Atlas cell</dt><dd>${Number.isInteger(index)?`column ${index%8+1} / row ${Math.floor(index/8)+1} (zero-based ${index%8}, ${Math.floor(index/8)})`:"—"}</dd></dl>${state.mapTiles.error?`<p class="dangerText">${escapeHtml(state.mapTiles.error)}</p>`:""}<canvas width="256" height="256" aria-label="Tile texture preview" style="width:256px;max-width:100%;image-rendering:auto;border:1px solid var(--border)"></canvas>`;
+    const canvas=content.querySelector("canvas"),img=state.mapTiles.atlasImage;
+    if(img&&Number.isInteger(index)){
+      const source=document.createElement("canvas");source.width=img.w;source.height=img.h;source.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(img.pixels),img.w,img.h),0,0);
+      const sw=img.w/8,sh=img.h/8;canvas.getContext("2d").drawImage(source,(index%8)*sw,Math.floor(index/8)*sh,sw,sh,0,0,canvas.width,canvas.height);
+    }else canvas.style.display="none";
+    overlay.classList.add("open");overlay.setAttribute("aria-hidden","false");overlay.querySelector("[data-close]").focus();
+  }
+
   function showItemContextMenu(clientX, clientY, menuItems = null){
     const selected = getSelected();
     if (!menuItems && !selected) return;
@@ -9297,6 +9338,7 @@ end group
 
     const itemsToRender = menuItems || [
       { label: "Edit Item Attributes", action: () => openModal() },
+      ...(isMapTileItem(selected) ? [{ label: "Tile properties", action: () => showTileProperties(selected.id) }] : []),
       { separator: true },
       { label: "Cut", action: () => cutSelectedItems() },
       { label: "Copy", action: () => copySelectedItem() },
@@ -9367,6 +9409,7 @@ end group
   }
 
   async function clearEditorMap(){
+    resetMapTiles();
     clearGlbItemInstances();
     // Cancel every interaction that belongs to the previous mission before its
     // item ids and sections are replaced.
@@ -10113,7 +10156,110 @@ end group
   function terrainSpanX(){ return sectorCount*SECTOR_STRIDE; } function terrainSpanY(){ return sectorCount*SECTOR_STRIDE; } function originWorldX(){ return terrainOrigin.x*SECTOR_STRIDE; } function originWorldY(){ return terrainOrigin.y*SECTOR_STRIDE; }
   function resetCamera(){ const spanX=terrainSpanX(),spanY=terrainSpanY(), cx=originWorldX()+spanX*0.5, cy=originWorldY()+spanY*0.5, span=Math.max(spanX,spanY); cam.pos=vec3(cx,cy+span*0.65,220); cam.yaw=Math.PI; cam.pitch=-0.25; }
 
-  function decodeTGA(buf){ const d=new DataView(buf); const id=d.getUint8(0), type=d.getUint8(2), w=d.getUint16(12,true), h=d.getUint16(14,true), bpp=d.getUint8(16); let off=18+id; const out=new Uint8Array(w*h*4); let i=0; if(type===2){ for(let p=0;p<w*h;p++){ const b=d.getUint8(off++), g=d.getUint8(off++), r=d.getUint8(off++), a=bpp===32?d.getUint8(off++):255; out[i++]=r; out[i++]=g; out[i++]=b; out[i++]=a; } } else if(type===3){ for(let p=0;p<w*h;p++){ const v=d.getUint8(off++); out[i++]=v; out[i++]=v; out[i++]=v; out[i++]=255; } } else throw new Error('Unsupported TGA type '+type); return {w,h,pixels:out}; }
+  function decodeTGA(buf,normalizeOrigin=false){
+    const d=new DataView(buf),id=d.getUint8(0),type=d.getUint8(2),w=d.getUint16(12,true),h=d.getUint16(14,true),bpp=d.getUint8(16),descriptor=d.getUint8(17);
+    if(!w||!h||![2,3].includes(type)||![8,24,32].includes(bpp))throw new Error(`Unsupported TGA (${w}x${h}, type ${type}, ${bpp} bpp)`);
+    let off=18+id;const source=new Uint8Array(w*h*4);
+    for(let p=0;p<w*h;p++){
+      const o=p*4;
+      if(type===3){const v=d.getUint8(off++);source[o]=v;source[o+1]=v;source[o+2]=v;source[o+3]=255;}
+      else {const b=d.getUint8(off++),g=d.getUint8(off++),r=d.getUint8(off++),a=bpp===32?d.getUint8(off++):255;source[o]=r;source[o+1]=g;source[o+2]=b;source[o+3]=a;}
+    }
+    if(!normalizeOrigin)return {w,h,pixels:source};
+    // Tile atlases use a top-left cell convention regardless of TGA origin.
+    const topOrigin=(descriptor&0x20)!==0,rightOrigin=(descriptor&0x10)!==0,out=new Uint8Array(source.length);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const sx=rightOrigin?w-1-x:x,sy=topOrigin?y:h-1-y,src=(sy*w+sx)*4,dst=(y*w+x)*4;
+      out[dst]=source[src];out[dst+1]=source[src+1];out[dst+2]=source[src+2];out[dst+3]=source[src+3];
+    }
+    return {w,h,pixels:out};
+  }
+
+  const TERRAIN_TILE_FILE_INDEX=["trntile1.tga","trntile2.tga","trntile3.tga","Trntile4.tga","Trntile5.tga","Trntile6.tga","Trntile7.tga","Trntile8.tga","trntile9.tga","trntile10.tga","trntile11.tga","trntile12.tga","trntile13.TGA"];
+  function isMapTileItem(it){return String(it?.kv?.name||"").trim().toLowerCase()==="maptile";}
+  function mapTilePositionKey(x,y){return `${Math.trunc(Number(x))},${Math.trunc(Number(y))}`;}
+  function parseTil(buf){
+    if(!(buf instanceof ArrayBuffer)||buf.byteLength<16)throw new Error("TIL header is truncated");
+    const d=new DataView(buf),magic=String.fromCharCode(d.getUint8(0),d.getUint8(1),d.getUint8(2),d.getUint8(3));
+    if(magic!=="0lit")throw new Error(`Invalid TIL signature '${magic}'`);
+    const count=d.getUint32(4,true),declaredSize=d.getUint32(8,true),expected=16+count*12;
+    if(declaredSize!==buf.byteLength||expected!==buf.byteLength)throw new Error(`Invalid TIL size (declared ${declaredSize}, expected ${expected}, actual ${buf.byteLength})`);
+    const records=[],byPosition=new Map();
+    for(let i=0,off=16;i<count;i++,off+=12){
+      const record={x:d.getInt32(off,true),y:d.getInt32(off+4,true),property:d.getInt32(off+8,true),recordIndex:i};
+      const key=mapTilePositionKey(record.x,record.y);if(byPosition.has(key))addLog(`[map_tiles] duplicate TIL position ${key}`);else byPosition.set(key,record);records.push(record);
+    }
+    return {records,byPosition};
+  }
+
+  function resetMapTiles(){
+    state.mapTiles.generation++;
+    state.mapTiles.overlayTexture?.dispose?.();
+    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],byPosition:new Map(),tileSize:1,error:""});
+    state.threeTerrain.dirty=true;
+  }
+
+  function generalTerrainTileName(){
+    const section=state.sectionBlocks.find(sec=>sec.kind==="general_information");
+    return String(section?.kv?.terrain_tile_tga||"").replace(/^"|"$/g,"").trim();
+  }
+
+  async function loadMapTilesForMission(){
+    resetMapTiles();
+    const mapItems=state.items.filter(isMapTileItem);if(!mapItems.length)return;
+    const generation=state.mapTiles.generation,base=String(state.filename||"").replace(/\.mis$/i,""),tilName=`${base}.til`;
+    try{
+      let tilBuf=null;
+      if(state.editorFolderHandle)tilBuf=await readArrayBufferFromEditorFolder(`resources/BHD/mis_examples/${tilName}`);
+      if(!tilBuf&&!state.isLocalRuntime)tilBuf=await loadBinaryResource(`resources/BHD/mis_examples/${encodeURIComponent(tilName)}`);
+      if(!tilBuf)throw new Error(`Required companion file '${tilName}' was not found next to the MIS`);
+      if(generation!==state.mapTiles.generation)return;
+      const parsed=parseTil(tilBuf);state.mapTiles.filename=tilName;state.mapTiles.records=parsed.records;state.mapTiles.byPosition=parsed.byPosition;
+      const sizes=mapItems.map(it=>{const r=parsed.records[Math.trunc(Number(it.kv?.extra_val2))];return r?Math.max(Math.abs(it.x-r.x),Math.abs(it.y-r.y))*2/65536:0;}).filter(v=>Number.isFinite(v)&&v>0).sort((a,b)=>a-b);
+      state.mapTiles.tileSize=sizes.length?sizes[Math.floor(sizes.length/2)]:16;
+      let atlasBase=generalTerrainTileName();if(!atlasBase)throw new Error("general_information has no Terrain_tile_tga");if(!/\.tga$/i.test(atlasBase))atlasBase+=".tga";
+      const atlasFile=TERRAIN_TILE_FILE_INDEX.find(n=>n.toLowerCase()===atlasBase.toLowerCase());if(!atlasFile)throw new Error(`Tile atlas '${atlasBase}' is not available`);
+      const atlasPath=`resources/BHD/terrain_tiles/${atlasFile}`,atlasBuf=await loadBinaryResource(atlasPath);if(!atlasBuf)throw new Error(`Unable to load tile atlas '${atlasPath}'`);
+      if(generation!==state.mapTiles.generation)return;
+      state.mapTiles.atlasName=atlasFile;state.mapTiles.atlasImage=decodeTGA(atlasBuf,true);
+      addLog(`[map_tiles] loaded ${tilName}: ${parsed.records.length} records, atlas=${atlasFile}`);
+      buildMapTileOverlay();
+      await syncGlbItems();requestRender();
+    }catch(err){state.mapTiles.error=err?.message||String(err);addLog(`[map_tiles] ERROR: ${state.mapTiles.error}`);statusEl.textContent=state.mapTiles.error;}
+  }
+
+  function mapTileRecordForItem(it){
+    const recordIndex=Math.trunc(Number(it?.kv?.extra_val2));
+    return Number.isInteger(recordIndex)&&recordIndex>=0?state.mapTiles.records[recordIndex]||null:null;
+  }
+
+  function mapTileAtlasIndex(it){
+    const index=Math.trunc(Number(it?.kv?.extra_bheight));return index>=0&&index<64?index:null;
+  }
+
+  function buildMapTileOverlay(){
+    const started=performance.now();
+    state.mapTiles.overlayTexture?.dispose?.();state.mapTiles.overlayTexture=null;state.mapTiles.overlayResolution=0;state.mapTiles.paintedTiles=0;
+    const img=state.mapTiles.atlasImage,THREE=state.glb.THREE;if(!img||!THREE||!state.mapTiles.records.length)return;
+    const span=Math.max(1,Math.max(terrainSpanX(),terrainSpanY())),resolution=Math.min(4096,Math.max(512,Math.ceil(span))),pixels=new Uint8Array(resolution*resolution*4);
+    const ox=originWorldX(),oy=originWorldY(),tilePixels=Math.max(1,Math.round(state.mapTiles.tileSize/span*resolution)),cellW=img.w/8,cellH=img.h/8;
+    let painted=0;
+    for(const it of state.items.filter(isMapTileItem)){
+      const record=mapTileRecordForItem(it),tileIndex=mapTileAtlasIndex(it);if(!record||tileIndex===null)continue;
+      const left=rawToWorld(record.x,"x"),top=rawToWorld(record.y,"y"),baseX=Math.round((left-ox)/span*resolution),baseY=Math.round((top-state.mapTiles.tileSize-oy)/span*resolution);
+      const col=tileIndex%8,row=Math.floor(tileIndex/8);
+      for(let py=0;py<tilePixels;py++)for(let px=0;px<tilePixels;px++){
+        const dx=baseX+px,dy=baseY+py;if(dx<0||dy<0||dx>=resolution||dy>=resolution)continue;
+        const sx=Math.min(img.w-1,Math.floor(col*cellW+(px+.5)/tilePixels*cellW)),sy=Math.min(img.h-1,Math.floor(row*cellH+(tilePixels-py-.5)/tilePixels*cellH));
+        const src=(sy*img.w+sx)*4,dst=(dy*resolution+dx)*4,alpha=img.pixels[src+3]/255,oldAlpha=pixels[dst+3]/255,outAlpha=alpha+oldAlpha*(1-alpha);
+        if(outAlpha>0)for(let c=0;c<3;c++){const srgb=img.pixels[src+c]/255,linear=(srgb<=.04045?srgb/12.92:Math.pow((srgb+.055)/1.055,2.4))*255;pixels[dst+c]=Math.round((linear*alpha+pixels[dst+c]*oldAlpha*(1-alpha))/outAlpha);}pixels[dst+3]=Math.round(outAlpha*255);
+      }
+      painted++;
+    }
+    const texture=new THREE.DataTexture(pixels,resolution,resolution,THREE.RGBAFormat,THREE.UnsignedByteType);texture.flipY=false;texture.wrapS=THREE.ClampToEdgeWrapping;texture.wrapT=THREE.ClampToEdgeWrapping;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.needsUpdate=true;
+    state.mapTiles.overlayTexture=texture;state.mapTiles.overlayResolution=resolution;state.mapTiles.paintedTiles=painted;state.mapTiles.lastBuildMs=performance.now()-started;state.threeTerrain.dirty=true;
+    addLog(`[map_tiles] material overlay rebuilt: tiles=${painted}, resolution=${resolution}x${resolution}, time=${state.mapTiles.lastBuildMs.toFixed(2)}ms`);
+  }
   function getSectorOffset(sectorIndex){ switch(sectorIndex|0){ case 1:return {x:0,y:0}; case 2:return {x:0,y:512}; case 3:return {x:512,y:0}; case 4:return {x:512,y:512}; default:return {x:0,y:0}; } }
   function heightSample(sectorIndex,x,y){ if(!lastDepth) return 0; const off=getSectorOffset(sectorIndex); const sx=(x>=SECTOR_SIZE)?(SECTOR_SIZE-1):x, sy=(y>=SECTOR_SIZE)?(SECTOR_SIZE-1):y, ix=off.x+sx, iy=off.y+sy; if(ix<0||iy<0||ix>=DEPTH_W||iy>=DEPTH_H) return 0; return lastDepth[iy*DEPTH_W+ix]/256.0; }
   function buildMeshSingleSector(sectorIndex,step,heightMul){ if(!lastDepth) return {verts:new Float32Array(0),idx:new Uint32Array(0)}; const uvOff=getSectorOffset(sectorIndex); const xs=[],ys=[]; for(let v=0;v<=SECTOR_MESH_MAX;v+=step) xs.push(v); if(xs.at(-1)!==SECTOR_MESH_MAX) xs.push(SECTOR_MESH_MAX); for(let v=0;v<=SECTOR_MESH_MAX;v+=step) ys.push(v); if(ys.at(-1)!==SECTOR_MESH_MAX) ys.push(SECTOR_MESH_MAX); const gw=xs.length,gh=ys.length; const verts=new Float32Array(gw*gh*5), idx=new Uint32Array((gw-1)*(gh-1)*6); let vb=0; for(let y=0;y<gh;y++) for(let x=0;x<gw;x++){ const lx=xs[x],ly=ys[y],sampleY=TERRAIN_BASE_FLIP_Y?(SECTOR_SIZE-ly):ly,h=heightSample(sectorIndex,lx,sampleY)*heightMul; const su=(lx>=SECTOR_SIZE)?(SECTOR_SIZE-1):lx, sv=(sampleY>=SECTOR_SIZE)?(SECTOR_SIZE-1):sampleY; const u=(uvOff.x+su)/1024.0,v=(uvOff.y+sv)/1024.0,o=vb*5; verts[o]=lx;verts[o+1]=ly;verts[o+2]=h;verts[o+3]=u;verts[o+4]=v; vb++; } let ib=0; for(let y=0;y<gh-1;y++) for(let x=0;x<gw-1;x++){ const a=y*gw+x,b=a+1,c=a+gw,d=c+1; idx[ib++]=a;idx[ib++]=b;idx[ib++]=c; idx[ib++]=b;idx[ib++]=d;idx[ib++]=c; } return {verts,idx}; }
@@ -10167,6 +10313,7 @@ end group
       return lod;
     });
     state.threeTerrain.dirty = true;
+    if(state.mapTiles.atlasImage)buildMapTileOverlay();
   }
 
   function mapSrcIdx(g,wrap){ if(wrap===1) return posMod(g,sectorCount); if(g<0) return 0; if(g>=sectorCount) return sectorCount-1; return g; }
@@ -10379,6 +10526,7 @@ end group
     if (!state.glb.ready || !state.glb.THREE || !state.threeTerrain.dirty) return state.threeTerrain.ready;
     const { THREE } = state.glb;
     const terrain = state.threeTerrain;
+    if(state.mapTiles.atlasImage&&!state.mapTiles.overlayTexture)buildMapTileOverlay();
     if (!terrain.scene){
       terrain.scene = new THREE.Scene();
     }
@@ -10447,8 +10595,30 @@ end group
         transparent: false,
         depthWrite: true,
       });
+      terrain.material.onBeforeCompile=(shader)=>{
+        shader.uniforms.mapTileOverlay={value:state.mapTiles.overlayTexture};
+        shader.uniforms.mapTileBounds={value:new THREE.Vector4(originWorldX(),originWorldY(),terrainSpanX(),terrainSpanY())};
+        shader.uniforms.mapTileEnabled={value:0};
+        shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vMapTileWorld;').replace('#include <begin_vertex>','#include <begin_vertex>\nvMapTileWorld=(modelMatrix*vec4(transformed,1.0)).xyz;');
+        shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D mapTileOverlay;\nuniform vec4 mapTileBounds;\nuniform float mapTileEnabled;\nvarying vec3 vMapTileWorld;').replace('#include <map_fragment>',`#include <map_fragment>
+          if(mapTileEnabled>0.5){
+            vec2 tileUv=(vMapTileWorld.xy-mapTileBounds.xy)/mapTileBounds.zw;
+            if(tileUv.x>=0.0&&tileUv.x<=1.0&&tileUv.y>=0.0&&tileUv.y<=1.0){
+              vec4 tileColor=texture2D(mapTileOverlay,tileUv);
+              diffuseColor.rgb=mix(diffuseColor.rgb,tileColor.rgb,tileColor.a);
+            }
+          }`);
+        terrain.material.userData.mapTileShader=shader;
+      };
+      terrain.material.customProgramCacheKey=()=>"terrain-map-tile-overlay-v1";
     }
     terrain.material.map = getThreeTerrainTextureByMode();
+    const tileShader=terrain.material.userData.mapTileShader;
+    if(tileShader){
+      tileShader.uniforms.mapTileOverlay.value=state.mapTiles.overlayTexture;
+      tileShader.uniforms.mapTileBounds.value.set(originWorldX(),originWorldY(),terrainSpanX(),terrainSpanY());
+      tileShader.uniforms.mapTileEnabled.value=renderMode==='C'&&state.mapTiles.overlayTexture?1:0;
+    }
     terrain.material.needsUpdate = true;
     terrain.ready = true;
     terrain.dirty = false;
@@ -10497,6 +10667,8 @@ end group
 
     const nextKeys = new Set();
     terrain.material.map = getThreeTerrainTextureByMode();
+    const tileShader=terrain.material.userData.mapTileShader;
+    if(tileShader)tileShader.uniforms.mapTileEnabled.value=renderMode==='C'&&state.mapTiles.overlayTexture?1:0;
 
     for (const tile of vis.visibleTiles){
       const meshKey = `${tile.gx}:${tile.gy}:${tile.lodLevel}:${tile.sectorIndex}`;
@@ -12935,6 +13107,7 @@ Top view lock: ${topViewLocked?'on':'off'}
 Top view span: ${topViewLocked?(topViewScale*2).toFixed(2):'-'}
 Draw calls: ${drawCalls}
 Terrain cull (frustum/back): ${state.terrainPerf?.culledFrustum ?? '-'} / ${state.terrainPerf?.culledBackface ?? '-'}
+MapTile paint: ${state.mapTiles.paintedTiles} tiles, ${state.mapTiles.overlayResolution || '-'}px (${state.mapTiles.lastBuildMs.toFixed(2)} ms)
 GLB instances: ${state.glb.itemInstances.size}
 GLB sync: #${state.glb.syncCount} (${state.glb.lastSyncMs.toFixed(2)} ms)
 GLB total/render: ${state.glb.lastStats?.totalItems ?? '-'} / ${state.glb.lastStats?.renderableItems ?? '-'}
@@ -13367,6 +13540,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
   loadMisFile = async function(file, fileHandle = null){
     await _origLoadMisFile(file, fileHandle);
     try{ await loadTerrainFromMis(); }catch(err){ addLog(`[terrain] load error: ${err?.message || err}`); camDebugEl.textContent = `Failed to load terrain: ${err.message||err}`; }
+    await loadMapTilesForMission();
     fitView();
     requestRender();
   };
