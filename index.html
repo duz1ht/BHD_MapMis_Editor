@@ -2582,6 +2582,10 @@ end group
       tileSize: 1,
       error: "",
       generation: 0,
+      dragPreviewIds: new Set(),
+      dragPreviewGroup: null,
+      dragPreviewMeshes: new Map(),
+      pendingOverlayRebuild: 0,
     },
     threeOverlays: {
       scene: null,
@@ -6450,6 +6454,7 @@ end group
   function restoreHistoryText(text){
     state.undoRestoring = true;
     state.rawText = text;
+    const hadMapTiles=state.items.some(isMapTileItem);
     const parsed = parseMIS(text);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
@@ -6466,6 +6471,7 @@ end group
       modalOverlay.setAttribute("aria-hidden", "true");
     }
     markItemsChanged({ structure: true });
+    if(hadMapTiles||state.items.some(isMapTileItem))scheduleMapTileOverlayRebuild();
     buildLayerOptions();
     buildWaypointList();
     buildGroupOptions();
@@ -8513,12 +8519,15 @@ end group
     if (!copySelectedItem()) return false;
 
     const cutIds = new Set(state.itemClipboardItems.map(entry => entry.item.id));
+    const cutMapTile = state.itemClipboardItems.some(entry => isMapTileItem(entry.item));
+    if(cutMapTile&&Array.from(cutIds).some(id=>state.mapTiles.dragPreviewIds.has(id)))clearMapTileDragPreview(false);
     const cutStarts = new Set(state.items.filter(it => cutIds.has(it.id)).map(it => it.start));
     for (const id of cutIds) removeItemFromSpatialIndex(id);
     state.items = state.items.filter(it => !cutIds.has(it.id));
     state.sectionBlocks = state.sectionBlocks.filter(sec => !(sec.kind === "item" && cutStarts.has(sec.start)));
     normalizeItemBeginLineSequence();
     markItemsChanged({ structure: true });
+    if(cutMapTile)scheduleMapTileOverlayRebuild();
 
     state.selectedId = null;
     state.multiSelectedIds.clear();
@@ -8563,6 +8572,7 @@ end group
       pastedItems.push(pasted);
     }
     markItemsChanged({ structure: true });
+    if(pastedItems.some(isMapTileItem))scheduleMapTileOverlayRebuild();
     const pastedIds = pastedItems.map(it => it.id);
     state.selectedId = pastedIds[pastedIds.length - 1] ?? null;
     state.multiSelectedIds = new Set(pastedIds);
@@ -8600,17 +8610,21 @@ end group
     const sec = getItemSectionByStartFast(it.start);
     const copy = createPastedItemFrom(it, sec || null, { offset: true });
     markItemsChanged({ structure: true });
+    if(isMapTileItem(copy))scheduleMapTileOverlayRebuild();
     statusEl.textContent = `Duplicado: #${it.id} -> #${copy.id}`;
   });
 
   function deleteSelectedItem(){
     const it = getSelected();
     if (!it) return;
+    const deletingMapTile=isMapTileItem(it);
+    if(deletingMapTile&&state.mapTiles.dragPreviewIds.has(it.id))clearMapTileDragPreview(false);
     removeItemFromSpatialIndex(it.id);
     state.items = state.items.filter(x => x.id !== it.id);
     state.sectionBlocks = state.sectionBlocks.filter(s => !(s.kind === "item" && s.start === it.start));
     normalizeItemBeginLineSequence();
     markItemsChanged({ structure: true });
+    if(deletingMapTile)scheduleMapTileOverlayRebuild();
     state.selectedId = null;
     state.multiSelectedIds.clear();
     closeItemContextMenu();
@@ -10193,9 +10207,11 @@ end group
   }
 
   function resetMapTiles(){
+    if(state.mapTiles.pendingOverlayRebuild)cancelAnimationFrame(state.mapTiles.pendingOverlayRebuild);
+    clearMapTileDragPreview(false);
     state.mapTiles.generation++;
     state.mapTiles.overlayTexture?.dispose?.();
-    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],byPosition:new Map(),tileSize:1,error:""});
+    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),pendingOverlayRebuild:0});
     state.threeTerrain.dirty=true;
   }
 
@@ -10237,6 +10253,28 @@ end group
     const index=Math.trunc(Number(it?.kv?.extra_bheight));return index>=0&&index<64?index:null;
   }
 
+  // MapTiles are two-dimensional terrain decals. Keep their editable footprint
+  // independent from the item's stored Z (and from the invisible GLB marker).
+  function getMapTileFootprint(it){
+    if(!isMapTileItem(it))return null;
+    const record=mapTileRecordForItem(it),size=Number(state.mapTiles.tileSize);
+    if(!record||!Number.isFinite(size)||size<=0)return null;
+    const itemX=rawToWorld(it?.x,"x"),itemY=rawToWorld(it?.y,"y");
+    const hasItemPosition=Number.isFinite(Number(it?.x))&&Number.isFinite(Number(it?.y));
+    const left=hasItemPosition?itemX-size*.5:rawToWorld(record.x,"x");
+    const top=hasItemPosition?itemY+size*.5:rawToWorld(record.y,"y");
+    return {left,right:left+size,bottom:top-size,top,size,centerX:left+size*.5,centerY:top-size*.5};
+  }
+
+  function getItemInteractionAnchor(it){
+    const footprint=getMapTileFootprint(it);
+    if(footprint){
+      const terrainZ=heightAtWorld(footprint.centerX,footprint.centerY,1.0);
+      return vec3(footprint.centerX,footprint.centerY,Number.isFinite(terrainZ)&&terrainZ>-1e8?terrainZ+.05:getItemWorldZ(it));
+    }
+    return vec3(rawToWorld(it?.x,'x'),rawToWorld(it?.y,'y'),getItemWorldZ(it));
+  }
+
   function buildMapTileOverlay(){
     const started=performance.now();
     state.mapTiles.overlayTexture?.dispose?.();state.mapTiles.overlayTexture=null;state.mapTiles.overlayResolution=0;state.mapTiles.paintedTiles=0;
@@ -10245,8 +10283,10 @@ end group
     const ox=originWorldX(),oy=originWorldY(),tilePixels=Math.max(1,Math.round(state.mapTiles.tileSize/span*resolution)),cellW=img.w/8,cellH=img.h/8;
     let painted=0;
     for(const it of state.items.filter(isMapTileItem)){
+      if(state.mapTiles.dragPreviewIds.has(it.id))continue;
       const record=mapTileRecordForItem(it),tileIndex=mapTileAtlasIndex(it);if(!record||tileIndex===null)continue;
-      const left=rawToWorld(record.x,"x"),top=rawToWorld(record.y,"y"),baseX=Math.round((left-ox)/span*resolution),baseY=Math.round((top-state.mapTiles.tileSize-oy)/span*resolution);
+      const footprint=getMapTileFootprint(it);if(!footprint)continue;
+      const left=footprint.left,top=footprint.top,baseX=Math.round((left-ox)/span*resolution),baseY=Math.round((top-state.mapTiles.tileSize-oy)/span*resolution);
       const col=tileIndex%8,row=Math.floor(tileIndex/8);
       for(let py=0;py<tilePixels;py++)for(let px=0;px<tilePixels;px++){
         const dx=baseX+px,dy=baseY+py;if(dx<0||dy<0||dx>=resolution||dy>=resolution)continue;
@@ -10259,6 +10299,73 @@ end group
     const texture=new THREE.DataTexture(pixels,resolution,resolution,THREE.RGBAFormat,THREE.UnsignedByteType);texture.flipY=false;texture.wrapS=THREE.ClampToEdgeWrapping;texture.wrapT=THREE.ClampToEdgeWrapping;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.needsUpdate=true;
     state.mapTiles.overlayTexture=texture;state.mapTiles.overlayResolution=resolution;state.mapTiles.paintedTiles=painted;state.mapTiles.lastBuildMs=performance.now()-started;state.threeTerrain.dirty=true;
     addLog(`[map_tiles] material overlay rebuilt: tiles=${painted}, resolution=${resolution}x${resolution}, time=${state.mapTiles.lastBuildMs.toFixed(2)}ms`);
+  }
+
+  function scheduleMapTileOverlayRebuild(){
+    if(state.mapTiles.pendingOverlayRebuild)return;
+    const generation=state.mapTiles.generation;
+    state.mapTiles.pendingOverlayRebuild=requestAnimationFrame(()=>{
+      state.mapTiles.pendingOverlayRebuild=0;
+      if(generation!==state.mapTiles.generation||!state.mapTiles.atlasImage)return;
+      buildMapTileOverlay();
+      requestRender();
+    });
+  }
+
+  function createMapTilePreviewTexture(tileIndex){
+    const img=state.mapTiles.atlasImage,THREE=state.glb.THREE;if(!img||!THREE)return null;
+    const cellW=Math.floor(img.w/8),cellH=Math.floor(img.h/8),col=tileIndex%8,row=Math.floor(tileIndex/8);
+    const canvas=document.createElement('canvas');canvas.width=cellW;canvas.height=cellH;
+    const ctx=canvas.getContext('2d');if(!ctx)return null;
+    const data=ctx.createImageData(cellW,cellH);
+    for(let y=0;y<cellH;y++)for(let x=0;x<cellW;x++){
+      const src=((row*cellH+y)*img.w+col*cellW+x)*4,dst=(y*cellW+x)*4;
+      data.data[dst]=img.pixels[src];data.data[dst+1]=img.pixels[src+1];data.data[dst+2]=img.pixels[src+2];data.data[dst+3]=img.pixels[src+3];
+    }
+    ctx.putImageData(data,0,0);
+    const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;return texture;
+  }
+
+  function updateMapTilePreviewMesh(mesh,it){
+    const f=getMapTileFootprint(it),position=mesh?.geometry?.getAttribute?.('position');if(!f||!position)return;
+    const steps=mesh.userData.steps;
+    for(let y=0;y<=steps;y++)for(let x=0;x<=steps;x++){
+      const wx=f.left+f.size*x/steps,wy=f.bottom+f.size*y/steps,terrainZ=heightAtWorld(wx,wy,1.0),i=y*(steps+1)+x;
+      position.setXYZ(i,wx,wy,Number.isFinite(terrainZ)&&terrainZ>-1e8?terrainZ+.04:getItemInteractionAnchor(it).z);
+    }
+    position.needsUpdate=true;mesh.geometry.computeBoundingSphere();
+  }
+
+  function createMapTilePreviewMesh(it){
+    const THREE=state.glb.THREE,tileIndex=mapTileAtlasIndex(it);if(!THREE||tileIndex===null||!getMapTileFootprint(it))return null;
+    const steps=16,count=(steps+1)*(steps+1),positions=new Float32Array(count*3),uvs=new Float32Array(count*2),indices=[];
+    for(let y=0;y<=steps;y++)for(let x=0;x<=steps;x++){const i=y*(steps+1)+x;uvs[i*2]=x/steps;uvs[i*2+1]=y/steps;}
+    for(let y=0;y<steps;y++)for(let x=0;x<steps;x++){const a=y*(steps+1)+x,b=a+1,c=a+steps+1,d=c+1;indices.push(a,b,c,b,d,c);}
+    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.setAttribute('uv',new THREE.BufferAttribute(uvs,2));geometry.setIndex(indices);
+    const texture=createMapTilePreviewTexture(tileIndex);if(!texture){geometry.dispose();return null;}
+    const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,depthTest:true,depthWrite:false,side:THREE.DoubleSide,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
+    const mesh=new THREE.Mesh(geometry,material);mesh.name=`MAP_TILE_DRAG_PREVIEW_${it.id}`;mesh.userData.steps=steps;mesh.userData.itemId=it.id;mesh.renderOrder=18;mesh.raycast=()=>null;updateMapTilePreviewMesh(mesh,it);return mesh;
+  }
+
+  function beginMapTileDragPreview(items){
+    const tiles=(items||[]).filter(isMapTileItem);if(!tiles.length||!state.glb.scene)return;
+    clearMapTileDragPreview(false);
+    const THREE=state.glb.THREE,group=new THREE.Group();group.name='MAP_TILE_DRAG_PREVIEWS';state.mapTiles.dragPreviewGroup=group;state.glb.scene.add(group);
+    for(const it of tiles){state.mapTiles.dragPreviewIds.add(it.id);const mesh=createMapTilePreviewMesh(it);if(mesh){state.mapTiles.dragPreviewMeshes.set(it.id,mesh);group.add(mesh);}}
+    buildMapTileOverlay();
+  }
+
+  function updateMapTileDragPreview(){
+    for(const [id,mesh] of state.mapTiles.dragPreviewMeshes){const it=getItemByIdFast(id);if(it)updateMapTilePreviewMesh(mesh,it);}
+    requestRender();
+  }
+
+  function clearMapTileDragPreview(rebuild=true){
+    const group=state.mapTiles.dragPreviewGroup;
+    if(group){for(const mesh of [...group.children]){group.remove(mesh);mesh.geometry?.dispose?.();mesh.material?.map?.dispose?.();mesh.material?.dispose?.();}state.glb.scene?.remove?.(group);}
+    const hadPreview=state.mapTiles.dragPreviewIds.size>0;
+    state.mapTiles.dragPreviewGroup=null;state.mapTiles.dragPreviewMeshes.clear();state.mapTiles.dragPreviewIds.clear();
+    if(rebuild&&hadPreview)buildMapTileOverlay();
   }
   function getSectorOffset(sectorIndex){ switch(sectorIndex|0){ case 1:return {x:0,y:0}; case 2:return {x:0,y:512}; case 3:return {x:512,y:0}; case 4:return {x:512,y:512}; default:return {x:0,y:0}; } }
   function heightSample(sectorIndex,x,y){ if(!lastDepth) return 0; const off=getSectorOffset(sectorIndex); const sx=(x>=SECTOR_SIZE)?(SECTOR_SIZE-1):x, sy=(y>=SECTOR_SIZE)?(SECTOR_SIZE-1):y, ix=off.x+sx, iy=off.y+sy; if(ix<0||iy<0||ix>=DEPTH_W||iy>=DEPTH_H) return 0; return lastDepth[iy*DEPTH_W+ix]/256.0; }
@@ -12261,6 +12368,7 @@ end group
 
   function ensureGlbSelectionOutline(instance){
     if (!instance || !state.glb.THREE) return;
+    if (isMapTileItem(getItemByIdFast(instance.userData?.itemId))) return;
     const { THREE } = state.glb;
     instance.traverse((obj) => {
       if (!obj.isMesh || !obj.geometry) return;
@@ -12379,7 +12487,23 @@ end group
   }
 
   function pickItemAtCanvas(sx, sy){
-    return pickItemFromGlbAt(sx, sy) || pickItemAt(sx, sy);
+    const glbItem=pickItemFromGlbAt(sx,sy);
+    if(glbItem&&!isMapTileItem(glbItem))return glbItem;
+    const terrainPoint=screenToTerrain(sx,sy);
+    return (terrainPoint&&pickMapTileAtTerrainPoint(terrainPoint.x,terrainPoint.y)) || glbItem || pickItemAt(sx,sy);
+  }
+
+  function pickMapTileAtTerrainPoint(x,y){
+    const allowed=new Set(getFilteredItems().map(it=>it.id));
+    // The overlay is painted in item order, so the last matching tile is the
+    // visible/topmost one when footprints overlap.
+    for(let i=state.items.length-1;i>=0;i--){
+      const it=state.items[i];
+      if(!isMapTileItem(it)||!allowed.has(it.id)||!isItemVisibilityFilterMatch(it))continue;
+      const f=getMapTileFootprint(it);
+      if(f&&x>=f.left&&x<=f.right&&y>=f.bottom&&y<=f.top)return it;
+    }
+    return null;
   }
 
   function applyItemOrientationToKv(it){
@@ -12419,9 +12543,9 @@ end group
   function gizmoPivot(items=selectedTransformItems()){
     const active=getSelected();
     if (!items.length || !active) return null;
-    if (state.transformPivot === 'active' || state.transformPivot === 'individual') return vec3(rawToWorld(active.x,'x'),rawToWorld(active.y,'y'),getItemWorldZ(active));
+    if (state.transformPivot === 'active' || state.transformPivot === 'individual') return getItemInteractionAnchor(active);
     let out=vec3(0,0,0);
-    for(const it of items) out=vec3Add(out,vec3(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)));
+    for(const it of items) out=vec3Add(out,getItemInteractionAnchor(it));
     return vec3Scale(out,1/items.length);
   }
   function makeGizmoMaterial(THREE,color,opacity=1){
@@ -12469,9 +12593,32 @@ end group
     gizmoCtx.save();gizmoCtx.strokeStyle='#fff';gizmoCtx.fillStyle='#fff';gizmoCtx.lineWidth=2;gizmoCtx.beginPath();gizmoCtx.moveTo(c.sx,c.sy);gizmoCtx.lineTo(a.sx,a.sy);gizmoCtx.moveTo(c.sx,c.sy);gizmoCtx.lineTo(b.sx,b.sy);gizmoCtx.stroke();
     const screenRadius=Math.max(12,Math.hypot(a.sx-c.sx,a.sy-c.sy)),startAngle=Math.atan2(a.sy-c.sy,a.sx-c.sx),endAngle=Math.atan2(b.sy-c.sy,b.sx-c.sx);gizmoCtx.globalAlpha=.8;gizmoCtx.beginPath();gizmoCtx.arc(c.sx,c.sy,screenRadius,startAngle,endAngle,drag.appliedAngle<0);gizmoCtx.stroke();gizmoCtx.globalAlpha=1;gizmoCtx.font='12px sans-serif';gizmoCtx.fillText(drag.label,c.sx+14,c.sy-14);gizmoCtx.restore();
   }
+  function drawSelectedMapTileOutlines(){
+    if(!gizmoCtx)return;
+    const ids=state.multiSelectedIds.size?Array.from(state.multiSelectedIds):(state.selectedId!=null?[state.selectedId]:[]);
+    const rect=cv.getBoundingClientRect(),projection=getCameraProjection(),segments=12;
+    gizmoCtx.save();gizmoCtx.strokeStyle='#ffad00';gizmoCtx.lineWidth=2;gizmoCtx.lineJoin='round';gizmoCtx.lineCap='round';
+    for(const id of ids){
+      const it=getItemByIdFast(id),f=getMapTileFootprint(it);if(!f)continue;
+      const anchor=getItemInteractionAnchor(it),distance=Math.max(.01,Math.hypot(anchor.x-cam.pos.x,anchor.y-cam.pos.y,anchor.z-cam.pos.z));
+      const worldPerPixel=projection.orthographic?(2*projection.orthographicHalfHeight/Math.max(1,rect.height)):(2*distance*projection.tanHalfVerticalFov/Math.max(1,rect.height));
+      const inset=Math.min(f.size*.45,4*worldPerPixel),left=f.left+inset,right=f.right-inset,bottom=f.bottom+inset,top=f.top-inset;
+      const corners=[[left,bottom],[right,bottom],[right,top],[left,top],[left,bottom]];
+      gizmoCtx.beginPath();let started=false;
+      for(let edge=0;edge<4;edge++)for(let step=0;step<=segments;step++){
+        if(edge>0&&step===0)continue;
+        const t=step/segments,x=corners[edge][0]+(corners[edge+1][0]-corners[edge][0])*t,y=corners[edge][1]+(corners[edge+1][1]-corners[edge][1])*t;
+        const terrainZ=heightAtWorld(x,y,1.0),z=Number.isFinite(terrainZ)&&terrainZ>-1e8?terrainZ+.06:anchor.z;
+        const p=worldToScreen(x,y,z);if(!p.visible){started=false;continue;}if(!started){gizmoCtx.moveTo(p.sx,p.sy);started=true;}else gizmoCtx.lineTo(p.sx,p.sy);
+      }
+      gizmoCtx.stroke();
+    }
+    gizmoCtx.restore();
+  }
   function updateItemGizmo(){
     const rect=cv.getBoundingClientRect(),dpr=Math.max(1,Math.min(window.devicePixelRatio||1,2));
     if(gizmoCtx){gizmoCtx.setTransform(dpr,0,0,dpr,0,0);gizmoCtx.clearRect(0,0,rect.width,rect.height);}
+    drawSelectedMapTileOutlines();
     if(!ensureThreeGizmo()){state.gizmoVisual=null;return;}
     const group=state.glb.gizmoGroup,it=getSelected(),items=selectedTransformItems(),center=gizmoPivot(items);
     if(!it||!center||state.modalOpen||!isItemVisibilityFilterMatch(it)){group.visible=false;state.gizmoVisual=null;return;}
@@ -12481,7 +12628,11 @@ end group
     const viewportH=Math.max(1,rect.height),distance=Math.max(.01,Math.hypot(center.x-cam.pos.x,center.y-cam.pos.y,center.z-cam.pos.z));
     const worldPerPixel=orthographic?(2*orthographicHalfHeight/viewportH):(2*distance*tanHalfVerticalFov/viewportH);
     group.scale.setScalar(worldPerPixel*GIZMO_STYLE.screenSizePx);
-    for(const [name,root] of state.glb.gizmoHandles)root.visible=state.transformMode==='translate'?name.startsWith('move'):name.startsWith('rot');
+    const onlyMapTiles=items.length>0&&items.every(isMapTileItem);
+    for(const [name,root] of state.glb.gizmoHandles){
+      root.visible=state.transformMode==='translate'?name.startsWith('move'):name.startsWith('rot');
+      if(onlyMapTiles&&(name.startsWith('rot')||name==='moveZ'||name==='moveXZ'||name==='moveYZ'))root.visible=false;
+    }
     updateGizmoMaterials();
     state.gizmoVisual={mode:state.transformMode,center:{world:center},basis,handles:{moveX:{kind:'axis',axis:basis.x},moveY:{kind:'axis',axis:basis.y},moveZ:{kind:'axis',axis:basis.z},moveXY:{kind:'plane',axisA:basis.x,axisB:basis.y},moveXZ:{kind:'plane',axisA:basis.x,axisB:basis.z},moveYZ:{kind:'plane',axisA:basis.y,axisB:basis.z},rotX:{kind:'ring',axis:basis.x},rotZ:{kind:'ring',axis:basis.z}}};
     if(state.gizmoDrag?.label&&gizmoCtx){if(state.gizmoDrag.handle?.kind==='ring')drawRotationDragFeedback(center,state.gizmoDrag);else{const c=worldToScreen(center.x,center.y,center.z);gizmoCtx.font='12px sans-serif';gizmoCtx.fillStyle='#fff';gizmoCtx.fillText(state.gizmoDrag.label,c.sx+14,c.sy-14);}}
@@ -12501,6 +12652,7 @@ end group
     markItemTransformDirty(it.id);
     scheduleLiveMisRefresh();
     scheduleRenderList();
+    if(isMapTileItem(it))buildMapTileOverlay();
   }
 
   function commitGizmoUpdates(items){
@@ -13511,12 +13663,13 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       if(!drag.startPoint)return null;
       drag.startVector=vec3Norm(vec3Sub(drag.startPoint,pivot));drag.lastVector=drag.startVector;drag.currentVector=drag.startVector;drag.accumulatedAngle=0;drag.appliedAngle=0;drag.feedbackRadius=vec3Len(vec3Sub(drag.startPoint,pivot));
     }
+    beginMapTileDragPreview(items);
     return drag;
   }
   window.addEventListener('mousemove',e=>{
     if(!state.gizmoDrag)return;
     const d=state.gizmoDrag,rect=cv.getBoundingClientRect(),ray=screenRay(e.clientX-rect.left,e.clientY-rect.top);
-    if(!isGizmoHandleInteractive(d.mode)||state.modalOpen||!d.snapshots.every(start=>getItemByIdFast(start.id))){state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();updateItemGizmo();return;}
+    if(!isGizmoHandleInteractive(d.mode)||state.modalOpen||!d.snapshots.every(start=>getItemByIdFast(start.id))){state.gizmoDrag=null;state.hoveredGizmoHandle=null;clearMapTileDragPreview();endUndoTransaction();updateItemGizmo();return;}
     if(d.handle.kind==='axis'){
       const scalar=rayAxisParameter(ray,d.pivot,d.handle.axis)-d.startScalar,move=vec3Scale(d.handle.axis,scalar);
       d.label=`${vec3Dot(move,d.handle.axis).toFixed(2)}`;
@@ -13532,9 +13685,9 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       const geometryDegrees=gizmoRotationGeometryDegrees(d.mode,valueDegrees),angle=geometryDegrees*Math.PI/180;d.appliedAngle=angle;d.currentVector=vec3Norm(rotateAroundAxis(d.startVector,d.handle.axis,angle));d.label=`${valueDegrees.toFixed(1)}°`;
       for(const start of d.snapshots){const it=getItemByIdFast(start.id);if(!it)continue;let itemDegrees=valueDegrees;if(state.rotationSnapEnabled&&state.rotationSnapMode==='absolute'&&state.transformPivot==='individual'){const initial=d.mode==='rotX'?start.pitch:start.heading,rawValueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);itemDegrees=snapValue(initial+rawValueDegrees,state.rotationSnap)-initial;}if(d.mode==='rotX')it.pitch=start.pitch+itemDegrees;else it.heading=start.heading+itemDegrees;if(state.transformPivot!=='individual'&&d.snapshots.length>1){const p=vec3Add(d.pivot,rotateAroundAxis(vec3Sub(start.world,d.pivot),d.handle.axis,angle));it.x=worldToRaw(p.x,'x');it.y=worldToRaw(p.y,'y');it.z=worldToRaw(p.z,'z');}}
     }
-    commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean));updateItemGizmo();
+    commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean));updateMapTileDragPreview();updateItemGizmo();
   });
-  window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();updateItemGizmo();});
+  window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();clearMapTileDragPreview();updateItemGizmo();});
 
   const _origLoadMisFile = loadMisFile;
   loadMisFile = async function(file, fileHandle = null){
