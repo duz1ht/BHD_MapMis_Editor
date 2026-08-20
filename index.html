@@ -10363,9 +10363,9 @@ end group
   }
 
   function createMapTilePreviewMesh(it){
-    const THREE=state.glb.THREE,tileIndex=mapTileAtlasIndex(it);if(!THREE||tileIndex===null||!getMapTileFootprint(it))return null;
+    const THREE=state.glb.THREE,tileIndex=mapTileAtlasIndex(it),record=mapTileRecordForItem(it);if(!THREE||tileIndex===null||!record||!getMapTileFootprint(it))return null;
     const steps=16,count=(steps+1)*(steps+1),positions=new Float32Array(count*3),uvs=new Float32Array(count*2),indices=[];
-    for(let y=0;y<=steps;y++)for(let x=0;x<=steps;x++){const i=y*(steps+1)+x;uvs[i*2]=x/steps;uvs[i*2+1]=y/steps;}
+    for(let y=0;y<=steps;y++)for(let x=0;x<=steps;x++){const i=y*(steps+1)+x,uv=transformMapTileUv(x/steps,y/steps,record.flags);uvs[i*2]=uv.u;uvs[i*2+1]=uv.v;}
     for(let y=0;y<steps;y++)for(let x=0;x<steps;x++){const a=y*(steps+1)+x,b=a+1,c=a+steps+1,d=c+1;indices.push(a,b,c,b,d,c);}
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.setAttribute('uv',new THREE.BufferAttribute(uvs,2));geometry.setIndex(indices);
     const texture=createMapTilePreviewTexture(tileIndex);if(!texture){geometry.dispose();return null;}
