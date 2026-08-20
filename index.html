@@ -4108,6 +4108,7 @@ end group
           arrow: 0,
           drawCircle: 0,
           attrib: [],
+          addedWeapons: [],
           kv: {},
         };
         continue;
@@ -4139,6 +4140,13 @@ end group
         if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1,-1);
 
         cur.kv[k] = v;
+
+        if (k === "addeweap"){
+          const parts = v.split(/\s+/).filter(Boolean);
+          const socket = parts[0] || "";
+          const defId = parts[1] || "";
+          if (socket && defId) cur.addedWeapons.push({ socket, defId });
+        }
 
         if (k === "id") cur.id = v;
         if (k === "type_id") cur.typeId = v;
@@ -4174,6 +4182,9 @@ end group
         ...def,
         id,
         attrib: Array.isArray(def.attrib) ? def.attrib.slice() : [],
+        addedWeapons: Array.isArray(def.addedWeapons)
+          ? def.addedWeapons.map((entry) => ({ ...entry }))
+          : [],
         kv: { ...(def.kv || {}) },
       });
     };
@@ -4191,6 +4202,16 @@ end group
 
       const supplementKv = supplement.kv || {};
       const attrib = Array.from(new Set([...(base.attrib || []), ...(supplement.attrib || [])]));
+      const addedWeapons = [];
+      const addedWeaponKeys = new Set();
+      for (const entry of [...(base.addedWeapons || []), ...(supplement.addedWeapons || [])]){
+        const socket = String(entry?.socket || "").trim();
+        const defId = String(entry?.defId || "").trim();
+        const key = `${socket.toLowerCase()}\u0000${defId}`;
+        if (!socket || !defId || addedWeaponKeys.has(key)) continue;
+        addedWeaponKeys.add(key);
+        addedWeapons.push({ socket, defId });
+      }
       mergedById.set(id, {
         ...base,
         id,
@@ -4202,6 +4223,7 @@ end group
         arrow: Object.prototype.hasOwnProperty.call(supplementKv, "arrow") ? supplement.arrow : base.arrow,
         drawCircle: Object.prototype.hasOwnProperty.call(supplementKv, "draw_circle") ? supplement.drawCircle : base.drawCircle,
         attrib,
+        addedWeapons,
         kv: { ...(base.kv || {}), ...supplementKv },
       });
     }
@@ -11559,7 +11581,7 @@ end group
 
       stats.renderableItems += 1;
       stats.graphicsFrequency.set(graphic, (stats.graphicsFrequency.get(graphic) || 0) + 1);
-      out.push({ it, graphic });
+      out.push({ it, graphic, def });
     }
 
     return { entries: out, stats };
@@ -12052,8 +12074,68 @@ end group
   }
 
 
-  function getGlbItemVisualSignature(it, graphic){
-    return [String(graphic || "").trim(), String(it?.typeId ?? ""), getItemTint(it)].join("|");
+  function getAddedWeaponVisualSignature(def, visited = new Set()){
+    const defId = String(def?.id || def?.typeId || "").trim();
+    if (defId && visited.has(defId)) return `cycle:${defId}`;
+    const nextVisited = new Set(visited);
+    if (defId) nextVisited.add(defId);
+    return (def?.addedWeapons || []).map((entry) => {
+      const socket = String(entry?.socket || "").trim();
+      const addedDefId = String(entry?.defId || "").trim();
+      const addedDef = state.defsById.get(addedDefId) || null;
+      const graphic = String(addedDef?.graphic || "").trim();
+      const scale = Number(addedDef?.graphicScale) || 1;
+      return `${socket}:${addedDefId}:${graphic}:${scale}[${getAddedWeaponVisualSignature(addedDef, nextVisited)}]`;
+    }).join(",");
+  }
+
+  function getGlbItemVisualSignature(it, graphic, def = getDefForItem(it)){
+    return [
+      String(graphic || "").trim(),
+      String(it?.typeId ?? ""),
+      getItemTint(it),
+      getAddedWeaponVisualSignature(def),
+    ].join("|");
+  }
+
+  function findGlbAttachmentSocket(root, socketName){
+    const wanted = String(socketName || "").trim().toLowerCase();
+    if (!root || !wanted) return null;
+    let match = null;
+    root.traverse((obj) => {
+      if (!match && String(obj.name || "").trim().toLowerCase() === wanted) match = obj;
+    });
+    return match;
+  }
+
+  async function createGlbInstanceWithAddedWeapons(graphic, def, generation, visited = new Set()){
+    const template = await loadGraphicTemplate(graphic);
+    if (generation !== state.glb.documentGeneration || !template) return null;
+    const instance = template.clone(true);
+    cloneGlbMaterials(instance);
+
+    const defId = String(def?.id || def?.typeId || "").trim();
+    const nextVisited = new Set(visited);
+    if (defId) nextVisited.add(defId);
+    for (const entry of def?.addedWeapons || []){
+      const socket = String(entry?.socket || "").trim();
+      const addedDefId = String(entry?.defId || "").trim();
+      if (!socket || !addedDefId || nextVisited.has(addedDefId)) continue;
+      const addedDef = state.defsById.get(addedDefId) || null;
+      const addedGraphic = String(addedDef?.graphic || "").trim();
+      if (!addedDef || !addedGraphic) continue;
+      const child = await createGlbInstanceWithAddedWeapons(addedGraphic, addedDef, generation, nextVisited);
+      if (!child) continue;
+      const scale = Number(addedDef.graphicScale);
+      const normalizedScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+      child.scale.set(normalizedScale, normalizedScale, normalizedScale);
+      child.userData.addedWeaponDefId = addedDefId;
+      child.userData.addedWeaponSocket = socket;
+      const attachment = findGlbAttachmentSocket(instance, socket) || instance;
+      child.userData.addedWeaponSocketFound = attachment !== instance;
+      attachment.add(child);
+    }
+    return instance;
   }
 
   function disposeGlbInstanceMaterials(instance){
@@ -12317,8 +12399,8 @@ end group
         state.glb.itemInstances.delete(itemId);
       }
 
-      for (const { it, graphic } of entries){
-        const visualSignature = getGlbItemVisualSignature(it, graphic);
+      for (const { it, graphic, def } of entries){
+        const visualSignature = getGlbItemVisualSignature(it, graphic, def);
         let instance = state.glb.itemInstances.get(it.id) || null;
         if (instance && instance.userData.visualSignature !== visualSignature){
           removeGlbItemInstance(instance);
@@ -12327,11 +12409,9 @@ end group
         }
 
         if (!instance){
-          const template = await loadGraphicTemplate(graphic);
+          instance = await createGlbInstanceWithAddedWeapons(graphic, def, generation);
           if (generation !== state.glb.documentGeneration) return;
-          if (!template) continue;
-          instance = template.clone(true);
-          cloneGlbMaterials(instance);
+          if (!instance) continue;
           applySolidTintToGlbObject(instance, getItemTint(it));
           applyWaypointColorToGlbObject(instance, it);
           applyAreaTriggerColorToGlbObject(instance, it);
