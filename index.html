@@ -10418,13 +10418,14 @@ end group
   }
 
   function updateMapTilePreviewMesh(mesh,it){
-    const f=getMapTileFootprint(it),position=mesh?.geometry?.getAttribute?.('position');if(!f||!position)return;
-    const steps=mesh.userData.steps;
+    const f=getMapTileFootprint(it),geometry=mesh?.geometry,position=geometry?.getAttribute?.('position');if(!f||!position)return;
+    const steps=mesh.userData.steps,uvAttribute=geometry.getAttribute?.('uv'),record=mapTileRecordForItem(it);
     for(let y=0;y<=steps;y++)for(let x=0;x<=steps;x++){
       const wx=f.left+f.size*x/steps,wy=f.bottom+f.size*y/steps,terrainZ=heightAtWorld(wx,wy,1.0),i=y*(steps+1)+x;
       position.setXYZ(i,wx,wy,Number.isFinite(terrainZ)&&terrainZ>-1e8?terrainZ+.04:getItemInteractionAnchor(it).z);
+      if(uvAttribute&&record){const uv=transformMapTileUv(x/steps,y/steps,record.flags);uvAttribute.setXY(i,uv.u,uv.v);}
     }
-    position.needsUpdate=true;mesh.geometry.computeBoundingSphere();
+    position.needsUpdate=true;if(uvAttribute&&record)uvAttribute.needsUpdate=true;geometry.computeBoundingSphere();
   }
 
   function createMapTilePreviewMesh(it){
@@ -13771,7 +13772,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }else if(d.handle.kind==='ring'){
       const hit=rayPlanePoint(ray,d.pivot,d.handle.axis);if(!hit||!d.lastVector)return;const cur=vec3Norm(vec3Sub(hit,d.pivot)),deltaAngle=Math.atan2(vec3Dot(d.handle.axis,vec3Cross(d.lastVector,cur)),vec3Dot(d.lastVector,cur));d.accumulatedAngle+=deltaAngle;d.lastVector=cur;
       const rawDegrees=d.accumulatedAngle*180/Math.PI,reference=d.snapshots[0];
-      if(d.onlyMapTiles){const quarterTurns=Math.round(gizmoRotationValueDegrees(d.mode,rawDegrees)/90),appliedDegrees=quarterTurns*90,seen=new Set();let changed=false;for(const start of d.snapshots){if(!Number.isInteger(start.tilRecordIndex)||seen.has(start.tilRecordIndex))continue;seen.add(start.tilRecordIndex);const record=state.mapTiles.records[start.tilRecordIndex],nextFlags=rotateMapTileFlags(start.tilFlags,quarterTurns);if(record&&record.flags!==nextFlags){record.flags=nextFlags;changed=true;}}d.appliedAngle=gizmoRotationGeometryDegrees(d.mode,appliedDegrees)*Math.PI/180;d.currentVector=vec3Norm(rotateAroundAxis(d.startVector,d.handle.axis,d.appliedAngle));d.label=`${appliedDegrees.toFixed(0)}°`;if(changed){state.mapTiles.dirty=true;buildMapTileOverlay();updateMapTileDragPreview();}updateItemGizmo();return;}
+      if(d.onlyMapTiles){const quarterTurns=Math.round(gizmoRotationValueDegrees(d.mode,rawDegrees)/90),appliedDegrees=quarterTurns*90,seen=new Set();let changed=false;for(const start of d.snapshots){if(!Number.isInteger(start.tilRecordIndex)||seen.has(start.tilRecordIndex))continue;seen.add(start.tilRecordIndex);const record=state.mapTiles.records[start.tilRecordIndex],nextFlags=rotateMapTileFlags(start.tilFlags,quarterTurns);if(record&&record.flags!==nextFlags){record.flags=nextFlags;changed=true;}}d.appliedAngle=gizmoRotationGeometryDegrees(d.mode,appliedDegrees)*Math.PI/180;d.currentVector=vec3Norm(rotateAroundAxis(d.startVector,d.handle.axis,d.appliedAngle));d.label=`${appliedDegrees.toFixed(0)}°`;if(changed){state.mapTiles.dirty=true;updateMapTileDragPreview();}updateItemGizmo();return;}
       let valueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);
       if(state.rotationSnapEnabled){if(state.rotationSnapMode==='absolute'){const initial=d.mode==='rotX'?reference.pitch:reference.heading;valueDegrees=snapValue(initial+valueDegrees,state.rotationSnap)-initial;}else valueDegrees=snapValue(valueDegrees,state.rotationSnap);}
       const geometryDegrees=gizmoRotationGeometryDegrees(d.mode,valueDegrees),angle=geometryDegrees*Math.PI/180;d.appliedAngle=angle;d.currentVector=vec3Norm(rotateAroundAxis(d.startVector,d.handle.axis,angle));d.label=`${valueDegrees.toFixed(1)}°`;
