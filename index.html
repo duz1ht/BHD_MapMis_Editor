@@ -9336,7 +9336,7 @@ end group
     }
     const content=overlay.querySelector("[data-content]"),index=mapTileAtlasIndex(it),recordIndex=Math.trunc(Number(it?.kv?.extra_val2));
     const flags=record?.flags??0,flagsHex=`0x${flags.toString(16).padStart(2,"0").toUpperCase()}`;
-    content.innerHTML=`<dl style="display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0 0 16px"><dt>TIL file</dt><dd>${escapeHtml(state.mapTiles.filename||"Not loaded")}</dd><dt>TIL record</dt><dd>${record?recordIndex:"No matching TIL record"}</dd><dt>Texture</dt><dd>${escapeHtml(state.mapTiles.atlasName||"Not loaded")}</dd><dt>Tile index</dt><dd>${Number.isInteger(index)?index:"Invalid extra_bheight value"}</dd><dt>Atlas cell</dt><dd>${Number.isInteger(index)?`column ${index%8+1} / row ${Math.floor(index/8)+1} (zero-based ${index%8}, ${Math.floor(index/8)})`:"—"}</dd><dt>TIL value</dt><dd>${record?record.value:"—"}</dd><dt>Flags</dt><dd>${record?`${flagsHex} — ${escapeHtml(mapTileFlagLabels(flags))}`:"—"}</dd><dt>Reserved</dt><dd>${record?record.reserved:"—"}</dd></dl>${state.mapTiles.error?`<p class="dangerText">${escapeHtml(state.mapTiles.error)}</p>`:""}<canvas width="256" height="256" aria-label="Tile texture preview" style="width:256px;max-width:100%;image-rendering:auto;border:1px solid var(--border)"></canvas>`;
+    content.innerHTML=`<dl style="display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0 0 16px"><dt>TIL file</dt><dd>${escapeHtml(state.mapTiles.filename||"Not loaded")}</dd><dt>TIL record</dt><dd>${record?recordIndex:"No matching TIL record"}</dd><dt>Texture</dt><dd>${escapeHtml(state.mapTiles.atlasName||"Not loaded")}</dd><dt>Tile index</dt><dd>${Number.isInteger(index)?index:"Invalid TIL tile_index value"}</dd><dt>Atlas cell</dt><dd>${Number.isInteger(index)?`column ${index%8+1} / row ${Math.floor(index/8)+1} (zero-based ${index%8}, ${Math.floor(index/8)})`:"—"}</dd><dt>Flags</dt><dd>${record?`${flagsHex} — ${escapeHtml(mapTileFlagLabels(flags))}`:"—"}</dd><dt>Reserved</dt><dd>${record?record.reserved:"—"}</dd></dl>${state.mapTiles.error?`<p class="dangerText">${escapeHtml(state.mapTiles.error)}</p>`:""}<canvas width="256" height="256" aria-label="Tile texture preview" style="width:256px;max-width:100%;image-rendering:auto;border:1px solid var(--border)"></canvas>`;
     const canvas=content.querySelector("canvas"),img=state.mapTiles.atlasImage;
     if(img&&Number.isInteger(index)){
       const sw=img.w/8,sh=img.h/8,ctx=canvas.getContext("2d"),preview=ctx.createImageData(canvas.width,canvas.height);
@@ -10207,7 +10207,7 @@ end group
     if(declaredSize!==buf.byteLength||expected!==buf.byteLength)throw new Error(`Invalid TIL size (declared ${declaredSize}, expected ${expected}, actual ${buf.byteLength})`);
     const records=[],byPosition=new Map();
     for(let i=0,off=16;i<count;i++,off+=12){
-      const record={x:d.getInt32(off,true),y:d.getInt32(off+4,true),value:d.getUint8(off+8),flags:d.getUint8(off+9),reserved:d.getUint16(off+10,true),recordIndex:i};
+      const record={x:d.getInt32(off,true),y:d.getInt32(off+4,true),tileIndex:d.getUint8(off+8),flags:d.getUint8(off+9),reserved:d.getUint16(off+10,true),recordIndex:i};
       const key=mapTilePositionKey(record.x,record.y);if(byPosition.has(key))addLog(`[map_tiles] duplicate TIL position ${key}`);else byPosition.set(key,record);records.push(record);
     }
     return {records,byPosition};
@@ -10257,7 +10257,7 @@ end group
   }
 
   function mapTileAtlasIndex(it){
-    const index=Math.trunc(Number(it?.kv?.extra_bheight));return index>=0&&index<64?index:null;
+    const index=mapTileRecordForItem(it)?.tileIndex;return Number.isInteger(index)&&index>=0&&index<=255?index:null;
   }
 
   function transformMapTileUv(u,v,flags){
