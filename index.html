@@ -12103,13 +12103,18 @@ end group
     if (!root || !wanted) return null;
     const wantedAlias = wanted.replace(/_dir$/, "");
     let exactMatch = null;
+    let exactTokenMatch = null;
     let aliasMatch = null;
+    let aliasTokenMatch = null;
     root.traverse((obj) => {
       const candidate = String(obj.name || "").trim().toLowerCase();
+      const tokens = candidate.split(/\s+/).filter(Boolean);
       if (!exactMatch && candidate === wanted) exactMatch = obj;
+      if (!exactTokenMatch && tokens.includes(wanted)) exactTokenMatch = obj;
       if (!aliasMatch && candidate.replace(/_dir$/, "") === wantedAlias) aliasMatch = obj;
+      if (!aliasTokenMatch && tokens.some((token) => token.replace(/_dir$/, "") === wantedAlias)) aliasTokenMatch = obj;
     });
-    return exactMatch || aliasMatch;
+    return exactMatch || exactTokenMatch || aliasMatch || aliasTokenMatch;
   }
 
   async function createGlbInstanceWithAddedWeapons(graphic, def, generation, visited = new Set()){
