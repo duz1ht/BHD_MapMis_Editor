@@ -9335,11 +9335,18 @@ end group
       overlay.addEventListener("mousedown",e=>{if(e.target===overlay)overlay.querySelector("[data-close]").click();});
     }
     const content=overlay.querySelector("[data-content]"),index=mapTileAtlasIndex(it),recordIndex=Math.trunc(Number(it?.kv?.extra_val2));
-    content.innerHTML=`<dl style="display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0 0 16px"><dt>TIL file</dt><dd>${escapeHtml(state.mapTiles.filename||"Not loaded")}</dd><dt>TIL record</dt><dd>${record?recordIndex:"No matching TIL record"}</dd><dt>Texture</dt><dd>${escapeHtml(state.mapTiles.atlasName||"Not loaded")}</dd><dt>Tile index</dt><dd>${Number.isInteger(index)?index:"Invalid extra_bheight value"}</dd><dt>Atlas cell</dt><dd>${Number.isInteger(index)?`column ${index%8+1} / row ${Math.floor(index/8)+1} (zero-based ${index%8}, ${Math.floor(index/8)})`:"—"}</dd></dl>${state.mapTiles.error?`<p class="dangerText">${escapeHtml(state.mapTiles.error)}</p>`:""}<canvas width="256" height="256" aria-label="Tile texture preview" style="width:256px;max-width:100%;image-rendering:auto;border:1px solid var(--border)"></canvas>`;
+    const flags=record?.flags??0,flagsHex=`0x${flags.toString(16).padStart(2,"0").toUpperCase()}`;
+    content.innerHTML=`<dl style="display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0 0 16px"><dt>TIL file</dt><dd>${escapeHtml(state.mapTiles.filename||"Not loaded")}</dd><dt>TIL record</dt><dd>${record?recordIndex:"No matching TIL record"}</dd><dt>Texture</dt><dd>${escapeHtml(state.mapTiles.atlasName||"Not loaded")}</dd><dt>Tile index</dt><dd>${Number.isInteger(index)?index:"Invalid extra_bheight value"}</dd><dt>Atlas cell</dt><dd>${Number.isInteger(index)?`column ${index%8+1} / row ${Math.floor(index/8)+1} (zero-based ${index%8}, ${Math.floor(index/8)})`:"—"}</dd><dt>TIL value</dt><dd>${record?record.value:"—"}</dd><dt>Flags</dt><dd>${record?`${flagsHex} — ${escapeHtml(mapTileFlagLabels(flags))}`:"—"}</dd><dt>Reserved</dt><dd>${record?record.reserved:"—"}</dd></dl>${state.mapTiles.error?`<p class="dangerText">${escapeHtml(state.mapTiles.error)}</p>`:""}<canvas width="256" height="256" aria-label="Tile texture preview" style="width:256px;max-width:100%;image-rendering:auto;border:1px solid var(--border)"></canvas>`;
     const canvas=content.querySelector("canvas"),img=state.mapTiles.atlasImage;
     if(img&&Number.isInteger(index)){
-      const source=document.createElement("canvas");source.width=img.w;source.height=img.h;source.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(img.pixels),img.w,img.h),0,0);
-      const sw=img.w/8,sh=img.h/8;canvas.getContext("2d").drawImage(source,(index%8)*sw,Math.floor(index/8)*sh,sw,sh,0,0,canvas.width,canvas.height);
+      const sw=img.w/8,sh=img.h/8,ctx=canvas.getContext("2d"),preview=ctx.createImageData(canvas.width,canvas.height);
+      for(let py=0;py<canvas.height;py++)for(let px=0;px<canvas.width;px++){
+        const uv=transformMapTileUv((px+.5)/canvas.width,1-(py+.5)/canvas.height,flags);
+        const sx=Math.min(img.w-1,Math.floor((index%8)*sw+uv.u*sw)),sy=Math.min(img.h-1,Math.floor(Math.floor(index/8)*sh+(1-uv.v)*sh));
+        const src=(sy*img.w+sx)*4,dst=(py*canvas.width+px)*4;
+        preview.data[dst]=img.pixels[src];preview.data[dst+1]=img.pixels[src+1];preview.data[dst+2]=img.pixels[src+2];preview.data[dst+3]=img.pixels[src+3];
+      }
+      ctx.putImageData(preview,0,0);
     }else canvas.style.display="none";
     overlay.classList.add("open");overlay.setAttribute("aria-hidden","false");overlay.querySelector("[data-close]").focus();
   }
@@ -10200,7 +10207,7 @@ end group
     if(declaredSize!==buf.byteLength||expected!==buf.byteLength)throw new Error(`Invalid TIL size (declared ${declaredSize}, expected ${expected}, actual ${buf.byteLength})`);
     const records=[],byPosition=new Map();
     for(let i=0,off=16;i<count;i++,off+=12){
-      const record={x:d.getInt32(off,true),y:d.getInt32(off+4,true),property:d.getInt32(off+8,true),recordIndex:i};
+      const record={x:d.getInt32(off,true),y:d.getInt32(off+4,true),value:d.getUint8(off+8),flags:d.getUint8(off+9),reserved:d.getUint16(off+10,true),recordIndex:i};
       const key=mapTilePositionKey(record.x,record.y);if(byPosition.has(key))addLog(`[map_tiles] duplicate TIL position ${key}`);else byPosition.set(key,record);records.push(record);
     }
     return {records,byPosition};
@@ -10253,6 +10260,24 @@ end group
     const index=Math.trunc(Number(it?.kv?.extra_bheight));return index>=0&&index<64?index:null;
   }
 
+  function transformMapTileUv(u,v,flags){
+    const orientation=Number(flags)&0x07;
+    if(orientation&0x01)u=1-u;
+    if(orientation&0x02)v=1-v;
+    if(orientation&0x04){const oldU=u;u=1-v;v=oldU;}
+    return {u,v};
+  }
+
+  function mapTileFlagLabels(flags){
+    const value=Number(flags)&0xff,labels=[];
+    if(value&0x01)labels.push("FLIP_X");
+    if(value&0x02)labels.push("FLIP_Y");
+    if(value&0x04)labels.push("ROTATE_90");
+    if(value&0x08)labels.push("OUTLINE (metadata only)");
+    if(value&0xf0)labels.push(`reserved high bits 0x${(value&0xf0).toString(16).padStart(2,"0").toUpperCase()}`);
+    return labels.length?labels.join(", "):"None";
+  }
+
   // MapTiles are two-dimensional terrain decals. Keep their editable footprint
   // independent from the item's stored Z (and from the invisible GLB marker).
   function getMapTileFootprint(it){
@@ -10290,7 +10315,8 @@ end group
       const col=tileIndex%8,row=Math.floor(tileIndex/8);
       for(let py=0;py<tilePixels;py++)for(let px=0;px<tilePixels;px++){
         const dx=baseX+px,dy=baseY+py;if(dx<0||dy<0||dx>=resolution||dy>=resolution)continue;
-        const sx=Math.min(img.w-1,Math.floor(col*cellW+(px+.5)/tilePixels*cellW)),sy=Math.min(img.h-1,Math.floor(row*cellH+(tilePixels-py-.5)/tilePixels*cellH));
+        const uv=transformMapTileUv((px+.5)/tilePixels,(py+.5)/tilePixels,record.flags);
+        const sx=Math.min(img.w-1,Math.floor(col*cellW+uv.u*cellW)),sy=Math.min(img.h-1,Math.floor(row*cellH+(1-uv.v)*cellH));
         const src=(sy*img.w+sx)*4,dst=(dy*resolution+dx)*4,alpha=img.pixels[src+3]/255,oldAlpha=pixels[dst+3]/255,outAlpha=alpha+oldAlpha*(1-alpha);
         if(outAlpha>0)for(let c=0;c<3;c++){const srgb=img.pixels[src+c]/255,linear=(srgb<=.04045?srgb/12.92:Math.pow((srgb+.055)/1.055,2.4))*255;pixels[dst+c]=Math.round((linear*alpha+pixels[dst+c]*oldAlpha*(1-alpha))/outAlpha);}pixels[dst+3]=Math.round(outAlpha*255);
       }
