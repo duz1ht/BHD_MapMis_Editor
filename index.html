@@ -12107,19 +12107,59 @@ end group
     const wanted = String(socketName || "").trim().toLowerCase();
     if (!root || !wanted) return null;
     const wantedAlias = wanted.replace(/_dir$/, "");
-    let exactMatch = null;
-    let exactTokenMatch = null;
-    let aliasMatch = null;
-    let aliasTokenMatch = null;
+    const nodes = [];
     root.traverse((obj) => {
       const candidate = String(obj.name || "").trim().toLowerCase();
       const tokens = candidate.split(/\s+/).filter(Boolean);
-      if (!exactMatch && candidate === wanted) exactMatch = obj;
-      if (!exactTokenMatch && tokens.includes(wanted)) exactTokenMatch = obj;
-      if (!aliasMatch && candidate.replace(/_dir$/, "") === wantedAlias) aliasMatch = obj;
-      if (!aliasTokenMatch && tokens.some((token) => token.replace(/_dir$/, "") === wantedAlias)) aliasTokenMatch = obj;
+      nodes.push({ obj, candidate, tokens });
     });
-    return exactMatch || exactTokenMatch || aliasMatch || aliasTokenMatch;
+    const socketEntry = nodes
+      .map((entry) => {
+        const exactFull = entry.candidate === wantedAlias;
+        const exactToken = entry.tokens.includes(wantedAlias);
+        return { ...entry, score: exactFull ? 0 : exactToken ? 1 : Infinity };
+      })
+      .filter((entry) => Number.isFinite(entry.score))
+      .sort((a, b) => a.score - b.score)[0] || null;
+    if (!socketEntry) return null;
+
+    const directionToken = `${wantedAlias}_dir`;
+    const directionCandidates = nodes
+      .map((entry) => {
+        const exactFull = entry.candidate === directionToken;
+        const pairedFull = entry.candidate === `${socketEntry.candidate}_dir`;
+        const exactToken = entry.tokens.includes(directionToken);
+        const descendant = entry.obj !== socketEntry.obj && socketEntry.obj.getObjectById?.(entry.obj.id) === entry.obj;
+        const score = pairedFull ? 0 : (descendant && exactToken) ? 1 : exactFull ? 2 : exactToken ? 3 : Infinity;
+        return { ...entry, score };
+      })
+      .filter((entry) => Number.isFinite(entry.score))
+      .sort((a, b) => a.score - b.score);
+    return {
+      socketNode: socketEntry.obj,
+      directionNode: directionCandidates[0]?.obj || null,
+    };
+  }
+
+  function applyAddedWeaponSocketTransform(child, socketNode, directionNode, graphicScale){
+    const scale = Number.isFinite(Number(graphicScale)) && Number(graphicScale) > 0 ? Number(graphicScale) : 1;
+    child.position.set(0, 0, 0);
+    child.quaternion.identity();
+    applyItemModelTransform(child, 0, 0, scale);
+    if (!socketNode || !directionNode || !state.glb.THREE) return null;
+
+    socketNode.updateWorldMatrix?.(true, false);
+    directionNode.updateWorldMatrix?.(true, false);
+    const directionWorld = directionNode.getWorldPosition(new state.glb.THREE.Vector3());
+    const directionLocal = socketNode.worldToLocal(directionWorld.clone());
+    if (directionLocal.lengthSq() <= 1e-12) return null;
+    directionLocal.normalize();
+
+    // Converted 3DI GLBs point along local +Y after their import correction.
+    const correctedForward = new state.glb.THREE.Vector3(0, 1, 0).applyQuaternion(child.quaternion).normalize();
+    const socketAlignment = new state.glb.THREE.Quaternion().setFromUnitVectors(correctedForward, directionLocal);
+    child.quaternion.premultiply(socketAlignment);
+    return directionLocal;
   }
 
   function createAddedWeaponStats(){
@@ -12130,6 +12170,7 @@ end group
       missingGraphic: 0,
       missingGlb: 0,
       missingSocket: 0,
+      directionFallbacks: 0,
       cycles: 0,
     };
   }
@@ -12169,15 +12210,24 @@ end group
       if (!child) continue;
       const scale = Number(addedDef.graphicScale);
       const normalizedScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
-      child.position.set(0, 0, 0);
-      child.quaternion.identity();
-      applyItemModelTransform(child, 0, 0, normalizedScale);
       child.userData.addedWeaponDefId = addedDefId;
       child.userData.addedWeaponSocket = socket;
-      const attachment = findGlbAttachmentSocket(instance, socket) || instance;
+      const socketMatch = findGlbAttachmentSocket(instance, socket);
+      const attachment = socketMatch?.socketNode || instance;
       child.userData.addedWeaponSocketFound = attachment !== instance;
       child.userData.addedWeaponSocketNode = attachment.name || '<root>';
+      child.userData.addedWeaponDirectionNode = socketMatch?.directionNode?.name || '';
       attachment.add(child);
+      const socketDirection = applyAddedWeaponSocketTransform(
+        child,
+        socketMatch?.socketNode || null,
+        socketMatch?.directionNode || null,
+        normalizedScale,
+      );
+      const directionText = socketDirection
+        ? `${socketDirection.x.toFixed(4)},${socketDirection.y.toFixed(4)},${socketDirection.z.toFixed(4)}`
+        : 'fallback(-180 yaw,+90 pitch)';
+      if (!socketDirection) stats.directionFallbacks += 1;
       if (child.userData.missingGraphic){
         stats.missingGlb += 1;
         addLog(`[addeweap] GLB missing or invalid: parent=${defId || '<unknown>'} socket=${socket} def=${addedDefId} graphic=${addedGraphic}`);
@@ -12186,9 +12236,9 @@ end group
       }
       if (attachment === instance){
         stats.missingSocket += 1;
-        addLog(`[addeweap] socket missing, attached to root: parent=${defId || '<unknown>'} socket=${socket} def=${addedDefId} graphic=${addedGraphic}`);
+        addLog(`[addeweap] socket missing, attached to root: parent=${defId || '<unknown>'} socket=${socket} direction=${directionText} def=${addedDefId} graphic=${addedGraphic}`);
       } else {
-        addLog(`[addeweap] attached: parent=${defId || '<unknown>'} socket=${socket} node=${attachment.name || '<unnamed>'} def=${addedDefId} graphic=${addedGraphic}`);
+        addLog(`[addeweap] attached: parent=${defId || '<unknown>'} socket=${socket} node=${attachment.name || '<unnamed>'} direction_node=${socketMatch?.directionNode?.name || '<none>'} direction=${directionText} def=${addedDefId} graphic=${addedGraphic}`);
       }
     }
     return instance;
@@ -12519,6 +12569,7 @@ end group
         addedWeaponsMissingGraphic: addedWeaponStats.missingGraphic,
         addedWeaponsMissingGlb: addedWeaponStats.missingGlb,
         addedWeaponsMissingSocket: addedWeaponStats.missingSocket,
+        addedWeaponsDirectionFallbacks: addedWeaponStats.directionFallbacks,
         addedWeaponsCycles: addedWeaponStats.cycles,
         missingGlbFiles: Array.from(state.glb.missingGraphics.values())
           .sort((a,b) => a.localeCompare(b))
@@ -12530,7 +12581,7 @@ end group
       state.glb.lastStats = syncReport;
       state.glb.lastSyncReport = syncReport;
       addLog(`[3d_items] cobertura GLB: total=${syncReport.totalItems} renderizaveis=${syncReport.renderableItems} instancias=${syncReport.finalInstances} sem_graphic=${syncReport.skippedMissingGraphic} sem_type_id=${syncReport.skippedMissingTypeId} sem_def_para_type=${syncReport.skippedDefNotFoundForTypeId} sem_graphic_def_item=${syncReport.skippedMissingGraphicInDefAndItem} ausentes_pos_sync=${syncReport.missingInstancesAfterSync} graficos_distintos=${syncReport.distinctGraphics} top=${topGraphics.join(', ') || '<none>'}`);
-      addLog(`[addeweap] requested=${syncReport.addedWeaponsRequested} attached=${syncReport.addedWeaponsAttached} missing_def=${syncReport.addedWeaponsMissingDef} missing_graphic=${syncReport.addedWeaponsMissingGraphic} missing_glb=${syncReport.addedWeaponsMissingGlb} missing_socket=${syncReport.addedWeaponsMissingSocket} cycles=${syncReport.addedWeaponsCycles}`);
+      addLog(`[addeweap] requested=${syncReport.addedWeaponsRequested} attached=${syncReport.addedWeaponsAttached} missing_def=${syncReport.addedWeaponsMissingDef} missing_graphic=${syncReport.addedWeaponsMissingGraphic} missing_glb=${syncReport.addedWeaponsMissingGlb} missing_socket=${syncReport.addedWeaponsMissingSocket} direction_fallbacks=${syncReport.addedWeaponsDirectionFallbacks} cycles=${syncReport.addedWeaponsCycles}`);
       addLog(`[3d_items] itens sem_def_para_type (${syncReport.itemsMissingDefForType.length}): ${formatGlbStatItems(syncReport.itemsMissingDefForType)}`);
       addLog(`[3d_items] itens sem_graphic_def_item (${syncReport.itemsMissingGraphicInDefAndItem.length}): ${formatGlbStatItems(syncReport.itemsMissingGraphicInDefAndItem)}`);
       if (!syncReport.missingGlbFiles.length){
