@@ -12141,12 +12141,28 @@ end group
     };
   }
 
+  function createAddedWeaponImportCorrectionQuaternion(){
+    if (!state.glb.THREE) return null;
+    const { THREE } = state.glb;
+    // Explicit local GLB correction: yaw -180°, then pitch +90°, in the
+    // same ZXY order used by regular item models. +180° is equivalent, but
+    // keeping -180° here documents the convention used by the source assets.
+    return new THREE.Quaternion().setFromEuler(new THREE.Euler(
+      Math.PI / 2,
+      0,
+      -Math.PI,
+      "ZXY",
+    ));
+  }
+
   function applyAddedWeaponSocketTransform(child, socketNode, directionNode, graphicScale){
     const scale = Number.isFinite(Number(graphicScale)) && Number(graphicScale) > 0 ? Number(graphicScale) : 1;
     child.position.set(0, 0, 0);
-    child.quaternion.identity();
-    applyItemModelTransform(child, 0, 0, scale);
-    if (!socketNode || !directionNode || !state.glb.THREE) return null;
+    child.scale.set(scale, scale, scale);
+    const importCorrection = createAddedWeaponImportCorrectionQuaternion();
+    if (!importCorrection) return null;
+    child.quaternion.copy(importCorrection);
+    if (!socketNode || !directionNode) return null;
 
     socketNode.updateWorldMatrix?.(true, false);
     directionNode.updateWorldMatrix?.(true, false);
@@ -12156,9 +12172,12 @@ end group
     directionLocal.normalize();
 
     // Converted 3DI GLBs point along local +Y after their import correction.
-    const correctedForward = new state.glb.THREE.Vector3(0, 1, 0).applyQuaternion(child.quaternion).normalize();
+    const correctedForward = new state.glb.THREE.Vector3(0, 1, 0).applyQuaternion(importCorrection).normalize();
     const socketAlignment = new state.glb.THREE.Quaternion().setFromUnitVectors(correctedForward, directionLocal);
-    child.quaternion.premultiply(socketAlignment);
+    // Local result = socket direction alignment * GLB import correction.
+    // The item's world rotation is deliberately omitted because Object3D
+    // inheritance supplies it through the socket hierarchy.
+    child.quaternion.copy(socketAlignment).multiply(importCorrection);
     return directionLocal;
   }
 
