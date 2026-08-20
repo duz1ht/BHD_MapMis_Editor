@@ -1574,6 +1574,7 @@
           <button id="rotationSnapToggleBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Rotation Snap" title="Enable or disable rotation snapping"><img class="toolbarIcon" src="resources/BHD/editor_icons/snap_to_angle.svg" alt="" /></button>
           <button id="rotationSnapMenuBtn" type="button" class="modeBtn" aria-haspopup="true" aria-expanded="false" aria-label="Rotation Snap settings">&#x25BE;</button>
         </div>
+        <button id="gridSnapToggleBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Snap to Grid" title="Enable or disable snapping movement to the grid"><img class="toolbarIcon" src="resources/BHD/editor_icons/snap_to_grid.svg" alt="" /></button>
         <button id="viewportToolsBtn" type="button" class="modeBtn" aria-haspopup="true" aria-expanded="false" aria-label="Viewport Tools: Perspective" title="Viewport Tools"><img class="toolbarIcon" src="resources/BHD/editor_icons/camera.svg" alt="" /><span id="viewportProjectionLabel">Perspective</span></button>
         <button id="viewModeBtn" type="button" class="modeBtn iconBtn" aria-haspopup="true" aria-expanded="false" aria-label="Draw Mode" title="Draw Mode"><img class="toolbarIcon" src="resources/BHD/editor_icons/draw_mode.svg" alt="" /></button>
         <div id="viewportStatus">
@@ -2478,6 +2479,7 @@ end group
     transformMode: "translate",
     transformSpace: "global",
     transformPivot: "center",
+    gridSnapEnabled: false,
     rotationSnapEnabled: false,
     rotationSnap: 15,
     rotationSnapMode: "relative",
@@ -2736,6 +2738,7 @@ end group
   const showWaypointsBtn = document.getElementById("showWaypointsBtn");
   const showAreaTriggersBtn = document.getElementById("showAreaTriggersBtn");
   const transformSpaceBtn = document.getElementById("transformSpaceBtn");
+  const gridSnapToggleBtn = document.getElementById("gridSnapToggleBtn");
   const rotationSnapToggleBtn = document.getElementById("rotationSnapToggleBtn");
   const rotationSnapMenuBtn = document.getElementById("rotationSnapMenuBtn");
   const viewportToolsBtn = document.getElementById("viewportToolsBtn");
@@ -5943,6 +5946,10 @@ end group
     rotationSnapToggleBtn?.classList.toggle('active',state.rotationSnapEnabled);
     rotationSnapToggleBtn?.setAttribute('aria-pressed',state.rotationSnapEnabled?'true':'false');
   }
+  function syncGridSnapButton(){
+    gridSnapToggleBtn?.classList.toggle('active',state.gridSnapEnabled);
+    gridSnapToggleBtn?.setAttribute('aria-pressed',state.gridSnapEnabled?'true':'false');
+  }
 
   function syncTransformSpaceButton(){
     if(!transformSpaceBtn)return;
@@ -8871,6 +8878,9 @@ end group
   rotationSnapToggleBtn?.addEventListener('click',event=>{
     event.stopPropagation();state.rotationSnapEnabled=!state.rotationSnapEnabled;syncRotationSnapButton();updateItemGizmo();
   });
+  gridSnapToggleBtn?.addEventListener('click',event=>{
+    event.stopPropagation();state.gridSnapEnabled=!state.gridSnapEnabled;syncGridSnapButton();updateItemGizmo();
+  });
   transformSpaceBtn?.addEventListener('click',event=>{
     event.stopPropagation();toggleTransformSpace();
   });
@@ -8882,6 +8892,7 @@ end group
   });
   rotationSnapPanelEl?.addEventListener('click',event=>event.stopPropagation());
   syncRotationSnapButton();
+  syncGridSnapButton();
 
   viewportToolsBtn?.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -13738,9 +13749,10 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
   }
   function snapValue(value,step){return step>0?Math.round(value/step)*step:value;}
   function applyTranslationDelta(it,start,delta){
-    if(Math.abs(delta.x)>1e-9)it.x=worldToRaw(start.world.x+delta.x,'x');else it.x=start.x;
-    if(Math.abs(delta.y)>1e-9)it.y=worldToRaw(start.world.y+delta.y,'y');else it.y=start.y;
-    if(Math.abs(delta.z)>1e-9)it.z=worldToRaw(start.world.z+delta.z,'z');else it.z=start.z;
+    const gridStep=state.gridSnapEnabled?gridSizeMeters():0;
+    if(Math.abs(delta.x)>1e-9)it.x=worldToRaw(snapValue(start.world.x+delta.x,gridStep),'x');else it.x=start.x;
+    if(Math.abs(delta.y)>1e-9)it.y=worldToRaw(snapValue(start.world.y+delta.y,gridStep),'y');else it.y=start.y;
+    if(Math.abs(delta.z)>1e-9)it.z=worldToRaw(snapValue(start.world.z+delta.z,gridStep),'z');else it.z=start.z;
   }
   function beginGizmoDrag(mode,clientX,clientY,itemIds){
     if(!isGizmoHandleInteractive(mode))return null;
