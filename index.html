@@ -12101,11 +12101,15 @@ end group
   function findGlbAttachmentSocket(root, socketName){
     const wanted = String(socketName || "").trim().toLowerCase();
     if (!root || !wanted) return null;
-    let match = null;
+    const wantedAlias = wanted.replace(/_dir$/, "");
+    let exactMatch = null;
+    let aliasMatch = null;
     root.traverse((obj) => {
-      if (!match && String(obj.name || "").trim().toLowerCase() === wanted) match = obj;
+      const candidate = String(obj.name || "").trim().toLowerCase();
+      if (!exactMatch && candidate === wanted) exactMatch = obj;
+      if (!aliasMatch && candidate.replace(/_dir$/, "") === wantedAlias) aliasMatch = obj;
     });
-    return match;
+    return exactMatch || aliasMatch;
   }
 
   async function createGlbInstanceWithAddedWeapons(graphic, def, generation, visited = new Set()){
