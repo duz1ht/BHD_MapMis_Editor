@@ -11404,9 +11404,10 @@ end group
     const headingDeg = Number(heading) || 0;
     const pitchDeg = Number(pitch) || 0;
     const isThreeDi = obj.userData?.modelFormat === "3di" || /\.3di$/i.test(String(obj.userData?.sourceAsset || ""));
-    // Native 3DI geometry already has its axes converted by parseThreeDi(), so
-    // use the MIS angles directly. GLBs retain the OpenNova orientation fix.
-    const yawRad = (isThreeDi ? headingDeg : -headingDeg + 180) * Math.PI / 180;
+    // Native 3DI geometry already has its axes converted by parseThreeDi(). Apply
+    // its 180-degree yaw correction before adding the MIS heading, while using
+    // the MIS pitch directly. GLBs retain the OpenNova orientation fix.
+    const yawRad = (isThreeDi ? headingDeg + 180 : -headingDeg + 180) * Math.PI / 180;
     const pitchRad = (isThreeDi ? pitchDeg : -pitchDeg + 90) * Math.PI / 180;
     obj.rotation.order = "ZXY";
     obj.rotation.z = yawRad;
