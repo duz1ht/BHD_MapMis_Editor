@@ -12113,6 +12113,29 @@ end group
     return exactMatch || taggedMatches.find(match => !match.isDirection)?.obj || taggedMatches[0]?.obj || null;
   }
 
+  function findEmplacedWeaponSockets(root, name){
+    const wanted = String(name || "").trim().toLowerCase();
+    if (!root || !wanted) return { mount: null, direction: null };
+    let mount = null;
+    let direction = null;
+    root.traverse((obj) => {
+      const objectName = String(obj?.name || "").trim().toLowerCase();
+      if (!objectName) return;
+      const tokens = objectName.split(/[^a-z0-9]+/).filter(Boolean);
+      const hasSocketName = objectName === wanted || tokens.includes(wanted);
+      if (!hasSocketName) return;
+      const isDirection = objectName === `${wanted}_dir`
+        || objectName.endsWith(` ${wanted}_dir`)
+        || (tokens.includes(wanted) && tokens.includes("dir") && objectName.endsWith("_dir"));
+      if (isDirection){
+        if (!direction) direction = obj;
+      } else if (!mount){
+        mount = obj;
+      }
+    });
+    return { mount, direction };
+  }
+
   function warnEmplacedWeaponOnce(key, message){
     if (state.glb.emplacedWeaponWarnings.has(key)) return;
     state.glb.emplacedWeaponWarnings.add(key);
@@ -12148,18 +12171,38 @@ end group
     ];
   }
 
-  function orientEmplacedWeapon(attachment, hostGraphic, weaponDef, hasMount){
+  function getEmplacedSocketDirection(mount, direction){
+    if (!mount || !direction || !state.glb.THREE) return null;
+    const { THREE } = state.glb;
+    mount.updateWorldMatrix(true, false);
+    direction.updateWorldMatrix(true, false);
+    const mountPosition = mount.getWorldPosition(new THREE.Vector3());
+    const directionPosition = direction.getWorldPosition(new THREE.Vector3());
+    const worldDirection = directionPosition.sub(mountPosition);
+    if (worldDirection.lengthSq() <= 1e-10) return null;
+    const mountWorldQuaternion = mount.getWorldQuaternion(new THREE.Quaternion());
+    return worldDirection.applyQuaternion(mountWorldQuaternion.invert()).normalize();
+  }
+
+  function orientEmplacedWeapon(attachment, hostGraphic, weaponDef, mount = null, direction = null){
     const graphic = String(hostGraphic || "").trim().toLowerCase();
+    const socketDirection = getEmplacedSocketDirection(mount, direction);
+    const scale = Number(weaponDef?.graphicScale);
+    const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+    if (socketDirection){
+      const weaponForward = new state.glb.THREE.Vector3(0, 0, 1);
+      attachment.quaternion.setFromUnitVectors(weaponForward, socketDirection);
+      attachment.scale.set(safeScale, safeScale, safeScale);
+      return;
+    }
     // Blackhawk hardpoints were exported in the legacy orientation expected by
     // the original renderer. Other GLBs (notably the Hummers) already encode
     // the complete attachment rotation in the UPG node; applying the global
     // item correction again turns their weapon upside down and offsets it.
-    if (hasMount && graphic.startsWith("fblkhaw")){
+    if (mount && graphic.startsWith("fblkhaw")){
       applyItemModelTransform(attachment, 0, 0, weaponDef?.graphicScale);
       return;
     }
-    const scale = Number(weaponDef?.graphicScale);
-    const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
     attachment.rotation.set(0, 0, 0);
     attachment.scale.set(safeScale, safeScale, safeScale);
   }
@@ -12189,17 +12232,17 @@ end group
       attachment.userData.isEmplacedWeapon = true;
       attachment.userData.emplacedWeapon = { ...weapon };
 
-      const mount = findNamedObject3D(instance, weapon.name);
+      const { mount, direction } = findEmplacedWeaponSockets(instance, weapon.name);
       if (mount){
-        orientEmplacedWeapon(attachment, hostGraphic, weaponDef, true);
+        orientEmplacedWeapon(attachment, hostGraphic, weaponDef, mount, direction);
         mount.add(attachment);
       } else if (Array.isArray(weapon.position) && weapon.position.length === 3){
-        orientEmplacedWeapon(attachment, hostGraphic, weaponDef, false);
+        orientEmplacedWeapon(attachment, hostGraphic, weaponDef);
         attachment.position.set(...weapon.position);
         instance.add(attachment);
         warnEmplacedWeaponOnce(`${warningKey}|position`, `${weapon.variant} ${weapon.name}: mount node not found; using fallback position.`);
       } else {
-        orientEmplacedWeapon(attachment, hostGraphic, weaponDef, false);
+        orientEmplacedWeapon(attachment, hostGraphic, weaponDef);
         const automaticPosition = getAutomaticEmplacedWeaponPosition(instance, attachment, weaponIndex, weapons.length);
         if (automaticPosition){
           attachment.position.set(...automaticPosition);
