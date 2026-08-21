@@ -11404,10 +11404,10 @@ end group
     const headingDeg = Number(heading) || 0;
     const pitchDeg = Number(pitch) || 0;
     const isThreeDi = obj.userData?.modelFormat === "3di" || /\.3di$/i.test(String(obj.userData?.sourceAsset || ""));
-    // Native 3DI geometry already has its axes converted by parseThreeDi(). Apply
-    // its 180-degree yaw correction before adding the MIS heading, while using
-    // the MIS pitch directly. GLBs retain the OpenNova orientation fix.
-    const yawRad = (isThreeDi ? headingDeg + 180 : -headingDeg + 180) * Math.PI / 180;
+    // A 3DI's authored forward direction varies by asset. Its loader records the
+    // per-model correction; models absent from the override table need no offset.
+    const baseYawDeg = isThreeDi && Number.isFinite(Number(obj.userData?.baseYaw)) ? Number(obj.userData.baseYaw) : 0;
+    const yawRad = (isThreeDi ? headingDeg + baseYawDeg : -headingDeg + 180) * Math.PI / 180;
     const pitchRad = (isThreeDi ? pitchDeg : -pitchDeg + 90) * Math.PI / 180;
     obj.rotation.order = "ZXY";
     obj.rotation.z = yawRad;
@@ -11641,6 +11641,9 @@ end group
     root.name = model.name;
     root.userData.sourceAsset = sourceAsset;
     root.userData.modelFormat = "3di";
+    const sourceFilename = String(sourceAsset || "").split(/[\\/]/).pop().split(/[?#]/)[0].toLowerCase();
+    const configuredBaseYaw = Number(window.BHD_3DI_BASE_YAW?.[sourceFilename]);
+    root.userData.baseYaw = Number.isFinite(configuredBaseYaw) ? configuredBaseYaw : 0;
     const trianglesByMaterial = new Map();
     for (const triangle of model.triangles){ if (!trianglesByMaterial.has(triangle.material)) trianglesByMaterial.set(triangle.material, []); trianglesByMaterial.get(triangle.material).push(triangle); }
     for (const [materialIndex, triangles] of trianglesByMaterial){
