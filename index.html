@@ -11653,7 +11653,15 @@ end group
     for (const triangle of model.triangles){ if (!trianglesByMaterial.has(triangle.material)) trianglesByMaterial.set(triangle.material, []); trianglesByMaterial.get(triangle.material).push(triangle); }
     for (const [materialIndex, triangles] of trianglesByMaterial){
       const positions = [], normals = [], uvs = [];
-      for (const triangle of triangles) for (const index of triangle.indices){ const vertex = model.vertices[index], normal = model.normals[index]; positions.push(vertex[0], vertex[1], vertex[2]); normals.push(normal[0], normal[1], normal[2]); uvs.push(vertex[3], vertex[4]); }
+      // 3DI uses the opposite handedness on its horizontal X axis. Mirror X
+      // and reverse each face so models are not displayed left-to-right
+      // flipped while retaining the original front-face winding and normals.
+      for (const triangle of triangles) for (const index of [triangle.indices[0], triangle.indices[2], triangle.indices[1]]){
+        const vertex = model.vertices[index], normal = model.normals[index];
+        positions.push(-vertex[0], vertex[1], vertex[2]);
+        normals.push(-normal[0], normal[1], normal[2]);
+        uvs.push(vertex[3], vertex[4]);
+      }
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3)); geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2)); geometry.computeBoundingSphere();
       const source = model.materials[materialIndex] || {};
