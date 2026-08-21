@@ -1,4 +1,4 @@
-resources/BHD/3d_items/*.glb
+
 resources/BHD/3d_items/backup/*.glb
 !resources/BHD/3d_items/.gitkeep
 manual_backups/
