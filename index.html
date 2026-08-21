@@ -11401,10 +11401,13 @@ end group
 
   function applyItemModelTransform(obj, heading = 0, pitch = 0, graphicScale = 1){
     if (!obj) return;
-    // OpenNova-style orientation correction: sign-flip yaw/pitch and apply a +180° yaw phase shift.
-    const yawRad = ((-(Number(heading) || 0)) + 180) * Math.PI / 180;
-    const pitchCalibratedDeg = (-(Number(pitch) || 0)) + 90;
-    const pitchRad = pitchCalibratedDeg * Math.PI / 180;
+    const headingDeg = Number(heading) || 0;
+    const pitchDeg = Number(pitch) || 0;
+    const isThreeDi = obj.userData?.modelFormat === "3di" || /\.3di$/i.test(String(obj.userData?.sourceAsset || ""));
+    // Native 3DI geometry already has its axes converted by parseThreeDi(), so
+    // use the MIS angles directly. GLBs retain the OpenNova orientation fix.
+    const yawRad = (isThreeDi ? headingDeg : -headingDeg + 180) * Math.PI / 180;
+    const pitchRad = (isThreeDi ? pitchDeg : -pitchDeg + 90) * Math.PI / 180;
     obj.rotation.order = "ZXY";
     obj.rotation.z = yawRad;
     obj.rotation.x = pitchRad;
@@ -11636,6 +11639,7 @@ end group
     const model = parseThreeDi(buffer), { THREE } = state.glb, root = new THREE.Group();
     root.name = model.name;
     root.userData.sourceAsset = sourceAsset;
+    root.userData.modelFormat = "3di";
     const trianglesByMaterial = new Map();
     for (const triangle of model.triangles){ if (!trianglesByMaterial.has(triangle.material)) trianglesByMaterial.set(triangle.material, []); trianglesByMaterial.get(triangle.material).push(triangle); }
     for (const [materialIndex, triangles] of trianglesByMaterial){
@@ -11688,6 +11692,7 @@ end group
       const root = gltf.scene || gltf.scenes?.[0] || null;
       if (!root) return null;
       root.userData.sourceAsset = `${baseName}.glb`;
+      root.userData.modelFormat = "glb";
 
       root.traverse((obj) => {
         if (!obj.isMesh) return;
