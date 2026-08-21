@@ -12126,19 +12126,38 @@ end group
     return String(value || "").trim().toLowerCase();
   }
 
+  function getUpg01AttachmentAnchorName(object){
+    const normalizedName = normalizedAttachmentAnchorName(object?.name);
+    const match = normalizedName.match(/^upg01\s+(.+)$/);
+    return match ? normalizedAttachmentAnchorName(match[1]) : "";
+  }
+
   function findAttachmentAnchor(parentRoot, anchorName){
     const wanted = normalizedAttachmentAnchorName(anchorName);
     if (!parentRoot || !wanted) return null;
-    let namedFallback = null;
     let markedMatch = null;
+    let upg01Match = null;
+    let namedFallback = null;
     parentRoot.traverse((object) => {
       if (markedMatch) return;
-      const candidate = normalizedAttachmentAnchorName(object.userData?.userPointName || object.name);
-      if (candidate !== wanted) return;
-      if (object.userData?.bhdUserPoint === true) markedMatch = object;
-      else if (!namedFallback && !object.isMesh) namedFallback = object;
+      const metadataName = normalizedAttachmentAnchorName(object.userData?.userPointName);
+      if (object.userData?.bhdUserPoint === true && metadataName === wanted){
+        markedMatch = object;
+        return;
+      }
+      // The existing .3di converter emits user points as nodes named
+      // "UPG01 <anchor>". Some of those nodes also carry a debug mesh, but a
+      // THREE.Mesh is still an Object3D and is a valid attachment parent.
+      if (!upg01Match && getUpg01AttachmentAnchorName(object) === wanted){
+        upg01Match = object;
+        return;
+      }
+      if (!namedFallback && !object.isMesh
+        && normalizedAttachmentAnchorName(object.name) === wanted){
+        namedFallback = object;
+      }
     });
-    return markedMatch || namedFallback;
+    return markedMatch || upg01Match || namedFallback;
   }
 
   function markAttachmentHierarchy(root, metadata){
