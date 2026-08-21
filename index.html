@@ -2302,6 +2302,7 @@
   </div>
 
 <script src="resources/BHD/items_lists/itemsDef.js"></script>
+<script src="resources/BHD/3d_items/manifest.js"></script>
 
 <script>
   const DEFAULT_NEW_MAP_MIS = `begin general_information
@@ -2501,6 +2502,7 @@ end group
     soundGraphicFromOtherItems: "",
     soundGraphicScaleFromOtherItems: 1,
     availableGlbFiles: null,
+    available3dItemFiles: new Map((window.BHD_3D_ITEM_FILES || []).map(name => [name.toLowerCase(), name])),
     glbAvailability: new Map(),
     glbCheckQueue: [],
     glbChecksActive: 0,
@@ -4313,8 +4315,8 @@ end group
     if (!query) return true;
     const itemName = String(def?.name || "").toLowerCase();
     const graphic = String(def?.graphic || "").toLowerCase();
-    const glbFilename = graphic && !graphic.endsWith(".glb") ? `${graphic}.glb` : graphic;
-    return itemName.includes(query) || glbFilename.includes(query);
+    const assetFilenames = graphic ? [`${graphic.replace(/\.(?:3di|glb)$/i, "")}.3di`, `${graphic.replace(/\.(?:3di|glb)$/i, "")}.glb`] : [];
+    return itemName.includes(query) || assetFilenames.some(filename => filename.toLowerCase().includes(query));
   }
 
   function buildInsertDefinitionUsageCounts(){
@@ -4367,15 +4369,17 @@ end group
   function insertGraphicFilename(def){
     const graphic = String(def?.graphic || "").trim();
     if (!graphic) return "";
-    return (graphic.toLowerCase().endsWith(".glb") ? graphic : `${graphic}.glb`).toLowerCase();
+    return `${graphic.replace(/\.(?:3di|glb)$/i, "")}.3di`.toLowerCase();
   }
 
   function insertGraphicAvailability(def){
     const filename = insertGraphicFilename(def);
     if (!filename) return "missing";
+    const base = filename.replace(/\.3di$/i, "");
     if (state.availableGlbFiles instanceof Set){
-      return state.availableGlbFiles.has(filename) ? "available" : "missing";
+      return state.available3dItemFiles.has(filename) || state.availableGlbFiles.has(`${base}.glb`) ? "available" : "missing";
     }
+    if (state.available3dItemFiles.has(filename)) return "available";
     return state.glbAvailability.get(filename) || "unknown";
   }
 
@@ -4385,10 +4389,13 @@ end group
       let dir = state.editorFolderHandle;
       for (const part of ["resources", "3d_items"]) dir = await dir.getDirectoryHandle(part);
       const files = new Set();
+      const itemFiles = new Map();
       for await (const [fileName, handle] of dir.entries()){
         if (handle.kind === "file" && /\.glb$/i.test(fileName)) files.add(fileName.toLowerCase());
+        if (handle.kind === "file" && /\.3di$/i.test(fileName)) itemFiles.set(fileName.toLowerCase(), fileName);
       }
-      addLog(`[3d_items] folder indexed: ${files.size} GLB files`);
+      state.available3dItemFiles = itemFiles;
+      addLog(`[3d_items] folder indexed: ${itemFiles.size} 3DI and ${files.size} GLB files`);
       return files;
     } catch (err){
       addLog(`[3d_items] unable to index folder: ${err?.message || err}`);
@@ -4403,7 +4410,7 @@ end group
     const usageCount = buildInsertDefinitionUsageCounts().get(String(def.id)) || 0;
     option.classList.toggle("missingGraphic", availability === "missing");
     option.classList.toggle("glbUnknown", availability === "unknown" || availability === "checking");
-    const label = availability === "missing" ? "GLB missing" : availability === "available" ? "GLB available" : "Checking GLB";
+    const label = availability === "missing" ? "3D model missing" : availability === "available" ? "3D model available" : "Checking 3D model";
     option.title = `${label} · ${usageCount ? `${usageCount} instance${usageCount === 1 ? "" : "s"} in the map` : "Not used in the map"}`;
   }
 
@@ -4411,8 +4418,8 @@ end group
     if (state.isLocalRuntime) return;
     const filename = insertGraphicFilename(def);
     if (!filename || state.glbAvailability.has(filename)) return;
-    const graphic = String(def?.graphic || "").trim();
-    const requestFilename = graphic.toLowerCase().endsWith(".glb") ? graphic : `${graphic}.glb`;
+    const graphic = String(def?.graphic || "").trim().replace(/\.(?:3di|glb)$/i, "");
+    const requestFilename = `${graphic}.glb`;
     state.glbAvailability.set(filename, "checking");
     state.glbCheckQueue.push({ filename, requestFilename, def });
     runHttpGlbChecks();
@@ -4423,16 +4430,19 @@ end group
       const { filename, requestFilename, def } = state.glbCheckQueue.shift();
       state.glbChecksActive += 1;
       (async () => {
-        const url = `resources/BHD/3d_items/${requestFilename.split("/").map(encodeURIComponent).join("/")}`;
+        const known3di = state.available3dItemFiles.get(filename);
+        const candidates = known3di ? [known3di] : [requestFilename];
         let available = false;
-        try{
-          let response = await fetch(url, { method: "HEAD" });
-          if (response.status === 405 || response.status === 501){
-            response = await fetch(url, { headers: { Range: "bytes=0-0" } });
-          }
-          available = response.ok;
-          response.body?.cancel();
-        } catch (_) { /* A failed request means the resource is unavailable. */ }
+        for (const candidate of candidates){
+          const url = `resources/BHD/3d_items/${candidate.split("/").map(encodeURIComponent).join("/")}`;
+          try{
+            let response = await fetch(url, { method: "HEAD" });
+            if (response.status === 405 || response.status === 501) response = await fetch(url, { headers: { Range: "bytes=0-0" } });
+            available = response.ok;
+            response.body?.cancel();
+            if (available) break;
+          } catch (_) { /* Try the fallback asset. */ }
+        }
         state.glbAvailability.set(filename, available ? "available" : "missing");
         updateInsertGlbOption(def);
       })().finally(() => {
@@ -4481,7 +4491,7 @@ end group
         option.classList.toggle("missingGraphic", missingGraphic);
         option.classList.toggle("glbUnknown", availabilityState === "unknown" || availabilityState === "checking");
         if (familyHue !== undefined) option.style.setProperty("--family-hue", String(familyHue));
-        const availability = missingGraphic ? "GLB missing" : availabilityState === "available" ? "GLB available" : "GLB not verified";
+        const availability = missingGraphic ? "3D model missing" : availabilityState === "available" ? "3D model available" : "3D model not verified";
         option.title = `${availability} · ${usageCount ? `${usageCount} instance${usageCount === 1 ? "" : "s"} in the map` : "Not used in the map"}`;
         option.innerHTML = `<span>${escapeHtml(def.name)}</span><span class="insertItemOptionId">#${escapeHtml(toMisTypeIdFromDefId(def.id))}</span>${usageCount ? `<span class="insertItemUsageBadge" aria-label="${usageCount} in map">${usageCount}</span>` : ""}`;
         insertItemList.appendChild(option);
@@ -4531,18 +4541,18 @@ end group
       return;
     }
     if (!graphic){
-      insertGlbPreviewStatus.textContent = "This item has no GLB graphic.";
+      insertGlbPreviewStatus.textContent = "This item has no 3D graphic.";
       if (preview.object) preview.object.visible = false;
       if (preview.renderer && preview.scene && preview.camera) preview.renderer.render(preview.scene, preview.camera);
       return;
     }
     if (insertGraphicIsMissing(def)){
-      insertGlbPreviewStatus.textContent = graphic ? `${graphic}.glb — file not found` : "File not found.";
+      insertGlbPreviewStatus.textContent = graphic ? `${graphic} — .3di/.glb file not found` : "File not found.";
       if (preview.object) preview.object.visible = false;
       if (preview.renderer && preview.scene && preview.camera) preview.renderer.render(preview.scene, preview.camera);
       return;
     }
-    insertGlbPreviewStatus.textContent = `Loading ${graphic}.glb...`;
+    insertGlbPreviewStatus.textContent = `Loading ${graphic} (.3di preferred)...`;
     if (!await ensureGlbRendererReady() || revision !== preview.revision){
       if (revision === preview.revision) insertGlbPreviewStatus.textContent = "3D preview unavailable.";
       return;
@@ -4603,7 +4613,7 @@ end group
     preview.camera.updateProjectionMatrix();
     preview.renderer.setSize(width, height, false);
     preview.renderer.render(preview.scene, preview.camera);
-    insertGlbPreviewStatus.textContent = `${graphic}.glb`;
+    insertGlbPreviewStatus.textContent = preview.object.userData.sourceAsset || graphic;
   }
 
   function closeInsertDialog(){
@@ -11565,18 +11575,110 @@ end group
     return { entries: out, stats };
   }
 
+  class ThreeDiReader {
+    constructor(buffer){ this.view = new DataView(buffer); this.length = buffer.byteLength; }
+    need(offset, size, message = "3DI file is truncated"){ if (offset < 0 || offset + size > this.length) throw new Error(message); }
+    u8(offset){ this.need(offset, 1); return this.view.getUint8(offset); }
+    u16(offset){ this.need(offset, 2); return this.view.getUint16(offset, true); }
+    i16(offset){ this.need(offset, 2); return this.view.getInt16(offset, true); }
+    u32(offset){ this.need(offset, 4); return this.view.getUint32(offset, true); }
+    f32(offset){ this.need(offset, 4); return this.view.getFloat32(offset, true); }
+    str(offset, size){ this.need(offset, size); let value = ""; for (let i = 0; i < size; i++){ const code = this.u8(offset + i); if (!code) break; if (code >= 32 && code < 127) value += String.fromCharCode(code); } return value.trim(); }
+  }
+
+  // Ported from knowledge/source_codes/3diviewer.html. 3DI stores one shared
+  // vertex array followed by per-LOD strips and materials; the editor uses LOD0.
+  function parseThreeDi(buffer){
+    const r = new ThreeDiReader(buffer);
+    r.need(0, 236, "3DI file is too small");
+    const magic = r.str(0, 3), subtype = String.fromCharCode(r.u8(2));
+    if (!["GPM", "GPS", "GPP"].includes(magic) || r.u8(3) !== 2) throw new Error(`Unsupported 3DI format (${magic || "no signature"})`);
+    const skinned = subtype === "S" || subtype === "P";
+    let offset = 236 + r.u32(0xb0) * 48;
+    r.need(offset, 4); const textureCount = r.u32(offset); offset += 4;
+    if (textureCount > 10000) throw new Error("Invalid 3DI texture count");
+    const textures = [];
+    for (let i = 0; i < textureCount; i++, offset += 60) textures.push({ name: r.str(offset, 36), id: r.i16(offset + 0x24) });
+    r.need(offset, 136, "3DI CDTA header is truncated"); const cdtaSize = r.u32(offset + 4); r.need(offset + 136, cdtaSize); offset += 136 + cdtaSize;
+    const vertexCount = r.u32(0x88), stride = subtype === "M" ? 44 : subtype === "S" ? 48 : 60, uvOffset = subtype === "P" ? 44 : subtype === "S" ? 32 : 28;
+    r.need(offset, vertexCount * stride, "3DI vertex data is truncated");
+    const vertices = new Array(vertexCount), normals = new Array(vertexCount), uvs = new Array(vertexCount);
+    for (let i = 0; i < vertexCount; i++){
+      const p = offset + i * stride;
+      vertices[i] = [r.f32(p), r.f32(p + 8), r.f32(p + 4)];
+      normals[i] = [r.f32(p + 12), r.f32(p + 20), r.f32(p + 16)];
+      uvs[i] = [r.f32(p + uvOffset), 1 - r.f32(p + uvOffset + 4)];
+    }
+    offset += vertexCount * stride;
+    r.need(offset, 136, "3DI RDTA header is truncated");
+    const rdta = offset + 136, rdtaSize = r.u32(offset), materialCount = r.u32(offset + 8), meshCount = r.u32(offset + 16), btCount = r.u32(offset + 24);
+    r.need(rdta, rdtaSize, "3DI RDTA data is truncated");
+    let q = rdta + btCount * 12, submeshGroups = [];
+    r.need(q, meshCount * 72, "3DI mesh data is truncated");
+    if (skinned){ q += meshCount * 72; r.need(q, 28); submeshGroups = Array(r.u32(q + 4)).fill(0); q += 28; }
+    else { for (let group = 0; group < meshCount; group++){ const count = r.u32(q + group * 72 + 4); for (let i = 0; i < count; i++) submeshGroups.push(group); } q += meshCount * 72; }
+    const stripGroups = [];
+    for (const group of submeshGroups){ r.need(q, 32); const count = r.u32(q + 4) + r.u32(q + 12); for (let i = 0; i < count; i++) stripGroups.push(group); q += 32; }
+    const triangles = [], stripHeader = skinned ? 48 : 40;
+    for (const group of stripGroups){
+      r.need(q, stripHeader); const material = r.u32(q), count = r.u16(q + 8), flag = r.u32(q + 12), start = r.u32(q + 16), indices = q + stripHeader; r.need(indices, count * 2);
+      const list = skinned || flag === 0, step = list ? 3 : 1;
+      for (let i = 0; i + 2 < count; i += step){ let a = start + r.u16(indices + i * 2), b = start + r.u16(indices + (i + 1) * 2), c = start + r.u16(indices + (i + 2) * 2); if (!list && (i & 1)) [b, c] = [c, b]; if (a !== b && b !== c && a !== c && a < vertexCount && b < vertexCount && c < vertexCount) triangles.push({ indices: [a, b, c], material, group }); }
+      q += stripHeader + count * 2;
+    }
+    const materials = [];
+    for (let i = 0; i < materialCount; i++, q += 152){ r.need(q, 152); materials.push({ name: r.str(q, 36) || `material_${i}`, flags: r.u32(q + 0x10), alphaCutoff: r.u8(q + 0x3b), blendMode: r.u8(q + 0x3c) }); }
+    return { name: r.str(8, 16) || "3DI", vertices, normals, uvs, triangles, materials, textures };
+  }
+
+  function createThreeDiObject(buffer, sourceAsset){
+    const model = parseThreeDi(buffer), { THREE } = state.glb, root = new THREE.Group();
+    root.name = model.name;
+    root.userData.sourceAsset = sourceAsset;
+    const trianglesByMaterial = new Map();
+    for (const triangle of model.triangles){ if (!trianglesByMaterial.has(triangle.material)) trianglesByMaterial.set(triangle.material, []); trianglesByMaterial.get(triangle.material).push(triangle); }
+    for (const [materialIndex, triangles] of trianglesByMaterial){
+      const positions = [], normals = [], uvs = [];
+      // The standalone viewer declares the source winding clockwise. Reverse it
+      // here because Three.js uses counter-clockwise front faces by default.
+      for (const triangle of triangles) for (const index of [triangle.indices[0], triangle.indices[2], triangle.indices[1]]){ positions.push(...model.vertices[index]); normals.push(...model.normals[index]); uvs.push(...model.uvs[index]); }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+      geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.computeBoundingSphere();
+      const sourceMaterial = model.materials[materialIndex] || {};
+      const transparent = sourceMaterial.blendMode === 2 || sourceMaterial.blendMode === 3;
+      const material = new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.FrontSide, transparent, opacity: transparent ? 0.8 : 1, alphaTest: sourceMaterial.flags & 0x06 ? sourceMaterial.alphaCutoff / 255 : 0, name: sourceMaterial.name || "" });
+      const mesh = new THREE.Mesh(geometry, material); mesh.name = sourceMaterial.name || `material_${materialIndex}`; root.add(mesh);
+    }
+    if (!root.children.length) throw new Error("3DI has no renderable triangles");
+    return root;
+  }
+
 
   async function loadGraphicTemplate(graphic){
     const key = String(graphic || "").trim();
     if (!key) return null;
     if (state.glb.templateByGraphic.has(key)) return state.glb.templateByGraphic.get(key);
 
-    const path = `resources/BHD/3d_items/${key}.glb`;
+    const baseName = key.replace(/\.(?:3di|glb)$/i, "");
+    const threeDiKey = `${baseName}.3di`.toLowerCase();
+    const threeDiName = state.available3dItemFiles.get(threeDiKey);
+    const threeDiPath = threeDiName ? `resources/BHD/3d_items/${threeDiName}` : "";
+    const glbPath = `resources/BHD/3d_items/${baseName}.glb`;
     try {
-      const glbData = await loadBinaryResource(path);
-      if (!glbData) throw new Error(`Failed to read GLB: ${path}`);
+      if (threeDiPath){
+        const threeDiData = await loadBinaryResource(threeDiPath);
+        if (!threeDiData) throw new Error(`Failed to read preferred 3DI: ${threeDiPath}`);
+        const root = createThreeDiObject(threeDiData, threeDiName);
+        state.glb.templateByGraphic.set(key, root);
+        return root;
+      }
+      const glbData = await loadBinaryResource(glbPath);
+      if (!glbData) throw new Error(`Failed to read model: ${threeDiPath || glbPath}`);
 
-      const basePath = path.slice(0, path.lastIndexOf("/") + 1);
+      const basePath = glbPath.slice(0, glbPath.lastIndexOf("/") + 1);
       const gltf = state.glb.loader.parseAsync
         ? await state.glb.loader.parseAsync(glbData, basePath)
         : await new Promise((resolve, reject) => {
@@ -11584,6 +11686,7 @@ end group
           });
       const root = gltf.scene || gltf.scenes?.[0] || null;
       if (!root) return null;
+      root.userData.sourceAsset = `${baseName}.glb`;
 
       root.traverse((obj) => {
         if (!obj.isMesh) return;
@@ -11633,12 +11736,12 @@ end group
     } catch (err) {
       const placeholder = createMissingGlbPlaceholder(key);
       state.glb.templateByGraphic.set(key, placeholder);
-      state.glbAvailability.set(`${key}.glb`.toLowerCase(), "missing");
-      const failedDef = state.defsSorted.find(def => insertGraphicFilename(def) === `${key}.glb`.toLowerCase());
+      state.glbAvailability.set(`${baseName}.3di`.toLowerCase(), "missing");
+      const failedDef = state.defsSorted.find(def => insertGraphicFilename(def) === `${baseName}.3di`.toLowerCase());
       if (failedDef) updateInsertGlbOption(failedDef);
       if (!state.glb.missingGraphics.has(key)){
         state.glb.missingGraphics.add(key);
-        addLog(`[3d_items] GLB missing or invalid: ${path}`);
+        addLog(`[3d_items] 3DI/GLB missing or invalid: ${threeDiPath || glbPath}`);
       }
       return placeholder;
     }
