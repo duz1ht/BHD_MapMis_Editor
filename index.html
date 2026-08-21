@@ -12179,7 +12179,13 @@ end group
       childRoot.userData.attachmentLimits = attachment.limits ? { ...attachment.limits } : null;
       childRoot.userData.attachmentAnchorMissing = !resolvedAnchor;
       markAttachmentHierarchy(childRoot, { parentItemId: parentItem.id });
-      applyItemModelTransform(childRoot, 0, 0, childDef.graphicScale);
+      // Attachments use the transform authored in the child GLB as-is. In
+      // particular, do not apply the +180° yaw/+90° pitch correction used by
+      // standalone map items: the anchor supplies the complete orientation.
+      const childScale = Number(childDef.graphicScale);
+      if (Number.isFinite(childScale) && childScale > 0){
+        childRoot.scale.multiplyScalar(childScale);
+      }
       anchor.add(childRoot);
 
       if (!resolvedAnchor){

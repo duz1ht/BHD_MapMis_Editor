@@ -43,7 +43,10 @@ direction in the node transform, and add the following `extras` metadata:
 The editor also accepts a meshless node whose `name` is the anchor name for
 older GLBs. If no anchor is present, it logs a warning and attaches the child at
 the parent origin. Angular limits are retained as metadata for future aiming
-controls and do not change the initial attachment pose.
+controls and do not change the initial attachment pose. Attachment models keep
+their authored GLB rotation unchanged: unlike standalone map items, they do not
+receive the editor's `+180°` yaw or `+90°` pitch axis corrections. Their
+`graphic_scale` is still applied on top of the authored GLB scale.
 * `resources/BHD/items_lists/weapon.def` provides the weapon catalog used to display loadout names.
 * Today, when loading a map, the editor moves the camera to a spot near the center of the inserted items. This could be optimized to keep the camera from being positioned so high up in the sky.
 
