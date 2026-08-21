@@ -4385,9 +4385,10 @@ end group
 
   async function listGlbFilesFromEditorFolder(){
     if (!state.editorFolderHandle) return null;
+    const modelFolderPath = "resources/BHD/3d_items";
     try{
       let dir = state.editorFolderHandle;
-      for (const part of ["resources", "3d_items"]) dir = await dir.getDirectoryHandle(part);
+      for (const part of modelFolderPath.split("/")) dir = await dir.getDirectoryHandle(part);
       const files = new Set();
       const itemFiles = new Map();
       for await (const [fileName, handle] of dir.entries()){
@@ -4395,10 +4396,10 @@ end group
         if (handle.kind === "file" && /\.3di$/i.test(fileName)) itemFiles.set(fileName.toLowerCase(), fileName);
       }
       state.available3dItemFiles = itemFiles;
-      addLog(`[3d_items] folder indexed: ${itemFiles.size} 3DI and ${files.size} GLB files`);
+      addLog(`[3d_items] folder indexed at ${modelFolderPath}: ${itemFiles.size} 3DI and ${files.size} GLB files`);
       return files;
     } catch (err){
-      addLog(`[3d_items] unable to index folder: ${err?.message || err}`);
+      addLog(`[3d_items] unable to index folder ${modelFolderPath}: ${err?.message || err}`);
       return null;
     }
   }
