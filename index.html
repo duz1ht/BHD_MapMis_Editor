@@ -2620,6 +2620,7 @@ end group
       templateByGraphic: new Map(),
       dimensionsByGraphic: new Map(),
       missingGraphics: new Set(),
+      emplacedWeaponWarnings: new Set(),
       itemInstances: new Map(),
       syncPromise: null,
       initPromise: null,
@@ -4108,6 +4109,7 @@ end group
           arrow: 0,
           drawCircle: 0,
           attrib: [],
+          emplacedWeapons: [],
           kv: {},
         };
         continue;
@@ -4137,6 +4139,22 @@ end group
         const k = mKV[1].toLowerCase();
         let v = mKV[2].trim();
         if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1,-1);
+
+        if (k === "addeweap" || k === "addeweapc" || k === "addeweapg"){
+          const parts = v.split(/\s+/).filter(Boolean);
+          if (parts.length >= 2){
+            const positionValues = parts.slice(2, 5).map(Number);
+            cur.emplacedWeapons.push({
+              variant: k,
+              name: parts[0],
+              weaponId: parts[1],
+              position: positionValues.length === 3 && positionValues.every(Number.isFinite)
+                ? positionValues
+                : null,
+            });
+          }
+          continue;
+        }
 
         cur.kv[k] = v;
 
@@ -4174,6 +4192,12 @@ end group
         ...def,
         id,
         attrib: Array.isArray(def.attrib) ? def.attrib.slice() : [],
+        emplacedWeapons: Array.isArray(def.emplacedWeapons)
+          ? def.emplacedWeapons.map(weapon => ({
+              ...weapon,
+              position: Array.isArray(weapon.position) ? weapon.position.slice() : null,
+            }))
+          : [],
         kv: { ...(def.kv || {}) },
       });
     };
@@ -4191,6 +4215,15 @@ end group
 
       const supplementKv = supplement.kv || {};
       const attrib = Array.from(new Set([...(base.attrib || []), ...(supplement.attrib || [])]));
+      const emplacedWeapons = [];
+      const seenEmplacedWeapons = new Set();
+      for (const weapon of [...(base.emplacedWeapons || []), ...(supplement.emplacedWeapons || [])]){
+        const position = Array.isArray(weapon.position) ? weapon.position.slice() : null;
+        const key = [weapon.variant, weapon.name, weapon.weaponId, ...(position || [])].join("|");
+        if (seenEmplacedWeapons.has(key)) continue;
+        seenEmplacedWeapons.add(key);
+        emplacedWeapons.push({ ...weapon, position });
+      }
       mergedById.set(id, {
         ...base,
         id,
@@ -4202,6 +4235,7 @@ end group
         arrow: Object.prototype.hasOwnProperty.call(supplementKv, "arrow") ? supplement.arrow : base.arrow,
         drawCircle: Object.prototype.hasOwnProperty.call(supplementKv, "draw_circle") ? supplement.drawCircle : base.drawCircle,
         attrib,
+        emplacedWeapons,
         kv: { ...(base.kv || {}), ...supplementKv },
       });
     }
@@ -12053,7 +12087,75 @@ end group
 
 
   function getGlbItemVisualSignature(it, graphic){
-    return [String(graphic || "").trim(), String(it?.typeId ?? ""), getItemTint(it)].join("|");
+    const attachments = (getDefForItem(it)?.emplacedWeapons || []).map(weapon => [
+      weapon.variant,
+      weapon.name,
+      weapon.weaponId,
+      ...(weapon.position || []),
+    ].join(":"));
+    return [String(graphic || "").trim(), String(it?.typeId ?? ""), getItemTint(it), ...attachments].join("|");
+  }
+
+  function findNamedObject3D(root, name){
+    const wanted = String(name || "").trim().toLowerCase();
+    if (!root || !wanted) return null;
+    let exactMatch = null;
+    const taggedMatches = [];
+    root.traverse((obj) => {
+      const objectName = String(obj?.name || "").trim().toLowerCase();
+      if (!objectName) return;
+      if (!exactMatch && objectName === wanted) exactMatch = obj;
+      const tokens = objectName.split(/[^a-z0-9]+/).filter(Boolean);
+      if (tokens.includes(wanted) && !tokens.includes(`${wanted}_dir`)){
+        taggedMatches.push({ obj, isDirection: objectName.endsWith("_dir") });
+      }
+    });
+    return exactMatch || taggedMatches.find(match => !match.isDirection)?.obj || taggedMatches[0]?.obj || null;
+  }
+
+  function warnEmplacedWeaponOnce(key, message){
+    if (state.glb.emplacedWeaponWarnings.has(key)) return;
+    state.glb.emplacedWeaponWarnings.add(key);
+    addLog(`[emplaced_weapon] ${message}`);
+  }
+
+  async function attachEmplacedWeapons(instance, it, generation){
+    const weapons = getDefForItem(it)?.emplacedWeapons || [];
+    for (const weapon of weapons){
+      if (generation !== state.glb.documentGeneration) return false;
+      const weaponDef = state.defsById.get(String(weapon.weaponId || "").trim()) || null;
+      const graphic = String(weaponDef?.graphic || "").trim();
+      const warningKey = `${weapon.variant}|${weapon.name}|${weapon.weaponId}`;
+      if (!graphic){
+        warnEmplacedWeaponOnce(`${warningKey}|definition`, `${weapon.variant} ${weapon.name}: definition ${weapon.weaponId} has no renderable graphic.`);
+        continue;
+      }
+
+      const template = await loadGraphicTemplate(graphic);
+      if (generation !== state.glb.documentGeneration) return false;
+      if (!template) continue;
+
+      const attachment = template.clone(true);
+      cloneGlbMaterials(attachment);
+      applySolidTintToGlbObject(attachment, String(weaponDef?.tint || ""));
+      applyItemModelTransform(attachment, 0, 0, weaponDef?.graphicScale);
+      attachment.name = `EMPLACED_WEAPON_${weapon.variant}_${weapon.name}`;
+      attachment.userData.isEmplacedWeapon = true;
+      attachment.userData.emplacedWeapon = { ...weapon };
+
+      const mount = findNamedObject3D(instance, weapon.name);
+      if (mount){
+        mount.add(attachment);
+      } else if (Array.isArray(weapon.position) && weapon.position.length === 3){
+        attachment.position.set(...weapon.position);
+        instance.add(attachment);
+        warnEmplacedWeaponOnce(`${warningKey}|position`, `${weapon.variant} ${weapon.name}: mount node not found; using fallback position.`);
+      } else {
+        disposeGlbInstanceMaterials(attachment);
+        warnEmplacedWeaponOnce(`${warningKey}|mount`, `${weapon.variant} ${weapon.name}: mount node not found and no fallback position is defined.`);
+      }
+    }
+    return true;
   }
 
   function disposeGlbInstanceMaterials(instance){
@@ -12333,6 +12435,7 @@ end group
           instance = template.clone(true);
           cloneGlbMaterials(instance);
           applySolidTintToGlbObject(instance, getItemTint(it));
+          if (!await attachEmplacedWeapons(instance, it, generation)) return;
           applyWaypointColorToGlbObject(instance, it);
           applyAreaTriggerColorToGlbObject(instance, it);
           applyWaypointOutlineToGlbObject(instance, it);
