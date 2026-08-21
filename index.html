@@ -4108,6 +4108,7 @@ end group
           arrow: 0,
           drawCircle: 0,
           attrib: [],
+          attachments: [],
           kv: {},
         };
         continue;
@@ -4139,6 +4140,28 @@ end group
         if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1,-1);
 
         cur.kv[k] = v;
+
+        if (k === "addeweap" || k === "addeweapg" || k === "addeweapc"){
+          const parts = v.split(/\s+/).filter(Boolean);
+          if (parts.length === 2 || parts.length === 6){
+            const limits = parts.length === 6
+              ? {
+                  down: Number(parts[2]),
+                  up: Number(parts[3]),
+                  right: Number(parts[4]),
+                  left: Number(parts[5]),
+                }
+              : null;
+            if (!limits || Object.values(limits).every(Number.isFinite)){
+              cur.attachments.push({
+                kind: k === "addeweapg" ? "G" : (k === "addeweapc" ? "C" : "default"),
+                anchorName: parts[0],
+                childItemId: parts[1],
+                limits,
+              });
+            }
+          }
+        }
 
         if (k === "id") cur.id = v;
         if (k === "type_id") cur.typeId = v;
@@ -4174,6 +4197,12 @@ end group
         ...def,
         id,
         attrib: Array.isArray(def.attrib) ? def.attrib.slice() : [],
+        attachments: Array.isArray(def.attachments)
+          ? def.attachments.map(attachment => ({
+              ...attachment,
+              limits: attachment.limits ? { ...attachment.limits } : null,
+            }))
+          : [],
         kv: { ...(def.kv || {}) },
       });
     };
@@ -4191,6 +4220,11 @@ end group
 
       const supplementKv = supplement.kv || {};
       const attrib = Array.from(new Set([...(base.attrib || []), ...(supplement.attrib || [])]));
+      const attachments = [...(base.attachments || []), ...(supplement.attachments || [])]
+        .map(attachment => ({
+          ...attachment,
+          limits: attachment.limits ? { ...attachment.limits } : null,
+        }));
       mergedById.set(id, {
         ...base,
         id,
@@ -4202,6 +4236,7 @@ end group
         arrow: Object.prototype.hasOwnProperty.call(supplementKv, "arrow") ? supplement.arrow : base.arrow,
         drawCircle: Object.prototype.hasOwnProperty.call(supplementKv, "draw_circle") ? supplement.drawCircle : base.drawCircle,
         attrib,
+        attachments,
         kv: { ...(base.kv || {}), ...supplementKv },
       });
     }
@@ -12053,7 +12088,16 @@ end group
 
 
   function getGlbItemVisualSignature(it, graphic){
-    return [String(graphic || "").trim(), String(it?.typeId ?? ""), getItemTint(it)].join("|");
+    const def = getDefForItem(it);
+    const attachmentSignature = (def?.attachments || []).map(attachment => [
+      attachment.kind,
+      attachment.anchorName,
+      attachment.childItemId,
+      attachment.limits
+        ? [attachment.limits.down, attachment.limits.up, attachment.limits.right, attachment.limits.left].join(",")
+        : "",
+    ].join(":"));
+    return [String(graphic || "").trim(), String(it?.typeId ?? ""), getItemTint(it), ...attachmentSignature].join("|");
   }
 
   function disposeGlbInstanceMaterials(instance){
@@ -12074,6 +12118,79 @@ end group
     cleanupGlbInstanceVisualState(instance);
     state.glb.scene?.remove?.(instance);
     disposeGlbInstanceMaterials(instance);
+  }
+
+  const missingAttachmentAnchorWarnings = new Set();
+
+  function normalizedAttachmentAnchorName(value){
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function findAttachmentAnchor(parentRoot, anchorName){
+    const wanted = normalizedAttachmentAnchorName(anchorName);
+    if (!parentRoot || !wanted) return null;
+    let namedFallback = null;
+    let markedMatch = null;
+    parentRoot.traverse((object) => {
+      if (markedMatch) return;
+      const candidate = normalizedAttachmentAnchorName(object.userData?.userPointName || object.name);
+      if (candidate !== wanted) return;
+      if (object.userData?.bhdUserPoint === true) markedMatch = object;
+      else if (!namedFallback && !object.isMesh) namedFallback = object;
+    });
+    return markedMatch || namedFallback;
+  }
+
+  function markAttachmentHierarchy(root, metadata){
+    root.traverse((object) => {
+      object.userData = object.userData || {};
+      object.userData.parentItemId = metadata.parentItemId;
+      object.userData.itemId = metadata.parentItemId;
+      object.userData.attachmentRoot = root;
+    });
+  }
+
+  async function mountEmplacementAttachments(parentRoot, parentItem, parentGraphic, generation){
+    const parentDef = getDefForItem(parentItem);
+    for (const attachment of parentDef?.attachments || []){
+      const childDef = state.defsById.get(String(attachment.childItemId)) || null;
+      const childGraphic = String(childDef?.graphic || "").trim();
+      if (!childGraphic){
+        addLog(`[3d_items] attachment definition ${attachment.childItemId} has no graphic (parent=${parentGraphic}, anchor=${attachment.anchorName}).`);
+        continue;
+      }
+
+      // Resolve before inserting descendants so a child node with the same name
+      // can never be mistaken for the parent's anchor.
+      const resolvedAnchor = findAttachmentAnchor(parentRoot, attachment.anchorName);
+      const anchor = resolvedAnchor || parentRoot;
+      const template = await loadGraphicTemplate(childGraphic);
+      if (generation !== state.glb.documentGeneration || !template) return false;
+
+      const childRoot = template.clone(true);
+      cloneGlbMaterials(childRoot);
+      applySolidTintToGlbObject(childRoot, childDef.tint);
+      childRoot.name = `ATTACHMENT_${attachment.anchorName}_${attachment.childItemId}`;
+      childRoot.userData.isEmplacementAttachment = true;
+      childRoot.userData.parentItemId = parentItem.id;
+      childRoot.userData.childItemDefId = String(attachment.childItemId);
+      childRoot.userData.attachmentKind = attachment.kind;
+      childRoot.userData.anchorName = attachment.anchorName;
+      childRoot.userData.attachmentLimits = attachment.limits ? { ...attachment.limits } : null;
+      childRoot.userData.attachmentAnchorMissing = !resolvedAnchor;
+      markAttachmentHierarchy(childRoot, { parentItemId: parentItem.id });
+      applyItemModelTransform(childRoot, 0, 0, childDef.graphicScale);
+      anchor.add(childRoot);
+
+      if (!resolvedAnchor){
+        const warningKey = `${String(parentGraphic).toLowerCase()}|${normalizedAttachmentAnchorName(attachment.anchorName)}|${attachment.childItemId}`;
+        if (!missingAttachmentAnchorWarnings.has(warningKey)){
+          missingAttachmentAnchorWarnings.add(warningKey);
+          addLog(`[3d_items] attachment anchor missing; using parent origin: item=${parentItem.id}, graphic=${parentGraphic}, anchor=${attachment.anchorName}, child=${attachment.childItemId}`);
+        }
+      }
+    }
+    return true;
   }
 
   function clearGlbItemInstances(){
@@ -12340,6 +12457,8 @@ end group
           instance.userData.graphic = graphic;
           instance.userData.tint = getItemTint(it);
           instance.userData.visualSignature = visualSignature;
+          const attachmentsMounted = await mountEmplacementAttachments(instance, it, graphic, generation);
+          if (!attachmentsMounted) return;
           applyViewModeToGlbObject(instance, it);
           state.glb.scene.add(instance);
           state.glb.itemInstances.set(it.id, instance);

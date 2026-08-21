@@ -18,6 +18,32 @@ Todo:
 
 * `resources/BHD/items_lists/itemsDef.js` works similarly to the original `items.def`.
 * `resources/BHD/items_lists/otheritems.js` lists all the items that aren’t in `items.def` by default and also uses new variables, like graphic to indicate which 3D `.glb` file will be used for the item.
+
+### Emplacement attachment anchors
+
+The item catalog supports every `addeweap`, `addeweapG`, and `addeweapC` line in
+a definition, including repeated entries and the optional four angular limits.
+The referenced child item is rendered under the matching anchor in the parent
+GLB. Anchor lookup is case-insensitive, trims surrounding whitespace, and uses
+the first complete-name match.
+
+For converted `.3di` assets, export each `USRP` record as a meshless glTF node
+under the node that represents its `subobject_index`. Preserve its position and
+direction in the node transform, and add the following `extras` metadata:
+
+```json
+{
+  "bhdUserPoint": true,
+  "userPointName": "ewep02",
+  "userPointType": 0,
+  "subobjectIndex": 3
+}
+```
+
+The editor also accepts a meshless node whose `name` is the anchor name for
+older GLBs. If no anchor is present, it logs a warning and attaches the child at
+the parent origin. Angular limits are retained as metadata for future aiming
+controls and do not change the initial attachment pose.
 * `resources/BHD/items_lists/weapon.def` provides the weapon catalog used to display loadout names.
 * Today, when loading a map, the editor moves the camera to a spot near the center of the inserted items. This could be optimized to keep the camera from being positioned so high up in the sky.
 
