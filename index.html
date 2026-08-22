@@ -2549,6 +2549,7 @@ end group
     tileEditModeActive: false,
     tilePaletteSelectedIndex: null,
     tileInsertIndex: null,
+    tileInsertFlags: 0,
     insertDefinitionId: "",
     insertCategory: "foliage",
     insertSearchTerm: "",
@@ -10527,7 +10528,7 @@ end group
 
   function cancelTileInsertMode(message="Tile insertion canceled."){
     if(state.tileInsertIndex===null)return false;
-    state.tileInsertIndex=null;clearTileInsertCursorPreview();cv.style.cursor="";renderTilePaletteSelection();requestRender();
+    state.tileInsertIndex=null;state.tileInsertFlags=0;clearTileInsertCursorPreview();cv.style.cursor="";renderTilePaletteSelection();requestRender();
     if(message)statusEl.textContent=message;
     return true;
   }
@@ -10537,8 +10538,8 @@ end group
       cancelTileInsertMode("");
       if(state.tilePaletteSelectedIndex===tileIndex){renderTilePaletteSelection();statusEl.textContent="Tile insertion canceled.";return;}
     }else if(state.tilePaletteSelectedIndex===tileIndex){
-      state.tileInsertIndex=tileIndex;state.selectedId=null;state.multiSelectedIds.clear();state.selectedWaypointMarkerIds.clear();updateWaypointMarkerCount(0);cv.style.cursor="crosshair";
-      renderList();statusEl.textContent=`Tile ${tileIndex} ready to insert. Click the terrain or press Esc to cancel.`;return;
+      state.tileInsertIndex=tileIndex;state.tileInsertFlags=0;state.selectedId=null;state.multiSelectedIds.clear();state.selectedWaypointMarkerIds.clear();updateWaypointMarkerCount(0);cv.style.cursor="crosshair";
+      renderList();statusEl.textContent=`Tile ${tileIndex} ready to insert. Shift + mouse wheel rotates it; Esc cancels.`;return;
     }
     state.tilePaletteSelectedIndex=tileIndex;
     const matching=state.items.filter(it=>isMapTileItem(it)&&mapTileAtlasIndex(it)===tileIndex);
@@ -10565,13 +10566,13 @@ end group
     const position=tileInsertPosition(world),size=Number(state.mapTiles.tileSize)||16,centerX=position.x,centerY=position.y;
     const sourceSection=getItemSectionByStartFast(source.start);beginUndoTransaction();
     try{
-      const recordIndex=state.mapTiles.records.length,record={x:worldToRaw(centerX-size*.5,"x"),y:worldToRaw(centerY+size*.5,"y"),tileIndex,flags:0,reserved:0,recordIndex};
+      const recordIndex=state.mapTiles.records.length,record={x:worldToRaw(centerX-size*.5,"x"),y:worldToRaw(centerY+size*.5,"y"),tileIndex,flags:state.tileInsertFlags,reserved:0,recordIndex};
       state.mapTiles.records.push(record);state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);state.mapTiles.dirty=true;
       const item=createPastedItemFrom(source,sourceSection,{offset:false,worldPosition:{x:centerX,y:centerY},selectCreated:false,refresh:false});
       const section=state.sectionBlocks.find(sec=>sec.kind==="item"&&sec.beginLine===item.beginLine);if(section){item.start=section.start;item.end=section.end;}
       setItemKvLine(item,"extra_val2",recordIndex);if(section){section.kv={...item.kv};section.lines=item.lines.slice();}
       markItemsChanged({structure:true});buildMapTileOverlay();renderList();renderItemWindow();scheduleLiveMisRefresh();syncGlbItems();requestRender();
-      statusEl.textContent=`Tile ${tileIndex} inserted.`;
+      statusEl.textContent=`Tile ${tileIndex} inserted at ${tileInsertRotationDegrees()}°.`;
     }finally{endUndoTransaction();}
     return true;
   }
@@ -10642,6 +10643,20 @@ end group
       orientation=Array.from({length:8},(_,candidate)=>candidate).find(candidate=>mapTileOrientationSignature(candidate)===target)??orientation;
     }
     return (Number(flags)&0xf8)|orientation;
+  }
+
+  function tileInsertRotationDegrees(){
+    const orientation=Number(state.tileInsertFlags)&0x07;
+    for(let turns=0;turns<4;turns++)if((rotateMapTileFlags(0,turns)&0x07)===orientation)return turns*90;
+    return 0;
+  }
+
+  function rotateTileInsert(quarterTurns){
+    if(state.tileInsertIndex===null)return false;
+    state.tileInsertFlags=rotateMapTileFlags(state.tileInsertFlags,quarterTurns);
+    if(state.mapTiles.insertPreviewWorld)updateTileInsertCursorPreview(state.mapTiles.insertPreviewWorld);
+    statusEl.textContent=`Tile ${state.tileInsertIndex} ready to insert at ${tileInsertRotationDegrees()}°.`;
+    requestRender();return true;
   }
 
   function mapTileFlagLabels(flags){
@@ -10800,9 +10815,12 @@ end group
       const texture=createMapTilePreviewTexture(tileIndex),material=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:.78,depthTest:true,depthWrite:false,side:THREE.DoubleSide,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
       mesh=new THREE.Mesh(geometry,material);mesh.name='MAP_TILE_INSERT_CURSOR_PREVIEW';mesh.userData.steps=steps;mesh.renderOrder=20;mesh.raycast=()=>null;scene.add(mesh);state.mapTiles.insertPreviewMesh=mesh;state.mapTiles.insertPreviewIndex=tileIndex;
     }
-    const size=Number(state.mapTiles.tileSize)||16,steps=mesh.userData.steps,position=mesh.geometry.getAttribute('position');
-    for(let y=0;y<=steps;y++)for(let x=0;x<=steps;x++){const wx=world.x-size*.5+size*x/steps,wy=world.y-size*.5+size*y/steps,z=heightAtWorld(wx,wy,1.0),i=y*(steps+1)+x;position.setXYZ(i,wx,wy,Number.isFinite(z)&&z>-1e8?z+.055:world.z||0);}
-    state.mapTiles.insertPreviewWorld=cursorWorld;position.needsUpdate=true;mesh.geometry.computeBoundingSphere();requestRender();
+    const size=Number(state.mapTiles.tileSize)||16,steps=mesh.userData.steps,position=mesh.geometry.getAttribute('position'),uv=mesh.geometry.getAttribute('uv');
+    for(let y=0;y<=steps;y++)for(let x=0;x<=steps;x++){
+      const wx=world.x-size*.5+size*x/steps,wy=world.y-size*.5+size*y/steps,z=heightAtWorld(wx,wy,1.0),i=y*(steps+1)+x,orientedUv=transformMapTileUv(x/steps,y/steps,state.tileInsertFlags);
+      position.setXYZ(i,wx,wy,Number.isFinite(z)&&z>-1e8?z+.055:world.z||0);uv.setXY(i,orientedUv.u,orientedUv.v);
+    }
+    state.mapTiles.insertPreviewWorld=cursorWorld;position.needsUpdate=true;uv.needsUpdate=true;mesh.geometry.computeBoundingSphere();requestRender();
   }
 
   function updateMapTilePreviewMesh(mesh,it){
@@ -14113,7 +14131,16 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }
     stopDrag();
   }); cv.addEventListener('mouseleave',()=>{ state.cameraLookActive=false; if(state.insertModeActive){state.insertDragStart=null;state.insertDragStartScreen=null;state.insertHoverPoint=null;state.insertPreviewSamples=[];state.insertPreviewPoints=[];insertPreviewLabel.style.display='none';requestRender();return;} stopDrag(); });
-  cv.addEventListener('wheel',(e)=>{ e.preventDefault(); if(topViewLocked){ topViewScale=Math.max(1,Math.min(1000000,topViewScale*Math.exp(e.deltaY*0.001))); } else { const dir=e.deltaY<0?1:-1; renderUiState.speedLevel=Math.max(1,Math.min(8,renderUiState.speedLevel+dir)); renderMenuBar(); } requestRender(); },{passive:false});
+  cv.addEventListener('wheel',(e)=>{
+    e.preventDefault();
+    if(state.tileEditModeActive&&state.tileInsertIndex!==null&&e.shiftKey){
+      if(e.deltaY!==0)rotateTileInsert(e.deltaY<0?1:-1);
+      return;
+    }
+    if(topViewLocked){ topViewScale=Math.max(1,Math.min(1000000,topViewScale*Math.exp(e.deltaY*0.001))); }
+    else { const dir=e.deltaY<0?1:-1; renderUiState.speedLevel=Math.max(1,Math.min(8,renderUiState.speedLevel+dir)); renderMenuBar(); }
+    requestRender();
+  },{passive:false});
 
   document.addEventListener("pointerlockchange", () => {
     if (document.pointerLockElement===cv) return;
