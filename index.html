@@ -178,8 +178,32 @@
     .globalMenuContent{
       display:flex;
       align-items:center;
-      justify-content:space-between;
-      gap:12px;
+      gap:8px;
+    }
+    .globalModeActions{
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    .globalModeBtn{
+      width:30px;
+      height:30px;
+      padding:4px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .globalModeBtn img{
+      width:20px;
+      height:20px;
+      display:block;
+    }
+    .globalModeBtn.active{
+      background:var(--accent);
+      border-color:var(--accent);
+    }
+    .globalModeBtn.active img{
+      filter:invert(1);
     }
     #appLayout{
       display:grid;
@@ -1506,6 +1530,10 @@
   <div id="globalMenuWrap">
     <div class="globalMenuContent">
       <div class="menuBar" id="menuBar"></div>
+      <div class="globalModeActions" aria-label="Editor modes">
+        <button id="insertModeBtn" class="globalModeBtn" type="button" title="Insert Mode (I)" aria-label="Insert Mode" aria-keyshortcuts="I" aria-pressed="false"><img src="resources/BHD/editor_icons/insert_mode.svg" alt="" /></button>
+        <button id="tileEditModeBtn" class="globalModeBtn" type="button" title="Tile Edit Mode" aria-label="Tile Edit Mode" aria-pressed="false"><img src="resources/BHD/editor_icons/tile_edit_mode.svg" alt="" /></button>
+      </div>
     </div>
   </div>
 
@@ -10029,9 +10057,13 @@ end group
         if (willOpen) root.classList.add("open");
       });
     });
+    const insertModeBtn = document.getElementById("insertModeBtn");
+    insertModeBtn.classList.toggle("active", state.insertModeActive);
+    insertModeBtn.setAttribute("aria-pressed", String(state.insertModeActive));
   }
 
   renderMenuBar();
+  document.getElementById("insertModeBtn").addEventListener("click", toggleInsertMode);
 
   document.addEventListener("keydown", (e) => {
     if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== "s") return;
