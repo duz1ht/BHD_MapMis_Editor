@@ -11847,27 +11847,63 @@ end group
     });
   }
 
+  function normalizedGraphicScale(graphicScale){
+    const scale = Number(graphicScale);
+    return Number.isFinite(scale) && scale > 0 ? scale : 1;
+  }
+
+  function applyGlbModelCorrection(obj, graphicScale = 1){
+    if (!obj) return;
+    // Fixed import-basis correction only. Keep it below the logical Z-up pose group.
+    obj.rotation.order = "ZXY";
+    obj.rotation.set(90 * Math.PI / 180, 0, 180 * Math.PI / 180);
+    const scale = normalizedGraphicScale(graphicScale);
+    obj.scale.set(scale, scale, scale);
+  }
+
+  function applyLogicalZUpRotation(obj, yaw = 0, pitch = 0){
+    if (!obj) return;
+    obj.rotation.order = "ZXY";
+    obj.rotation.set(
+      -(Number(pitch) || 0) * Math.PI / 180,
+      0,
+      -(Number(yaw) || 0) * Math.PI / 180
+    );
+  }
+
+  function applyItemPoseTransform(obj, it){
+    if (!obj || !it) return;
+    obj.position.set(rawToWorld(it.x, "x"), rawToWorld(it.y, "y"), getItemWorldZ(it));
+    applyLogicalZUpRotation(obj, it.heading, it.pitch);
+    obj.scale.set(1, 1, 1);
+  }
+
+  function applyAttachedWeaponAnchorTransform(anchor, attachment){
+    if (!anchor || !attachment) return;
+    anchor.position.set(
+      attachment.x * ATTACHED_WEAPON_COORDINATE_SCALE,
+      attachment.y * ATTACHED_WEAPON_COORDINATE_SCALE,
+      attachment.z * ATTACHED_WEAPON_COORDINATE_SCALE
+    );
+    applyLogicalZUpRotation(anchor, attachment.yaw, attachment.pitch);
+    anchor.scale.set(1, 1, 1);
+  }
+
+  // Kept for standalone previews, where pose and import correction share one root.
   function applyItemModelTransform(obj, heading = 0, pitch = 0, graphicScale = 1){
     if (!obj) return;
-    // OpenNova-style orientation correction: sign-flip yaw/pitch and apply a +180° yaw phase shift.
-    const yawRad = ((-(Number(heading) || 0)) + 180) * Math.PI / 180;
-    const pitchCalibratedDeg = (-(Number(pitch) || 0)) + 90;
-    const pitchRad = pitchCalibratedDeg * Math.PI / 180;
     obj.rotation.order = "ZXY";
-    obj.rotation.z = yawRad;
-    obj.rotation.x = pitchRad;
-    const scale = Number.isFinite(Number(graphicScale)) && Number(graphicScale) > 0 ? Number(graphicScale) : 1;
+    obj.rotation.set(
+      (-(Number(pitch) || 0) + 90) * Math.PI / 180,
+      0,
+      (-(Number(heading) || 0) + 180) * Math.PI / 180
+    );
+    const scale = normalizedGraphicScale(graphicScale);
     obj.scale.set(scale, scale, scale);
   }
 
   function applyItemTransformToObject(obj, it){
-    if (!obj || !it) return;
-    obj.position.set(
-      rawToWorld(it.x,'x'),
-      rawToWorld(it.y,'y'),
-      getItemWorldZ(it)
-    );
-    applyItemModelTransform(obj, it.heading, it.pitch, getItemGraphicScale(it));
+    applyItemPoseTransform(obj, it);
   }
 
   function lodDistanceForLevel(level){
@@ -12552,15 +12588,12 @@ end group
       anchor.userData.isAttachedWeapon = true;
       anchor.userData.attachmentSlot = attachment.slot;
       anchor.userData.attachmentItemId = attachment.itemId;
-      anchor.position.set(
-        attachment.x * ATTACHED_WEAPON_COORDINATE_SCALE,
-        attachment.y * ATTACHED_WEAPON_COORDINATE_SCALE,
-        attachment.z * ATTACHED_WEAPON_COORDINATE_SCALE
-      );
+      applyAttachedWeaponAnchorTransform(anchor, attachment);
       const visual = template.clone(true);
+      visual.name = `ATTACHED_WEAPON_MODEL_${attachment.slot}_${attachment.itemId}`;
       cloneGlbMaterials(visual);
       applySolidTintToGlbObject(visual, attachedDef.tint);
-      applyItemModelTransform(visual, attachment.yaw, attachment.pitch, attachedDef.graphicScale);
+      applyGlbModelCorrection(visual, attachedDef.graphicScale);
       visual.traverse((obj) => {
         obj.userData.isAttachedWeapon = true;
         obj.userData.attachmentSlot = attachment.slot;
@@ -12624,10 +12657,7 @@ end group
     const parentInstance = state.glb.itemInstances.get(parentItem.id);
     const anchor = parentInstance?.children?.find(child => child.userData?.isAttachedWeapon && child.userData?.attachmentSlot === attachment.slot);
     if (!anchor) return;
-    anchor.position.set(attachment.x * ATTACHED_WEAPON_COORDINATE_SCALE, attachment.y * ATTACHED_WEAPON_COORDINATE_SCALE, attachment.z * ATTACHED_WEAPON_COORDINATE_SCALE);
-    const visual = anchor.children[0];
-    const def = state.defsById.get(String(attachment.itemId));
-    applyItemModelTransform(visual, attachment.yaw, attachment.pitch, def?.graphicScale);
+    applyAttachedWeaponAnchorTransform(anchor, attachment);
     requestRender();
   }
 
@@ -12948,12 +12978,18 @@ end group
           const template = await loadGraphicTemplate(graphic);
           if (generation !== state.glb.documentGeneration) return;
           if (!template) continue;
-          instance = template.clone(true);
-          cloneGlbMaterials(instance);
-          applySolidTintToGlbObject(instance, getItemTint(it));
-          applyWaypointColorToGlbObject(instance, it);
-          applyAreaTriggerColorToGlbObject(instance, it);
-          applyWaypointOutlineToGlbObject(instance, it);
+          instance = new state.glb.THREE.Group();
+          instance.name = `ITEM_POSE_${it.id}`;
+          const parentVisual = template.clone(true);
+          parentVisual.name = `ITEM_MODEL_${it.id}`;
+          parentVisual.userData.isPrimaryItemVisual = true;
+          cloneGlbMaterials(parentVisual);
+          applySolidTintToGlbObject(parentVisual, getItemTint(it));
+          applyGlbModelCorrection(parentVisual, getItemGraphicScale(it));
+          instance.add(parentVisual);
+          applyWaypointColorToGlbObject(parentVisual, it);
+          applyAreaTriggerColorToGlbObject(parentVisual, it);
+          applyWaypointOutlineToGlbObject(parentVisual, it);
           if (!await addAttachedWeaponVisuals(instance, it, generation)) return;
           instance.userData.itemId = it.id;
           instance.userData.graphic = graphic;
