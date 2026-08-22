@@ -10534,9 +10534,10 @@ end group
   }
 
   function selectMapTilesFromPalette(tileIndex,additive=false){
+    let canceledInsertion=false;
     if(state.tileInsertIndex!==null){
+      canceledInsertion=true;
       cancelTileInsertMode("");
-      if(state.tilePaletteSelectedIndex===tileIndex){renderTilePaletteSelection();statusEl.textContent="Tile insertion canceled.";return;}
     }else if(state.tilePaletteSelectedIndex===tileIndex){
       state.tileInsertIndex=tileIndex;state.tileInsertFlags=0;state.selectedId=null;state.multiSelectedIds.clear();state.selectedWaypointMarkerIds.clear();updateWaypointMarkerCount(0);cv.style.cursor="crosshair";
       renderList();statusEl.textContent=`Tile ${tileIndex} ready to insert. Shift + mouse wheel rotates it; Esc cancels.`;return;
@@ -10548,6 +10549,7 @@ end group
     state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null;
     state.selectedInfoIndex=0;state.selectedWaypointMarkerIds.clear();updateWaypointMarkerCount(0);
     renderList();requestRender();
+    if(canceledInsertion)statusEl.textContent=`Tile insertion canceled. ${matching.length} matching tile${matching.length===1?"":"s"} selected.`;
   }
 
   function setItemKvLine(item,key,value){
