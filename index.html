@@ -730,6 +730,35 @@
     #tilePropertiesOverlay .modalBody{padding:16px;max-height:70vh;overflow:auto;}
     #tilePropertiesOverlay dd{margin:0;overflow-wrap:anywhere;}
     #tilePropertiesOverlay .dangerText{color:var(--danger,#d86161);}
+    #tilePalette{
+      position:absolute;
+      top:58px;
+      right:10px;
+      z-index:24;
+      width:min(304px,calc(100% - 20px));
+      max-height:calc(100% - 72px);
+      display:none;
+      grid-template-rows:auto minmax(0,1fr);
+      overflow:hidden;
+      color:var(--text);
+      background:var(--panel);
+      border:1px solid var(--line-heavy);
+      border-radius:var(--radius-md);
+      box-shadow:var(--shadow-md);
+    }
+    #tilePalette.open{display:grid;}
+    #tilePaletteHeader{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);}
+    #tilePaletteTitle{font-size:12px;font-weight:700;color:var(--text-strong);}
+    #tilePaletteAtlas{max-width:155px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-subtle);font-size:11px;}
+    #tilePaletteBody{min-height:80px;overflow:auto;padding:8px;}
+    #tilePaletteGrid{display:grid;grid-template-columns:repeat(8,minmax(26px,1fr));gap:4px;}
+    .tilePaletteTile{position:relative;min-width:0;aspect-ratio:1;padding:0;overflow:hidden;border:1px solid var(--line-strong);border-radius:2px;background:var(--canvas);cursor:pointer;}
+    .tilePaletteTile:hover{border-color:var(--accent);}
+    .tilePaletteTile.selected{border:2px solid var(--accent);box-shadow:0 0 0 2px var(--accent-glow);}
+    .tilePaletteTile canvas{display:block;width:100%;height:100%;image-rendering:auto;}
+    .tilePaletteIndex{position:absolute;left:1px;bottom:1px;padding:0 2px;border-radius:2px;background:rgba(0,0,0,.68);color:#fff;font:9px/13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;pointer-events:none;}
+    .tilePaletteCount{position:absolute;top:1px;right:1px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:var(--accent);color:#fff;font:bold 10px/16px system-ui,sans-serif;text-align:center;pointer-events:none;}
+    #tilePaletteMessage{padding:12px;color:var(--text-subtle);font-size:12px;line-height:1.4;}
     #insertOverlay{
       position:absolute; inset:0; background:var(--overlay); display:none;
       align-items:center; justify-content:center; z-index:58; padding:18px;
@@ -1632,6 +1661,17 @@
       <div id="camDebug"></div>
       <div id="sceneInfoHint">Show Scene Info (Home)</div>
       <canvas id="gizmoCanvas" aria-hidden="true"></canvas>
+
+      <section id="tilePalette" aria-labelledby="tilePaletteTitle" aria-hidden="true">
+        <header id="tilePaletteHeader">
+          <span id="tilePaletteTitle">Tile Palette</span>
+          <span id="tilePaletteAtlas"></span>
+        </header>
+        <div id="tilePaletteBody">
+          <div id="tilePaletteGrid"></div>
+          <div id="tilePaletteMessage">Load a mission with terrain tiles to see its palette.</div>
+        </div>
+      </section>
 
       <div id="canvasShowPanel" aria-hidden="true">
         <div id="canvasShowPanelControls">
@@ -2778,6 +2818,10 @@ end group
   const misRealtimeClearBtn = document.getElementById("misRealtimeClearBtn");
   const exportBtn = document.getElementById("exportBtn");
   const appLayoutEl = document.getElementById("appLayout");
+  const tilePaletteEl = document.getElementById("tilePalette");
+  const tilePaletteGridEl = document.getElementById("tilePaletteGrid");
+  const tilePaletteMessageEl = document.getElementById("tilePaletteMessage");
+  const tilePaletteAtlasEl = document.getElementById("tilePaletteAtlas");
   const sidebarCloseBtn = document.getElementById("sidebarCloseBtn");
   const sidebarOpenBtn = document.getElementById("sidebarOpenBtn");
   const showPanelBtn = document.getElementById("showPanelBtn");
@@ -4687,6 +4731,7 @@ end group
     const willEnable = !state.tileEditModeActive;
     if(willEnable && (state.insertModeActive || insertOverlay.classList.contains("open"))) stopInsertMode("");
     state.tileEditModeActive = willEnable;
+    renderTilePalette();
     if(willEnable){
       const tileIds=new Set(state.items.filter(isMapTileItem).map(it=>it.id));
       state.multiSelectedIds=new Set(Array.from(state.multiSelectedIds).filter(id=>tileIds.has(id)));
@@ -7964,6 +8009,7 @@ end group
   }
 
   function renderList(){
+    renderTilePaletteSelection();
     renderSelectedInfoPanel();
     if (!listEl) return;
     const items = getFilteredItems();
@@ -10387,6 +10433,7 @@ end group
     disposeMapTileBorders();
     Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),pendingOverlayRebuild:0,dirty:false});
     state.threeTerrain.dirty=true;
+    renderTilePalette();
   }
 
   function generalTerrainTileName(){
@@ -10413,10 +10460,11 @@ end group
       const atlasPath=`resources/BHD/terrain_tiles/${atlasFile}`,atlasBuf=await loadBinaryResource(atlasPath);if(!atlasBuf)throw new Error(`Unable to load tile atlas '${atlasPath}'`);
       if(generation!==state.mapTiles.generation)return;
       state.mapTiles.atlasName=atlasFile;state.mapTiles.atlasImage=decodeTGA(atlasBuf,true);
+      renderTilePalette();
       addLog(`[map_tiles] loaded ${tilName}: ${parsed.records.length} records, atlas=${atlasFile}`);
       buildMapTileOverlay();
       await syncGlbItems();requestRender();
-    }catch(err){state.mapTiles.error=err?.message||String(err);addLog(`[map_tiles] ERROR: ${state.mapTiles.error}`);statusEl.textContent=state.mapTiles.error;}
+    }catch(err){state.mapTiles.error=err?.message||String(err);renderTilePalette();addLog(`[map_tiles] ERROR: ${state.mapTiles.error}`);statusEl.textContent=state.mapTiles.error;}
   }
 
   function mapTileRecordForItem(it){
@@ -10426,6 +10474,67 @@ end group
 
   function mapTileAtlasIndex(it){
     const index=mapTileRecordForItem(it)?.tileIndex;return Number.isInteger(index)&&index>=0&&index<=255?index:null;
+  }
+
+  function selectedMapTileIndexCounts(){
+    const ids=state.multiSelectedIds.size?state.multiSelectedIds:(state.selectedId!=null?new Set([state.selectedId]):new Set());
+    const counts=new Map();
+    for(const id of ids){
+      const it=getItemByIdFast(id);if(!isMapTileItem(it))continue;
+      const index=mapTileAtlasIndex(it);if(index===null)continue;
+      counts.set(index,(counts.get(index)||0)+1);
+    }
+    return counts;
+  }
+
+  function renderTilePaletteSelection(){
+    if(!tilePaletteGridEl)return;
+    const counts=selectedMapTileIndexCounts();
+    for(const button of tilePaletteGridEl.children){
+      const count=counts.get(Number(button.dataset.tileIndex))||0;
+      button.classList.toggle("selected",count>0);
+      button.setAttribute("aria-pressed",String(count>0));
+      button.title=`Tile ${button.dataset.tileIndex}${count?` — ${count} selected on map`:""}`;
+      let badge=button.querySelector(".tilePaletteCount");
+      if(count){
+        if(!badge){badge=document.createElement("span");badge.className="tilePaletteCount";button.appendChild(badge);}
+        badge.textContent=String(count);
+      }else badge?.remove();
+    }
+  }
+
+  function selectMapTilesFromPalette(tileIndex,additive=false){
+    const matching=state.items.filter(it=>isMapTileItem(it)&&mapTileAtlasIndex(it)===tileIndex);
+    if(!additive)state.multiSelectedIds.clear();
+    for(const it of matching)state.multiSelectedIds.add(it.id);
+    state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null;
+    state.selectedInfoIndex=0;state.selectedWaypointMarkerIds.clear();updateWaypointMarkerCount(0);
+    renderList();requestRender();
+  }
+
+  function renderTilePalette(){
+    if(!tilePaletteEl)return;
+    tilePaletteEl.classList.toggle("open",state.tileEditModeActive);
+    tilePaletteEl.setAttribute("aria-hidden",String(!state.tileEditModeActive));
+    tilePaletteAtlasEl.textContent=state.mapTiles.atlasName||generalTerrainTileName()||"No texture";
+    tilePaletteGridEl.replaceChildren();
+    const img=state.mapTiles.atlasImage;
+    if(!img){
+      tilePaletteMessageEl.hidden=false;
+      tilePaletteMessageEl.textContent=state.mapTiles.error||"Load a mission with terrain tiles to see its palette.";
+      return;
+    }
+    tilePaletteMessageEl.hidden=true;
+    const columns=8,rows=8,cellW=Math.floor(img.w/columns),cellH=Math.floor(img.h/rows);
+    for(let index=0;index<columns*rows;index++){
+      const button=document.createElement("button");button.type="button";button.className="tilePaletteTile";button.dataset.tileIndex=String(index);button.setAttribute("aria-pressed","false");
+      const canvas=document.createElement("canvas");canvas.width=cellW;canvas.height=cellH;canvas.setAttribute("aria-hidden","true");
+      const ctx=canvas.getContext("2d"),data=ctx?.createImageData(cellW,cellH),col=index%columns,row=Math.floor(index/columns);
+      if(data&&ctx){for(let y=0;y<cellH;y++)for(let x=0;x<cellW;x++){const src=((row*cellH+y)*img.w+col*cellW+x)*4,dst=(y*cellW+x)*4;data.data[dst]=img.pixels[src];data.data[dst+1]=img.pixels[src+1];data.data[dst+2]=img.pixels[src+2];data.data[dst+3]=img.pixels[src+3];}ctx.putImageData(data,0,0);}
+      const label=document.createElement("span");label.className="tilePaletteIndex";label.textContent=String(index);
+      button.append(canvas,label);button.addEventListener("click",event=>selectMapTilesFromPalette(index,event.shiftKey));tilePaletteGridEl.appendChild(button);
+    }
+    renderTilePaletteSelection();
   }
 
   function transformMapTileUv(u,v,flags){
