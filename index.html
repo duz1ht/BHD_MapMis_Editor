@@ -8724,14 +8724,17 @@ end group
   });
 
   function deleteSelectedItem(){
-    const it = getSelected();
-    if (!it) return;
-    if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be deleted.";return;}
-    const deletingMapTile=isMapTileItem(it);
-    if(deletingMapTile&&state.mapTiles.dragPreviewIds.has(it.id))clearMapTileDragPreview(false);
-    removeItemFromSpatialIndex(it.id);
-    state.items = state.items.filter(x => x.id !== it.id);
-    state.sectionBlocks = state.sectionBlocks.filter(s => !(s.kind === "item" && s.start === it.start));
+    const selectedItems = getSelectedItems();
+    if (!selectedItems.length) return;
+    if(state.tileEditModeActive&&selectedItems.some(it=>!isMapTileItem(it))){statusEl.textContent="Tile Edit Mode only allows MapTiles to be deleted.";return;}
+
+    const selectedIds=new Set(selectedItems.map(it=>it.id));
+    const selectedStarts=new Set(selectedItems.map(it=>it.start));
+    const deletingMapTile=selectedItems.some(isMapTileItem);
+    if(selectedItems.some(it=>state.mapTiles.dragPreviewIds.has(it.id)))clearMapTileDragPreview(false);
+    for(const id of selectedIds)removeItemFromSpatialIndex(id);
+    state.items = state.items.filter(it => !selectedIds.has(it.id));
+    state.sectionBlocks = state.sectionBlocks.filter(s => !(s.kind === "item" && selectedStarts.has(s.start)));
     normalizeItemBeginLineSequence();
     markItemsChanged({ structure: true });
     if(deletingMapTile)scheduleMapTileOverlayRebuild();
@@ -8742,7 +8745,9 @@ end group
     renderList();
     requestRender();
     scheduleLiveMisRefresh();
-    statusEl.textContent = `Apagado: #${it.id}`;
+    statusEl.textContent = selectedItems.length===1
+      ? `Apagado: #${selectedItems[0].id}`
+      : `Apagados: ${selectedItems.length} itens`;
   }
 
   ui.delBtn.addEventListener("click", deleteSelectedItem);
