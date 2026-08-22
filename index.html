@@ -298,6 +298,15 @@
       pointer-events:none;
     }
     #insertPreviewLabel{position:absolute;z-index:12;display:none;pointer-events:none;padding:3px 6px;border:1px solid rgba(44,230,255,.8);border-radius:4px;background:rgba(0,0,0,.72);color:#fff;font-size:12px;white-space:nowrap;}
+    #boxSelection{
+      position:absolute;
+      z-index:11;
+      display:none;
+      pointer-events:none;
+      box-sizing:border-box;
+      border:1px solid rgba(91,192,255,.95);
+      background:rgba(45,145,220,.18);
+    }
     .canvasFloatingToolbar{
       position:absolute;
       top:10px;
@@ -1618,6 +1627,7 @@
         </div>
       </div>
       <canvas id="cv"></canvas>
+      <div id="boxSelection" aria-hidden="true"></div>
       <div id="insertPreviewLabel" aria-hidden="true"></div>
       <div id="camDebug"></div>
       <div id="sceneInfoHint">Show Scene Info (Home)</div>
@@ -2781,6 +2791,7 @@ end group
   const rotationSnapMenuBtn = document.getElementById("rotationSnapMenuBtn");
   const viewportToolsBtn = document.getElementById("viewportToolsBtn");
   const viewportProjectionLabel = document.getElementById("viewportProjectionLabel");
+  const boxSelectionEl = document.getElementById("boxSelection");
   const perspectiveViewBtn = document.getElementById("perspectiveViewBtn");
   const topViewBtn = document.getElementById("topViewBtn");
   const cameraSpeedEl = document.getElementById("cameraSpeed");
@@ -8713,14 +8724,17 @@ end group
   });
 
   function deleteSelectedItem(){
-    const it = getSelected();
-    if (!it) return;
-    if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be deleted.";return;}
-    const deletingMapTile=isMapTileItem(it);
-    if(deletingMapTile&&state.mapTiles.dragPreviewIds.has(it.id))clearMapTileDragPreview(false);
-    removeItemFromSpatialIndex(it.id);
-    state.items = state.items.filter(x => x.id !== it.id);
-    state.sectionBlocks = state.sectionBlocks.filter(s => !(s.kind === "item" && s.start === it.start));
+    const selectedItems = getSelectedItems();
+    if (!selectedItems.length) return;
+    if(state.tileEditModeActive&&selectedItems.some(it=>!isMapTileItem(it))){statusEl.textContent="Tile Edit Mode only allows MapTiles to be deleted.";return;}
+
+    const selectedIds=new Set(selectedItems.map(it=>it.id));
+    const selectedStarts=new Set(selectedItems.map(it=>it.start));
+    const deletingMapTile=selectedItems.some(isMapTileItem);
+    if(selectedItems.some(it=>state.mapTiles.dragPreviewIds.has(it.id)))clearMapTileDragPreview(false);
+    for(const id of selectedIds)removeItemFromSpatialIndex(id);
+    state.items = state.items.filter(it => !selectedIds.has(it.id));
+    state.sectionBlocks = state.sectionBlocks.filter(s => !(s.kind === "item" && selectedStarts.has(s.start)));
     normalizeItemBeginLineSequence();
     markItemsChanged({ structure: true });
     if(deletingMapTile)scheduleMapTileOverlayRebuild();
@@ -8731,7 +8745,9 @@ end group
     renderList();
     requestRender();
     scheduleLiveMisRefresh();
-    statusEl.textContent = `Apagado: #${it.id}`;
+    statusEl.textContent = selectedItems.length===1
+      ? `Apagado: #${selectedItems[0].id}`
+      : `Apagados: ${selectedItems.length} itens`;
   }
 
   ui.delBtn.addEventListener("click", deleteSelectedItem);
@@ -13703,6 +13719,17 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     state.draggingItem = false;
     state.boxSelecting = false;
     state.boxSelectAdditive = false;
+    if (topViewLocked){
+      // In Top View a left-button drag is reserved for marquee selection. Keep
+      // the click pending so a normal click still performs single selection.
+      state.pendingLeftClick = { pickedId: picked?.id ?? null, sx, sy, additive: e.shiftKey };
+      state.boxStart = { sx, sy };
+      state.boxCurrent = null;
+      state.boxSelectAdditive = e.shiftKey;
+      state.lastMouse = { sx, sy };
+      e.preventDefault();
+      return;
+    }
     const additiveSelection = !!(e.shiftKey && picked && state.selectedId != null && picked.id !== state.selectedId && state.multiSelectedIds.has(state.selectedId));
     selectById(picked ? picked.id : null, { additive: additiveSelection });
     state.lastMouse = { sx, sy };
@@ -13778,8 +13805,22 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       const z = state.selectedId ? rawToWorld(getSelected()?.z || 0, 'z') : 0;
       state.pastePreviewWorld = screenToWorld(sx, sy, z);
     }
+    if (topViewLocked && state.pendingLeftClick && (e.buttons & 1) && !state.boxSelecting){
+      const start = state.boxStart || state.pendingLeftClick;
+      if (Math.hypot(sx - start.sx, sy - start.sy) > 3){
+        state.boxSelecting = true;
+        state.boxCurrent = { sx, sy };
+        state.pendingLeftClick = null;
+      }
+    }
     if (state.boxSelecting && state.boxStart){
       state.boxCurrent = { sx, sy };
+      const left = Math.min(state.boxStart.sx, sx), top = Math.min(state.boxStart.sy, sy);
+      boxSelectionEl.style.display = 'block';
+      boxSelectionEl.style.left = `${left}px`;
+      boxSelectionEl.style.top = `${top}px`;
+      boxSelectionEl.style.width = `${Math.abs(sx - state.boxStart.sx)}px`;
+      boxSelectionEl.style.height = `${Math.abs(sy - state.boxStart.sy)}px`;
     } else if (state.draggingItem && state.selectedId){
       const active = state.items.filter(it => it.id === state.selectedId || state.multiSelectedIds.has(it.id));
       const zPlane = rawToWorld(active[0]?.z || 0, 'z');
@@ -13800,7 +13841,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }
     state.lastMouse = { sx, sy };
   });
-  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const pickedId=state.pendingLeftClick.pickedId; selectById(pickedId != null ? pickedId : null); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&!isMapTileItem(it))) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); refreshLiveMisWindow(false, { force: true }); } }
+  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; boxSelectionEl.style.display='none'; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const {pickedId,additive}=state.pendingLeftClick; selectById(pickedId != null ? pickedId : null,{additive}); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&!isMapTileItem(it))) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); refreshLiveMisWindow(false, { force: true }); } }
   cv.addEventListener('mouseup', e => {
     if (state.insertModeActive && state.insertDragStart){
       const rect = cv.getBoundingClientRect();
