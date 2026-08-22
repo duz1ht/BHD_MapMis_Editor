@@ -1759,7 +1759,7 @@
         <section class="floatingPanelSection">
           <div class="floatingPanelTitle">Rotation Snap</div>
           <div class="floatingPanelFields">
-            <label>Angle Increment <input id="rotationSnap" type="number" min="0.1" step="1" value="15" title="Rotation snap, degrees"></label>
+            <label>Angle Increment <select id="rotationSnap" title="Rotation snap, degrees"><option value="5">5º</option><option value="10">10º</option><option value="15">15º</option><option value="30">30º</option><option value="45">45º</option><option value="60">60º</option><option value="90" selected>90º</option><option value="180">180º</option></select></label>
             <label>Mode <select id="rotationSnapMode"><option value="relative">Relative increment</option><option value="absolute">Absolute angle</option></select></label>
           </div>
         </section>
@@ -2570,7 +2570,7 @@ end group
     transformPivot: "center",
     gridSnapEnabled: false,
     rotationSnapEnabled: false,
-    rotationSnap: 15,
+    rotationSnap: 90,
     rotationSnapMode: "relative",
     hoveredGizmoHandle: null,
 
@@ -13859,7 +13859,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
   const rotationSnapEl=document.getElementById('rotationSnap');
   const rotationSnapModeEl=document.getElementById('rotationSnapMode');
   transformPivotEl?.addEventListener('change',()=>{state.transformPivot=transformPivotEl.value;updateItemGizmo();});
-  rotationSnapEl?.addEventListener('change',()=>{state.rotationSnap=Math.max(.1,Number(rotationSnapEl.value)||15);rotationSnapEl.value=String(state.rotationSnap);});
+  rotationSnapEl?.addEventListener('change',()=>{state.rotationSnap=Number(rotationSnapEl.value)||90;});
   rotationSnapModeEl?.addEventListener('change',()=>{state.rotationSnapMode=rotationSnapModeEl.value;});
   document.getElementById('gridPlus')?.addEventListener('click',()=>stepGridExponent(1));
   document.getElementById('gridMinus')?.addEventListener('click',()=>stepGridExponent(-1));
