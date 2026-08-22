@@ -192,18 +192,44 @@
       display:inline-flex;
       align-items:center;
       justify-content:center;
+      background:var(--line-heavy);
     }
-    .globalModeBtn img{
+    .globalModeBtn::before{
+      content:"";
       width:20px;
       height:20px;
       display:block;
+      background:#fff;
+      mask-position:center;
+      mask-repeat:no-repeat;
+      mask-size:contain;
+      -webkit-mask-position:center;
+      -webkit-mask-repeat:no-repeat;
+      -webkit-mask-size:contain;
+    }
+    #insertModeBtn::before{
+      mask-image:url("resources/BHD/editor_icons/insert_mode.svg");
+      -webkit-mask-image:url("resources/BHD/editor_icons/insert_mode.svg");
+    }
+    #tileEditModeBtn::before{
+      mask-image:url("resources/BHD/editor_icons/tile_edit_mode.svg");
+      -webkit-mask-image:url("resources/BHD/editor_icons/tile_edit_mode.svg");
+    }
+    .globalModeBtn img{
+      display:none;
+    }
+    .globalModeBtn:hover:not(:disabled){
+      background:var(--line-strong);
     }
     .globalModeBtn.active{
-      background:var(--accent);
-      border-color:var(--accent);
+      background:var(--surface);
+      border-color:#2c7be5;
     }
-    .globalModeBtn.active img{
-      filter:invert(1);
+    .globalModeBtn.active:hover:not(:disabled){
+      background:var(--control-hover-bg);
+    }
+    .globalModeBtn.active::before{
+      background:#2c7be5;
     }
     #appLayout{
       display:grid;
@@ -1076,7 +1102,7 @@
       position:relative;
       z-index:5;
       flex-wrap:wrap;
-      flex:1;
+      flex:0 1 auto;
     }
     .menuRoot{ position:relative; }
     .menuRootBtn{
