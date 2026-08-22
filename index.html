@@ -752,8 +752,8 @@
     #tilePaletteTitle{font-size:12px;font-weight:700;color:var(--text-strong);}
     #tilePaletteAtlas{max-width:155px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-subtle);font-size:11px;}
     #tilePaletteBody{min-height:80px;overflow:auto;padding:8px;}
-    #tilePaletteGrid{display:grid;grid-template-columns:repeat(8,minmax(26px,1fr));grid-template-rows:repeat(8,minmax(26px,1fr));gap:4px;min-height:100%;}
-    .tilePaletteTile{position:relative;min-width:0;min-height:0;padding:0;overflow:hidden;border:1px solid var(--line-strong);border-radius:2px;background:var(--canvas);cursor:pointer;}
+    #tilePaletteGrid{display:grid;gap:4px;place-content:center;min-height:100%;}
+    .tilePaletteTile{position:relative;min-width:0;min-height:0;aspect-ratio:1;padding:0;overflow:hidden;border:1px solid var(--line-strong);border-radius:2px;background:var(--canvas);cursor:pointer;}
     .tilePaletteTile:hover{border-color:var(--accent);}
     .tilePaletteTile.selected{border:2px solid var(--accent);box-shadow:0 0 0 2px var(--accent-glow);}
     .tilePaletteTile canvas{display:block;width:100%;height:100%;image-rendering:auto;}
@@ -2824,6 +2824,7 @@ end group
   const exportBtn = document.getElementById("exportBtn");
   const appLayoutEl = document.getElementById("appLayout");
   const tilePaletteEl = document.getElementById("tilePalette");
+  const tilePaletteBodyEl = document.getElementById("tilePaletteBody");
   const tilePaletteGridEl = document.getElementById("tilePaletteGrid");
   const tilePaletteMessageEl = document.getElementById("tilePaletteMessage");
   const tilePaletteAtlasEl = document.getElementById("tilePaletteAtlas");
@@ -10517,6 +10518,28 @@ end group
     renderList();requestRender();
   }
 
+  function layoutTilePaletteGrid(){
+    const count=tilePaletteGridEl?.childElementCount||0;
+    if(!count||!tilePaletteBodyEl)return;
+    const style=getComputedStyle(tilePaletteGridEl),gap=parseFloat(style.gap)||0;
+    const width=tilePaletteBodyEl.clientWidth-(parseFloat(getComputedStyle(tilePaletteBodyEl).paddingLeft)||0)-(parseFloat(getComputedStyle(tilePaletteBodyEl).paddingRight)||0);
+    const height=tilePaletteBodyEl.clientHeight-(parseFloat(getComputedStyle(tilePaletteBodyEl).paddingTop)||0)-(parseFloat(getComputedStyle(tilePaletteBodyEl).paddingBottom)||0);
+    if(width<=0||height<=0)return;
+    let bestColumns=1,bestSize=0;
+    for(let columns=1;columns<=count;columns++){
+      const rows=Math.ceil(count/columns);
+      const size=Math.min((width-gap*(columns-1))/columns,(height-gap*(rows-1))/rows);
+      if(size>bestSize){bestSize=size;bestColumns=columns;}
+    }
+    const rows=Math.ceil(count/bestColumns),size=Math.max(1,Math.floor(bestSize));
+    tilePaletteGridEl.style.gridTemplateColumns=`repeat(${bestColumns},${size}px)`;
+    tilePaletteGridEl.style.gridTemplateRows=`repeat(${rows},${size}px)`;
+  }
+
+  const tilePaletteResizeObserver=typeof ResizeObserver!=="undefined"?new ResizeObserver(layoutTilePaletteGrid):null;
+  tilePaletteResizeObserver?.observe(tilePaletteBodyEl);
+  if(!tilePaletteResizeObserver)addEventListener("resize",layoutTilePaletteGrid);
+
   function renderTilePalette(){
     if(!tilePaletteEl)return;
     document.getElementById("canvasWrap")?.classList.toggle("tilePaletteOpen",state.tileEditModeActive);
@@ -10541,6 +10564,7 @@ end group
       button.append(canvas,label);button.addEventListener("click",event=>selectMapTilesFromPalette(index,event.shiftKey));tilePaletteGridEl.appendChild(button);
     }
     renderTilePaletteSelection();
+    requestAnimationFrame(layoutTilePaletteGrid);
   }
 
   function transformMapTileUv(u,v,flags){
