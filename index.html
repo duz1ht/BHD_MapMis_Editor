@@ -683,6 +683,17 @@
       cursor:pointer;
     }
     #selectedInfoBody:hover{ background:var(--surface); }
+    #selectedInfoTilePreview{
+      display:none;
+      width:100%;
+      aspect-ratio:1;
+      border:1px solid var(--line-soft);
+      border-radius:var(--radius-sm);
+      background:var(--surface-subtle);
+      image-rendering:auto;
+    }
+    #selectedInfoPanel.mapTileSelected #selectedInfoTilePreview{ display:block; }
+    #selectedInfoPanel.mapTileSelected #selectedInfoBody{ min-height:0; }
     .itemCard{
       padding:8px;
       border:1px solid var(--line);
@@ -1576,6 +1587,7 @@
           <button id="selectedInfoNextBtn" type="button" class="modeBtn" title="Next item">▶</button>
         </div>
       </div>
+      <canvas id="selectedInfoTilePreview" width="256" height="256" aria-label="Selected terrain tile preview"></canvas>
       <pre id="selectedInfoBody">No item selected.</pre>
     </div>
 
@@ -2770,6 +2782,7 @@ end group
   const listEl = document.getElementById("list");
   const selectedInfoTitleEl = document.getElementById("selectedInfoTitle");
   const selectedInfoBodyEl = document.getElementById("selectedInfoBody");
+  const selectedInfoTilePreviewEl = document.getElementById("selectedInfoTilePreview");
   const selectedInfoPanelEl = document.getElementById("selectedInfoPanel");
   const selectedInfoPrevBtn = document.getElementById("selectedInfoPrevBtn");
   const selectedInfoNextBtn = document.getElementById("selectedInfoNextBtn");
@@ -3894,6 +3907,34 @@ end group
     return dims;
   }
 
+  function paintMapTilePreview(canvas, item){
+    if (!canvas || !isMapTileItem(item)) return false;
+    const img = state.mapTiles.atlasImage;
+    const index = mapTileAtlasIndex(item);
+    const record = mapTileRecordForItem(item);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!img || !Number.isInteger(index) || !record) return false;
+
+    const sw = img.w / 8;
+    const sh = img.h / 8;
+    const preview = ctx.createImageData(canvas.width, canvas.height);
+    for (let py = 0; py < canvas.height; py++) for (let px = 0; px < canvas.width; px++){
+      const uv = transformMapTileUv((px + .5) / canvas.width, 1 - (py + .5) / canvas.height, record.flags);
+      const sx = Math.min(img.w - 1, Math.floor((index % 8) * sw + uv.u * sw));
+      const sy = Math.min(img.h - 1, Math.floor(Math.floor(index / 8) * sh + (1 - uv.v) * sh));
+      const src = (sy * img.w + sx) * 4;
+      const dst = (py * canvas.width + px) * 4;
+      preview.data[dst] = img.pixels[src];
+      preview.data[dst + 1] = img.pixels[src + 1];
+      preview.data[dst + 2] = img.pixels[src + 2];
+      preview.data[dst + 3] = img.pixels[src + 3];
+    }
+    ctx.putImageData(preview, 0, 0);
+    return true;
+  }
+
   function renderSelectedInfoPanel(){
     const selectedItems = getSelectedItems();
     const count = selectedItems.length;
@@ -3901,6 +3942,8 @@ end group
 
     if (!count){
       state.selectedInfoIndex = 0;
+      selectedInfoPanelEl?.classList.remove("mapTileSelected");
+      if (selectedInfoTilePreviewEl) selectedInfoTilePreviewEl.getContext("2d")?.clearRect(0, 0, selectedInfoTilePreviewEl.width, selectedInfoTilePreviewEl.height);
       if (selectedInfoIndexEl) selectedInfoIndexEl.textContent = "0/0";
       if (selectedInfoBodyEl) selectedInfoBodyEl.textContent = "No item selected.";
       if (selectedInfoPrevBtn) selectedInfoPrevBtn.disabled = true;
@@ -3917,6 +3960,9 @@ end group
     const groupValue = readKvValue(item, "group_id");
     const typeLabel = String(def?.type || "").trim() || readKvValue(item, "type");
     const typeIdValue = readKvValue(item, "type_id");
+    const mapTileSelected = isMapTileItem(item);
+    selectedInfoPanelEl?.classList.toggle("mapTileSelected", mapTileSelected);
+    if (mapTileSelected) paintMapTilePreview(selectedInfoTilePreviewEl, item);
     const glbDimensions = getGlbDimensionsForItem(item);
     const isHeightLockEnabled = readKvValue(item, "height_lock") === "1";
     const extraBHeightValue = readKvValue(item, "extra_bheight");
@@ -3941,6 +3987,8 @@ end group
       "",
       `Terrain Elev: ${readKvValue(item, "terrain_elev", "terrain_elevation")}`,
     ];
+
+    if (mapTileSelected) lines.splice(2);
 
     if (selectedInfoIndexEl) selectedInfoIndexEl.textContent = `${state.selectedInfoIndex + 1}/${count}`;
     if (selectedInfoBodyEl) selectedInfoBodyEl.textContent = lines.join("\n");
@@ -9457,16 +9505,7 @@ end group
     const flags=record?.flags??0,flagsHex=`0x${flags.toString(16).padStart(2,"0").toUpperCase()}`;
     content.innerHTML=`<dl style="display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0 0 16px"><dt>TIL file</dt><dd>${escapeHtml(state.mapTiles.filename||"Not loaded")}</dd><dt>TIL record</dt><dd>${record?recordIndex:"No matching TIL record"}</dd><dt>Texture</dt><dd>${escapeHtml(state.mapTiles.atlasName||"Not loaded")}</dd><dt>Tile index</dt><dd>${Number.isInteger(index)?index:"Invalid TIL tile_index value"}</dd><dt>Atlas cell</dt><dd>${Number.isInteger(index)?`column ${index%8+1} / row ${Math.floor(index/8)+1} (zero-based ${index%8}, ${Math.floor(index/8)})`:"—"}</dd><dt>Flags</dt><dd>${record?`${flagsHex} — ${escapeHtml(mapTileFlagLabels(flags))}`:"—"}</dd><dt>Reserved</dt><dd>${record?record.reserved:"—"}</dd></dl>${state.mapTiles.error?`<p class="dangerText">${escapeHtml(state.mapTiles.error)}</p>`:""}<canvas width="256" height="256" aria-label="Tile texture preview" style="width:256px;max-width:100%;image-rendering:auto;border:1px solid var(--border)"></canvas>`;
     const canvas=content.querySelector("canvas"),img=state.mapTiles.atlasImage;
-    if(img&&Number.isInteger(index)){
-      const sw=img.w/8,sh=img.h/8,ctx=canvas.getContext("2d"),preview=ctx.createImageData(canvas.width,canvas.height);
-      for(let py=0;py<canvas.height;py++)for(let px=0;px<canvas.width;px++){
-        const uv=transformMapTileUv((px+.5)/canvas.width,1-(py+.5)/canvas.height,flags);
-        const sx=Math.min(img.w-1,Math.floor((index%8)*sw+uv.u*sw)),sy=Math.min(img.h-1,Math.floor(Math.floor(index/8)*sh+(1-uv.v)*sh));
-        const src=(sy*img.w+sx)*4,dst=(py*canvas.width+px)*4;
-        preview.data[dst]=img.pixels[src];preview.data[dst+1]=img.pixels[src+1];preview.data[dst+2]=img.pixels[src+2];preview.data[dst+3]=img.pixels[src+3];
-      }
-      ctx.putImageData(preview,0,0);
-    }else canvas.style.display="none";
+    if(!img||!Number.isInteger(index)||!paintMapTilePreview(canvas,it))canvas.style.display="none";
     overlay.classList.add("open");overlay.setAttribute("aria-hidden","false");overlay.querySelector("[data-close]").focus();
   }
 
@@ -10415,6 +10454,7 @@ end group
       state.mapTiles.atlasName=atlasFile;state.mapTiles.atlasImage=decodeTGA(atlasBuf,true);
       addLog(`[map_tiles] loaded ${tilName}: ${parsed.records.length} records, atlas=${atlasFile}`);
       buildMapTileOverlay();
+      renderSelectedInfoPanel();
       await syncGlbItems();requestRender();
     }catch(err){state.mapTiles.error=err?.message||String(err);addLog(`[map_tiles] ERROR: ${state.mapTiles.error}`);statusEl.textContent=state.mapTiles.error;}
   }
