@@ -12084,7 +12084,9 @@ end group
       .join(", ");
   }
 
-  function createWhiteWireframeMaterialFrom(baseMat, colorHex = 0xffffff){
+  const GLB_WIREFRAME_COLOR = 0xcdcdcd;
+
+  function createWireframeMaterialFrom(baseMat, colorHex = GLB_WIREFRAME_COLOR){
     const { THREE } = state.glb;
     const mat = new THREE.MeshBasicMaterial({
       color: colorHex,
@@ -12376,7 +12378,7 @@ end group
       depthWrite: false, fog: false, toneMapped: false,
     });
     if (mode === "wireframe" || mode === "transparent_wireframe"){
-      const mat = createWhiteWireframeMaterialFrom(baseMat, colorHex);
+      const mat = createWireframeMaterialFrom(baseMat, colorHex);
       if (mode === "transparent_wireframe"){
         mat.transparent = true;
         mat.opacity = 0.32;
@@ -12416,7 +12418,7 @@ end group
       const colorOverride = mode === "category_colors"
         ? GLB_CATEGORY_COLORS[category]
         : ((mode === "wireframe" || mode === "transparent_wireframe")
-          ? (root.userData._selectedGlbVisual ? 0xffff00 : 0xffffff)
+          ? (root.userData._selectedGlbVisual ? 0xffff00 : GLB_WIREFRAME_COLOR)
           : undefined);
       const converted = originals.map((mat) => createViewModeMaterial(mat, mode, colorOverride));
       obj.material = Array.isArray(obj.userData._viewModeOriginalMaterial) ? converted : converted[0];
