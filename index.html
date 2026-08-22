@@ -10746,7 +10746,9 @@ end group
   function buildMapTileOverlay(){
     const started=performance.now();
     state.mapTiles.overlayTexture?.dispose?.();state.mapTiles.overlayTexture=null;disposeMapTileRenderMesh();state.mapTiles.overlayResolution=0;state.mapTiles.paintedTiles=0;
-    const img=state.mapTiles.atlasImage,THREE=state.glb.THREE,scene=state.glb.scene;if(!img||!THREE||!scene||!state.mapTiles.records.length)return;
+    // Tiles belong to the terrain pass. Keeping this mesh out of the GLB scene
+    // prevents it from competing with area volumes and transparent item modes.
+    const img=state.mapTiles.atlasImage,THREE=state.glb.THREE,scene=state.threeTerrain.scene;if(!img||!THREE||!scene||!state.mapTiles.records.length)return;
     const steps=16,positions=[],uvs=[],indices=[];let painted=0;
     for(const it of state.items.filter(isMapTileItem)){
       if(state.mapTiles.dragPreviewIds.has(it.id))continue;
@@ -11133,10 +11135,10 @@ end group
     if (!state.glb.ready || !state.glb.THREE || !state.threeTerrain.dirty) return state.threeTerrain.ready;
     const { THREE } = state.glb;
     const terrain = state.threeTerrain;
-    if(state.mapTiles.atlasImage&&!state.mapTiles.renderMesh&&!state.mapTiles.dragPreviewIds.size)buildMapTileOverlay();
     if (!terrain.scene){
       terrain.scene = new THREE.Scene();
     }
+    if(state.mapTiles.atlasImage&&!state.mapTiles.renderMesh&&!state.mapTiles.dragPreviewIds.size)buildMapTileOverlay();
     for (const mesh of terrain.visibleTileMap.values()) terrain.scene.remove(mesh);
     terrain.visibleTileMap.clear();
     terrain.meshPool.length = 0;
@@ -12085,6 +12087,10 @@ end group
   }
 
   const GLB_WIREFRAME_COLOR = 0xcdcdcd;
+  // X-Ray deliberately remains visible through regular scene overlays. Other
+  // transparent modes use distance sorting against Area Trigger volumes.
+  const GLB_OVERLAY_VIEW_MODES = new Set(["xray"]);
+  const GLB_OVERLAY_RENDER_ORDER = 30;
 
   function createWireframeMaterialFrom(baseMat, colorHex = GLB_WIREFRAME_COLOR){
     const { THREE } = state.glb;
@@ -12327,7 +12333,9 @@ end group
       const terrainOffsetZ = getAreaTriggerTerrainOffset(min, max);
       volume.position.set((min.x + max.x) / 2, (min.y + max.y) / 2, (min.z + max.z) / 2 + terrainOffsetZ);
       volume.userData.visualTerrainOffsetZ = terrainOffsetZ;
-      volume.renderOrder = 5;
+      // Use the default transparent queue so Ghosted and Transparent
+      // Wireframe meshes can be sorted spatially against this volume.
+      volume.renderOrder = 0;
       volume.raycast = () => null;
       group.add(volume);
     }
@@ -12406,6 +12414,12 @@ end group
 
     root.traverse((obj) => {
       if (!obj.isMesh || !obj.material) return;
+      if (!Object.prototype.hasOwnProperty.call(obj.userData, "_viewModeOriginalRenderOrder")){
+        obj.userData._viewModeOriginalRenderOrder = obj.renderOrder;
+      }
+      obj.renderOrder = GLB_OVERLAY_VIEW_MODES.has(mode)
+        ? GLB_OVERLAY_RENDER_ORDER
+        : obj.userData._viewModeOriginalRenderOrder;
       if (Object.prototype.hasOwnProperty.call(obj.userData, "_viewModeOriginalMaterial")){
         const current = obj.material;
         obj.material = obj.userData._viewModeOriginalMaterial;
