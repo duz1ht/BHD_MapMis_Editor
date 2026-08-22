@@ -9562,8 +9562,10 @@ end group
     const out = rebuildMIS(state.rawText, state.items, state.sectionBlocks);
     if (window.showSaveFilePicker){
       try{
+        const previousMisHandle=state.currentMisFileHandle;
         const handle = (!forcePicker && state.currentMisFileHandle) ? state.currentMisFileHandle : await window.showSaveFilePicker({
           suggestedName: state.filename || "edited.mis",
+          ...(state.currentMisFileHandle?{startIn:state.currentMisFileHandle}:{}),
           types: [{
             description: "Mission Files",
             accept: { "text/plain": [".mis"] }
@@ -9574,7 +9576,10 @@ end group
         await writable.close();
         state.currentMisFileHandle = handle;
         state.filename = handle.name || state.filename;
-        const tilResult=await saveTilCompanion(forcePicker);
+        // A companion handle belongs to the previous mission name/location.  It
+        // must never be reused after Save As, even when both missions use tiles.
+        if(forcePicker||previousMisHandle!==handle)state.currentTilFileHandle=null;
+        const tilResult=await saveTilCompanion(forcePicker,handle);
         if(tilResult!==false)statusEl.textContent = tilResult ? "MIS and TIL files saved." : "File saved.";
         return true;
       } catch (err){
@@ -10256,20 +10261,23 @@ end group
     return out;
   }
 
-  async function writeBinaryToEditorFolder(path,data){
-    if(!state.editorFolderHandle)return false;
-    const parts=String(path||"").split("/").filter(Boolean);let dir=state.editorFolderHandle;
-    for(let i=0;i<parts.length-1;i++)dir=await dir.getDirectoryHandle(parts[i]);
-    const handle=await dir.getFileHandle(parts[parts.length-1],{create:true}),writable=await handle.createWritable();
-    await writable.write(data);await writable.close();return true;
+  function validateTilCompanionRecords(mapItems){
+    if(!state.mapTiles.records.length)throw new Error("The mission contains MapTile items, but no TIL records are loaded");
+    for(const item of mapItems){
+      const recordIndex=Number(item?.kv?.extra_val2);
+      if(!Number.isInteger(recordIndex)||recordIndex<0||!state.mapTiles.records[recordIndex]){
+        throw new Error(`MapTile item ${item?.id??"?"} references invalid TIL record '${item?.kv?.extra_val2??""}'`);
+      }
+    }
   }
 
-  async function saveTilCompanion(forcePicker=false){
-    if(!state.mapTiles.dirty||!state.mapTiles.records.length)return null;
+  async function saveTilCompanion(forcePicker=false,misHandle=state.currentMisFileHandle){
+    const mapItems=state.items.filter(isMapTileItem);
+    if(!mapItems.length)return null;
     const name=String(state.filename||"edited.mis").replace(/\.mis$/i,"")+".til",data=serializeTil();
     try{
-      if(state.editorFolderHandle){await writeBinaryToEditorFolder(`resources/BHD/mis_examples/${name}`,data);}
-      else if(window.showSaveFilePicker){const handle=(!forcePicker&&state.currentTilFileHandle)?state.currentTilFileHandle:await window.showSaveFilePicker({suggestedName:name,types:[{description:"Terrain Tile Files",accept:{"application/octet-stream":[".til"]}}]});const writable=await handle.createWritable();await writable.write(data);await writable.close();state.currentTilFileHandle=handle;}
+      validateTilCompanionRecords(mapItems);
+      if(window.showSaveFilePicker){const handle=(!forcePicker&&state.currentTilFileHandle)?state.currentTilFileHandle:await window.showSaveFilePicker({suggestedName:name,...(misHandle?{startIn:misHandle}:{}),types:[{description:"Terrain Tile Files",accept:{"application/octet-stream":[".til"]}}]});const writable=await handle.createWritable();await writable.write(data);await writable.close();state.currentTilFileHandle=handle;}
       else downloadBinary(name,data);
       state.mapTiles.dirty=false;state.undoCurrentTilFlags=state.mapTiles.records.map(record=>record.flags);return true;
     }catch(err){if(err?.name==='AbortError')addLog("TIL save canceled; MIS was saved but tile rotations remain unsaved.");else addLog(`ERROR saving .til: ${err?.message||"unknown error"}`);statusEl.textContent="MIS saved, but the companion TIL was not saved.";return false;}
