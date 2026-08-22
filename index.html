@@ -2684,6 +2684,7 @@ end group
       dragPreviewMeshes: new Map(),
       insertPreviewMesh: null,
       insertPreviewIndex: null,
+      insertPreviewWorld: null,
       pendingOverlayRebuild: 0,
       dirty: false,
     },
@@ -9028,6 +9029,7 @@ end group
   });
   gridSnapToggleBtn?.addEventListener('click',event=>{
     event.stopPropagation();state.gridSnapEnabled=!state.gridSnapEnabled;syncGridSnapButton();updateItemGizmo();
+    if(state.tileInsertIndex!==null&&state.mapTiles.insertPreviewWorld)updateTileInsertCursorPreview(state.mapTiles.insertPreviewWorld);
   });
   transformSpaceBtn?.addEventListener('click',event=>{
     event.stopPropagation();toggleTransformSpace();
@@ -10446,7 +10448,7 @@ end group
     state.mapTiles.overlayTexture?.dispose?.();
     disposeMapTileRenderMesh();
     disposeMapTileBorders();
-    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,pendingOverlayRebuild:0,dirty:false});
+    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,dirty:false});
     state.threeTerrain.dirty=true;
     state.tilePaletteSelectedIndex=null;cancelTileInsertMode("");
     renderTilePalette();
@@ -10552,9 +10554,15 @@ end group
     if(index>=0)item.lines[index]=line;else item.lines.push(line);
   }
 
+  function tileInsertPosition(world){
+    if(!world||!state.gridSnapEnabled)return world;
+    const step=gridSizeMeters();
+    return {...world,x:snapValue(world.x,step),y:snapValue(world.y,step)};
+  }
+
   function insertPaletteTileAt(world){
     const tileIndex=state.tileInsertIndex,source=state.items.find(isMapTileItem);if(tileIndex===null||!source)return false;
-    const size=Number(state.mapTiles.tileSize)||16,centerX=world.x,centerY=world.y;
+    const position=tileInsertPosition(world),size=Number(state.mapTiles.tileSize)||16,centerX=position.x,centerY=position.y;
     const sourceSection=getItemSectionByStartFast(source.start);beginUndoTransaction();
     try{
       const recordIndex=state.mapTiles.records.length,record={x:worldToRaw(centerX-size*.5,"x"),y:worldToRaw(centerY+size*.5,"y"),tileIndex,flags:0,reserved:0,recordIndex};
@@ -10776,11 +10784,12 @@ end group
 
   function clearTileInsertCursorPreview(){
     const mesh=state.mapTiles.insertPreviewMesh;if(mesh){mesh.parent?.remove?.(mesh);mesh.geometry?.dispose?.();mesh.material?.map?.dispose?.();mesh.material?.dispose?.();}
-    state.mapTiles.insertPreviewMesh=null;state.mapTiles.insertPreviewIndex=null;
+    state.mapTiles.insertPreviewMesh=null;state.mapTiles.insertPreviewIndex=null;state.mapTiles.insertPreviewWorld=null;
   }
 
   function updateTileInsertCursorPreview(world){
     const THREE=state.glb.THREE,scene=state.glb.scene,tileIndex=state.tileInsertIndex;if(!world||tileIndex===null||!THREE||!scene){clearTileInsertCursorPreview();requestRender();return;}
+    const cursorWorld=world;world=tileInsertPosition(world);
     let mesh=state.mapTiles.insertPreviewMesh;
     if(!mesh||state.mapTiles.insertPreviewIndex!==tileIndex){
       clearTileInsertCursorPreview();
@@ -10793,7 +10802,7 @@ end group
     }
     const size=Number(state.mapTiles.tileSize)||16,steps=mesh.userData.steps,position=mesh.geometry.getAttribute('position');
     for(let y=0;y<=steps;y++)for(let x=0;x<=steps;x++){const wx=world.x-size*.5+size*x/steps,wy=world.y-size*.5+size*y/steps,z=heightAtWorld(wx,wy,1.0),i=y*(steps+1)+x;position.setXYZ(i,wx,wy,Number.isFinite(z)&&z>-1e8?z+.055:world.z||0);}
-    position.needsUpdate=true;mesh.geometry.computeBoundingSphere();requestRender();
+    state.mapTiles.insertPreviewWorld=cursorWorld;position.needsUpdate=true;mesh.geometry.computeBoundingSphere();requestRender();
   }
 
   function updateMapTilePreviewMesh(mesh,it){
