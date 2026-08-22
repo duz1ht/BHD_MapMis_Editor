@@ -2622,6 +2622,7 @@ end group
       templateByGraphic: new Map(),
       dimensionsByGraphic: new Map(),
       missingGraphics: new Set(),
+      emplacedWarnings: new Set(),
       itemInstances: new Map(),
       syncPromise: null,
       initPromise: null,
@@ -4110,6 +4111,7 @@ end group
           arrow: 0,
           drawCircle: 0,
           attrib: [],
+          attachments: [],
           kv: {},
         };
         continue;
@@ -4141,6 +4143,27 @@ end group
         if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1,-1);
 
         cur.kv[k] = v;
+
+        if (k === "addeweap" || k === "addeweapg" || k === "addeweapc"){
+          const parts = v.split(/\s+/).filter(Boolean);
+          const childId = parts[1] || "";
+          const limitTokens = parts.slice(2);
+          const validLimits = limitTokens.length === 4 && limitTokens.every(token => Number.isFinite(Number(token)));
+          if (parts[0] && /^\d+$/.test(childId) && (limitTokens.length === 0 || validLimits)){
+            cur.attachments.push({
+              kind: k,
+              anchorName: parts[0],
+              childId,
+              limitsPresent: validLimits,
+              down: validLimits ? Number(limitTokens[0]) : null,
+              up: validLimits ? Number(limitTokens[1]) : null,
+              right: validLimits ? Number(limitTokens[2]) : null,
+              left: validLimits ? Number(limitTokens[3]) : null,
+            });
+          } else {
+            addLog(`[emplaced] invalid ${k} in ${cur.name || "<unnamed>"}: ${v}`, { category: "warning" });
+          }
+        }
 
         if (k === "id") cur.id = v;
         if (k === "type_id") cur.typeId = v;
@@ -4176,6 +4199,7 @@ end group
         ...def,
         id,
         attrib: Array.isArray(def.attrib) ? def.attrib.slice() : [],
+        attachments: Array.isArray(def.attachments) ? def.attachments.map(attachment => ({ ...attachment })) : [],
         kv: { ...(def.kv || {}) },
       });
     };
@@ -4193,6 +4217,9 @@ end group
 
       const supplementKv = supplement.kv || {};
       const attrib = Array.from(new Set([...(base.attrib || []), ...(supplement.attrib || [])]));
+      const attachments = Array.isArray(supplement.attachments) && supplement.attachments.length
+        ? supplement.attachments.map(attachment => ({ ...attachment }))
+        : (base.attachments || []).map(attachment => ({ ...attachment }));
       mergedById.set(id, {
         ...base,
         id,
@@ -4204,6 +4231,7 @@ end group
         arrow: Object.prototype.hasOwnProperty.call(supplementKv, "arrow") ? supplement.arrow : base.arrow,
         drawCircle: Object.prototype.hasOwnProperty.call(supplementKv, "draw_circle") ? supplement.drawCircle : base.drawCircle,
         attrib,
+        attachments,
         kv: { ...(base.kv || {}), ...supplementKv },
       });
     }
@@ -11592,6 +11620,7 @@ end group
     u16(offset){ this.need(offset, 2); return this.view.getUint16(offset, true); }
     i16(offset){ this.need(offset, 2); return this.view.getInt16(offset, true); }
     u32(offset){ this.need(offset, 4); return this.view.getUint32(offset, true); }
+    i32(offset){ this.need(offset, 4); return this.view.getInt32(offset, true); }
     f32(offset){ this.need(offset, 4); return this.view.getFloat32(offset, true); }
     string(offset, size){ this.need(offset, size); let value = ""; for (let i = 0; i < size; i++){ const code = this.u8(offset + i); if (!code) break; if (code >= 32 && code < 127) value += String.fromCharCode(code); } return value.trim(); }
   }
@@ -11604,10 +11633,22 @@ end group
     const subtype = String.fromCharCode(r.u8(2));
     if (!["GPM", "GPS", "GPP"].includes(magic) || r.u8(3) !== 2) throw new Error(`Unsupported 3DI format: ${magic || "unknown"}`);
     const skinned = subtype === "S" || subtype === "P";
-    const model = { vertices: [], normals: [], triangles: [], materials: [], textures: [] };
+    const model = { vertices: [], normals: [], triangles: [], materials: [], textures: [], userPoints: [] };
     const lodCount = r.u32(0x1c);
     if (lodCount < 1 || lodCount > 4) throw new Error(`Invalid 3DI LOD count: ${lodCount}`);
-    let pos = 236 + r.u32(0xb0) * 48;
+    const userPointCount = r.u32(0xb0);
+    if (userPointCount > 10000) throw new Error("Invalid 3DI user point count");
+    let pos = 236;
+    r.need(pos, userPointCount * 48, "Truncated 3DI user points");
+    for (let i = 0; i < userPointCount; i++, pos += 48){
+      model.userPoints.push({
+        positionRaw: [r.i32(pos), r.i32(pos + 4), r.i32(pos + 8)],
+        directionRaw: [r.i32(pos + 12), r.i32(pos + 16), r.i32(pos + 20)],
+        subobjectIndex: r.i32(pos + 24),
+        type: r.i32(pos + 28),
+        name: r.string(pos + 32, 16),
+      });
+    }
     r.need(pos, 4); const textureCount = r.u32(pos); pos += 4;
     if (textureCount > 10000) throw new Error("Invalid 3DI texture count");
     for (let i = 0; i < textureCount; i++, pos += 60) model.textures.push({ name: r.string(pos, 36), id: r.i16(pos + 0x24) });
@@ -11763,7 +11804,137 @@ end group
     }
     if (!root.children.length) throw new Error("3DI contains no valid triangles");
     root.userData.sourceFormat = "3di";
+    root.userData.userPoints = model.userPoints.map(point => ({
+      ...point,
+      positionRaw: point.positionRaw.slice(),
+      directionRaw: point.directionRaw.slice(),
+    }));
     return root;
+  }
+
+  function findThreeDiUserPoint(root, name){
+    const wanted = String(name || "").trim().toLowerCase();
+    if (!root || !wanted) return null;
+    const points = Array.isArray(root.userData?.userPoints) ? root.userData.userPoints : [];
+    return points.find(point => String(point?.name || "").trim().toLowerCase() === wanted) || null;
+  }
+
+  function logEmplacedWarningOnce(message){
+    const text = String(message || "");
+    if (!text || state.glb.emplacedWarnings.has(text)) return;
+    state.glb.emplacedWarnings.add(text);
+    addLog(`[emplaced] ${text}`, { category: "warning" });
+  }
+
+  function applyThreeDiUserPointFrame(object, point){
+    if (!object || !point || !state.glb.THREE) return;
+    const { THREE } = state.glb;
+    const position = point.positionRaw || [0, 0, 0];
+    object.position.set(-position[0] / 65536, position[1] / 65536, position[2] / 65536);
+
+    const direction = point.directionRaw || [65536, 0, 0];
+    const target = new THREE.Vector3(-direction[0], direction[1], direction[2]);
+    if (target.lengthSq() > 0){
+      target.normalize();
+      object.quaternion.setFromUnitVectors(new THREE.Vector3(-1, 0, 0), target);
+    }
+  }
+
+  const EMPLACED_CONTROL_REGISTERS = Object.freeze({
+    HEAT_GLOW: 54,
+    EWEAP_GUNYAW: 55,
+    EWEAP_GUNPITCH: 56,
+    WEAP_SPIN: 57,
+  });
+
+  function wrapEmplacedDegrees(value){
+    const angle = Number(value) || 0;
+    return ((angle + 180) % 360 + 360) % 360 - 180;
+  }
+
+  function clampEmplacedAngle(value, negativeLimit, positiveLimit){
+    const wrapped = wrapEmplacedDegrees(value);
+    if (!Number.isFinite(Number(negativeLimit)) || !Number.isFinite(Number(positiveLimit))) return wrapped;
+    return Math.max(-Math.abs(Number(negativeLimit)), Math.min(Math.abs(Number(positiveLimit)), wrapped));
+  }
+
+  function emplacedDegreesToPhase16(value){
+    const turns = ((Number(value) || 0) % 360 + 360) % 360;
+    return Math.floor(turns / 360 * 65536) & 0xffff;
+  }
+
+  function updateEmplacedControlBus(object, yawDelta = 0, pitchDelta = 0, attachment = null){
+    if (!object) return null;
+    const bus = object.userData.controlRegisters instanceof Int32Array
+      ? object.userData.controlRegisters
+      : new Int32Array(96);
+    bus.fill(0);
+    let yaw = wrapEmplacedDegrees(yawDelta);
+    let pitch = wrapEmplacedDegrees(pitchDelta);
+    if (attachment?.limitsPresent){
+      yaw = clampEmplacedAngle(yaw, attachment.left, attachment.right);
+      pitch = clampEmplacedAngle(pitch, attachment.up, attachment.down);
+    }
+    bus[EMPLACED_CONTROL_REGISTERS.EWEAP_GUNYAW] = emplacedDegreesToPhase16(yaw);
+    bus[EMPLACED_CONTROL_REGISTERS.EWEAP_GUNPITCH] = emplacedDegreesToPhase16(pitch);
+    object.userData.controlRegisters = bus;
+    object.userData.emplacedPose = { yaw, pitch };
+    return bus;
+  }
+
+  async function attachEmplacedWeapons(carrier, definition, options = {}){
+    const attachments = Array.isArray(definition?.attachments) ? definition.attachments : [];
+    if (!carrier || !attachments.length) return;
+    const depth = Number(options.depth) || 0;
+    const visited = options.visited instanceof Set ? options.visited : new Set();
+    if (depth >= 8){
+      logEmplacedWarningOnce(`attachment depth limit reached at definition ${definition?.id || "<unknown>"}`);
+      return;
+    }
+
+    const parentId = String(definition?.id || "");
+    const nextVisited = new Set(visited);
+    if (parentId) nextVisited.add(parentId);
+
+    for (const attachment of attachments){
+      const childId = String(attachment?.childId || "");
+      if (!childId || nextVisited.has(childId)){
+        logEmplacedWarningOnce(`cyclic or invalid child ${childId || "<empty>"} on definition ${parentId || "<unknown>"}`);
+        continue;
+      }
+      const childDefinition = state.defsById.get(childId);
+      if (!childDefinition){
+        logEmplacedWarningOnce(`child definition ${childId} not found for ${parentId || definition?.name || "<unknown>"}`);
+        continue;
+      }
+      const childGraphic = String(childDefinition.graphic || "").trim();
+      if (!childGraphic){
+        logEmplacedWarningOnce(`child definition ${childId} has no graphic`);
+        continue;
+      }
+      const anchor = findThreeDiUserPoint(carrier, attachment.anchorName);
+      if (!anchor){
+        logEmplacedWarningOnce(`anchor ${attachment.anchorName} not found on ${definition?.graphic || parentId || "carrier"}`);
+        continue;
+      }
+
+      const template = await loadGraphicTemplate(childGraphic);
+      if (!template) continue;
+      const child = template.clone(true);
+      cloneGlbMaterials(child);
+      child.name = `EMPLACED_${attachment.kind}_${attachment.anchorName}_${childGraphic}`;
+      child.userData.emplacedAttachment = { ...attachment };
+      child.userData.definitionId = childId;
+      updateEmplacedControlBus(child, 0, 0, attachment);
+      applyThreeDiUserPointFrame(child, anchor);
+      const childScale = Number(childDefinition.graphicScale);
+      if (Number.isFinite(childScale) && childScale > 0) child.scale.multiplyScalar(childScale);
+      carrier.add(child);
+      await attachEmplacedWeapons(child, childDefinition, {
+        depth: depth + 1,
+        visited: new Set([...nextVisited, childId]),
+      });
+    }
   }
 
 
@@ -12550,6 +12721,9 @@ end group
           instance.userData.graphic = graphic;
           instance.userData.tint = getItemTint(it);
           instance.userData.visualSignature = visualSignature;
+          const definition = getDefForItem(it);
+          await attachEmplacedWeapons(instance, definition, { visited: new Set() });
+          if (generation !== state.glb.documentGeneration) return;
           applyViewModeToGlbObject(instance, it);
           state.glb.scene.add(instance);
           state.glb.itemInstances.set(it.id, instance);

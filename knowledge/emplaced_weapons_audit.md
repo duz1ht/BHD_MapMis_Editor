@@ -2,13 +2,20 @@
 
 ## Escopo e conclusão
 
+> **Atualização da implementação:** o editor agora preserva todas as ocorrências
+> de `addeweap*` em estruturas semânticas, lê os user points de 48 bytes, monta
+> recursivamente os modelos-filhos nos anchors e cria um bus de 96 slots por
+> instância com conversão/clamp de yaw e pitch. A decodificação da hierarquia de
+> partes e a avaliação dos tracks `PANM` continuam pendentes porque exigem a
+> validação do layout GPM/GPS/GPP descrita na Fase 0.
+
 Esta auditoria compara o fluxo sugerido no guia de referência com o estado do
 editor em `index.html`. O guia veio de outro projeto e, portanto, os offsets e
 a organização em chunks não devem ser copiados sem validação binária contra os
 arquivos de Black Hawk Down.
 
-O editor **ainda não implementa emplaced weapons como uma composição visual
-animada**. Hoje ele:
+No momento da auditoria inicial, o editor **ainda não implementava emplaced
+weapons como uma composição visual animada**. As lacunas encontradas foram:
 
 - lê `addeweap*` apenas como uma chave genérica de `kv` em `itemsDef.js`;
 - resolve e desenha somente o `graphic` do item colocado no MIS;
