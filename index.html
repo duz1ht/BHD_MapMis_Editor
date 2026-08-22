@@ -11716,7 +11716,7 @@ end group
           if (!buffer) continue;
           const extension = actualName.toLowerCase().split(".").pop(), image = decodeThreeDiTexture(buffer, extension);
           texture = new THREE.DataTexture(image.pixels, image.width, image.height, THREE.RGBAFormat, THREE.UnsignedByteType);
-          texture.name = actualName; texture.colorSpace = THREE.SRGBColorSpace; texture.flipY = true; texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.needsUpdate = true;
+          texture.name = actualName; texture.colorSpace = THREE.SRGBColorSpace; texture.flipY = true; texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.minFilter = THREE.LinearFilter; texture.magFilter = THREE.LinearFilter; texture.needsUpdate = true;
           break;
         } catch (err){ lastError = err; }
       }
