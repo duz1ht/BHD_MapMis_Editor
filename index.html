@@ -12085,6 +12085,11 @@ end group
   }
 
   const GLB_WIREFRAME_COLOR = 0xcdcdcd;
+  // Map-tile surfaces are transparent meshes rendered late in the GLB scene.
+  // Keep diagnostic item modes in the transparent pass and after those surfaces,
+  // otherwise a tile can be blended over an item that is physically above it.
+  const GLB_TILE_SAFE_VIEW_MODES = new Set(["xray", "ghosted", "wireframe", "transparent_wireframe"]);
+  const GLB_TILE_SAFE_RENDER_ORDER = 30;
 
   function createWireframeMaterialFrom(baseMat, colorHex = GLB_WIREFRAME_COLOR){
     const { THREE } = state.glb;
@@ -12379,8 +12384,11 @@ end group
     });
     if (mode === "wireframe" || mode === "transparent_wireframe"){
       const mat = createWireframeMaterialFrom(baseMat, colorHex);
+      // The tile layer is transparent, so an opaque wireframe would always be
+      // submitted before it regardless of renderOrder. Keep both wireframe
+      // variants in the same render pass as the tile layer.
+      mat.transparent = true;
       if (mode === "transparent_wireframe"){
-        mat.transparent = true;
         mat.opacity = 0.32;
         mat.depthWrite = false;
       }
@@ -12406,6 +12414,12 @@ end group
 
     root.traverse((obj) => {
       if (!obj.isMesh || !obj.material) return;
+      if (!Object.prototype.hasOwnProperty.call(obj.userData, "_viewModeOriginalRenderOrder")){
+        obj.userData._viewModeOriginalRenderOrder = obj.renderOrder;
+      }
+      obj.renderOrder = GLB_TILE_SAFE_VIEW_MODES.has(mode)
+        ? GLB_TILE_SAFE_RENDER_ORDER
+        : obj.userData._viewModeOriginalRenderOrder;
       if (Object.prototype.hasOwnProperty.call(obj.userData, "_viewModeOriginalMaterial")){
         const current = obj.material;
         obj.material = obj.userData._viewModeOriginalMaterial;
