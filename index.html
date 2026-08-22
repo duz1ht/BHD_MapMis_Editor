@@ -772,11 +772,10 @@
     .insertCatalogPane{ display:grid; grid-template-rows:auto minmax(0,1fr); gap:6px; min-height:0; }
     #insertItemSearch{ width:100%; box-sizing:border-box; }
     #insertItemList{ width:100%; min-height:0; overflow:auto; border:1px solid var(--line-muted); background:var(--surface); padding:4px; box-sizing:border-box; }
-    .insertItemOption{ display:block; width:100%; border:1px solid var(--line-soft); border-left:5px solid hsl(var(--family-hue, 0) 0% 55% / .35); border-radius:3px; background:var(--surface-subtle); color:inherit; padding:6px 8px; text-align:left; cursor:pointer; }
+    .insertItemOption{ display:block; width:100%; border:1px solid var(--line-soft); border-radius:3px; background:var(--surface-subtle); color:inherit; padding:6px 8px; text-align:left; cursor:pointer; }
     .insertItemOption + .insertItemOption{ margin-top:3px; }
     .insertItemOption:nth-child(even){ background:var(--panel-subtle); }
     .insertItemOption.inMap{ border-color:#4f9b67; background:rgba(52,130,76,.2); }
-    .insertItemOption.family{ border-left-color:hsl(var(--family-hue) 62% 48%); background-image:linear-gradient(90deg, hsl(var(--family-hue) 70% 50% / .16), transparent 45%); }
     .insertItemOption.missingGraphic{ color:#d86161; border-color:#a94444; border-left-color:#d86161; background-color:rgba(130,35,35,.13); background-image:repeating-linear-gradient(-45deg, transparent, transparent 6px, rgba(180,55,55,.08) 6px, rgba(180,55,55,.08) 12px); }
     .insertItemOption.missingGraphic .insertItemOptionId{ color:#ba6262; }
     .insertItemOption.glbUnknown{ border-style:dashed; }
@@ -4439,29 +4438,6 @@ end group
     insertUsageCount.textContent = `In map: ${count} instance${count === 1 ? "" : "s"}`;
   }
 
-  function normalizedInsertFamilyName(name){
-    return String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "").replace(/\d+$/g, "");
-  }
-
-  function insertFamilyHues(defs){
-    const groups = new Map();
-    for (const def of defs){
-      const key = normalizedInsertFamilyName(def.name);
-      if (key.length < 3) continue;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(String(def.id));
-    }
-    const hues = new Map();
-    let familyIndex = 0;
-    for (const ids of groups.values()){
-      if (ids.length < 2) continue;
-      const hue = (familyIndex * 67 + 24) % 360;
-      for (const id of ids) hues.set(id, hue);
-      familyIndex += 1;
-    }
-    return hues;
-  }
-
   function insertGraphicIsMissing(def){
     return insertGraphicAvailability(def) === "missing";
   }
@@ -4560,7 +4536,6 @@ end group
       insertCategoryForDef(def) === state.insertCategory
       && insertDefinitionMatchesQuery(def, query)
     );
-    const familyHues = insertFamilyHues(defs);
     insertItemList.innerHTML = "";
     if (!defs.some(def => String(def.id) === state.insertDefinitionId)) state.insertDefinitionId = String(defs[0]?.id || "");
     if (!defs.length){
@@ -4575,14 +4550,11 @@ end group
         option.setAttribute("aria-selected", String(String(def.id) === state.insertDefinitionId));
         option.classList.toggle("selected", String(def.id) === state.insertDefinitionId);
         const usageCount = usageCounts.get(String(def.id)) || 0;
-        const familyHue = familyHues.get(String(def.id));
         const availabilityState = insertGraphicAvailability(def);
         const missingGraphic = availabilityState === "missing";
         option.classList.toggle("inMap", usageCount > 0);
-        option.classList.toggle("family", familyHue !== undefined);
         option.classList.toggle("missingGraphic", missingGraphic);
         option.classList.toggle("glbUnknown", availabilityState === "unknown" || availabilityState === "checking");
-        if (familyHue !== undefined) option.style.setProperty("--family-hue", String(familyHue));
         const availability = missingGraphic ? "GLB missing" : availabilityState === "available" ? "GLB available" : "GLB not verified";
         option.title = `${availability} · ${usageCount ? `${usageCount} instance${usageCount === 1 ? "" : "s"} in the map` : "Not used in the map"}`;
         option.innerHTML = `<span>${escapeHtml(def.name)}</span><span class="insertItemOptionId">#${escapeHtml(toMisTypeIdFromDefId(def.id))}</span>${usageCount ? `<span class="insertItemUsageBadge" aria-label="${usageCount} in map">${usageCount}</span>` : ""}`;
