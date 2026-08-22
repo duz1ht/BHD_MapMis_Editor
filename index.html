@@ -2577,6 +2577,7 @@ end group
     gameStrings: new Map(),
     missionGameStrings: new Map(),
     weaponDefs: new Map(),
+    attachedWeaponsByParentId: new Map(),
     wpNames: [],
     defaultWpNames: [],
     aiTextfileNames: [],
@@ -3695,6 +3696,58 @@ end group
     }
 
     return out;
+  }
+
+  function parseAttachedWeaponDefs(raw){
+    const out = new Map();
+    const lines = String(raw || "").replace(/\r\n/g, "\n").split("\n");
+    let cur = null;
+
+    for (const line of lines){
+      const t = line.trim();
+      if (!t || t.startsWith("//") || t.startsWith(";")) continue;
+      const begin = t.match(/^begin\s+"([^"]+)"/i);
+      if (begin){
+        cur = { name: begin[1], parentId: "", weapons: [] };
+        continue;
+      }
+      if (/^end\b/i.test(t)){
+        if (cur?.parentId && cur.weapons.length) out.set(cur.parentId, cur.weapons);
+        cur = null;
+        continue;
+      }
+      if (!cur) continue;
+      const id = t.match(/^id\s+(\S+)/i);
+      if (id){
+        cur.parentId = id[1];
+        continue;
+      }
+      const attached = t.match(/^attached_weapon(\d+)\s+(\S+)\s+(-?(?:\d+(?:\.\d*)?|\.\d+))\s+(-?(?:\d+(?:\.\d*)?|\.\d+))\s+(-?(?:\d+(?:\.\d*)?|\.\d+))\s+(-?(?:\d+(?:\.\d*)?|\.\d+))\s+(-?(?:\d+(?:\.\d*)?|\.\d+))\s*$/i);
+      if (!attached) continue;
+      cur.weapons.push({
+        slot: Number(attached[1]),
+        itemId: attached[2],
+        x: Number(attached[3]), y: Number(attached[4]), z: Number(attached[5]),
+        yaw: Number(attached[6]), pitch: Number(attached[7]),
+      });
+    }
+
+    for (const weapons of out.values()) weapons.sort((a, b) => a.slot - b.slot);
+    return out;
+  }
+
+  async function loadAttachedWeaponDefs(){
+    const path = "resources/BHD/items_lists/addeweap.def";
+    const text = await loadTextResource(path);
+    if (text === null){
+      state.attachedWeaponsByParentId = new Map();
+      addLog(`[attached_weapons] optional catalog unavailable: ${path}`);
+      return;
+    }
+    state.attachedWeaponsByParentId = parseAttachedWeaponDefs(text);
+    state.glb.structureDirty = true;
+    addLog(`[attached_weapons] loaded ${state.attachedWeaponsByParentId.size} parent definitions`);
+    requestRender();
   }
 
   function resolveStringKey(key){
@@ -9840,7 +9893,7 @@ end group
         state.editorFolderHandle = handle;
         statusEl.textContent = `Editor folder set: ${handle.name}`;
         await loadAndApplyItemCatalogs();
-        await Promise.all([loadGameStrings(), loadWeaponDefs(), loadWpNames(), loadAiTextfileCatalog(), preloadEnvironmentFiles()]);
+        await Promise.all([loadGameStrings(), loadWeaponDefs(), loadAttachedWeaponDefs(), loadWpNames(), loadAiTextfileCatalog(), preloadEnvironmentFiles()]);
         await refreshGeneralTerrainOptions();
         renderMenuBar();
       } catch (err){
@@ -12437,8 +12490,54 @@ end group
   }
 
 
+  const ATTACHED_WEAPON_COORDINATE_SCALE = 0.01;
+
+  function getAttachedWeaponSignature(parentTypeId){
+    return (state.attachedWeaponsByParentId.get(String(parentTypeId || "")) || [])
+      .map((entry) => [entry.slot, entry.itemId, entry.x, entry.y, entry.z, entry.yaw, entry.pitch].join(":"))
+      .join(",");
+  }
+
+  async function addAttachedWeaponVisuals(parentInstance, parentItem, generation){
+    const rawParentTypeId = String(parentItem?.kv?.type_id || "").trim();
+    const parentTypeId = toDefIdFromMisTypeId(rawParentTypeId);
+    const attachments = state.attachedWeaponsByParentId.get(parentTypeId) || [];
+    for (const attachment of attachments){
+      const attachedDef = state.defsById.get(String(attachment.itemId));
+      const graphic = String(attachedDef?.graphic || "").trim();
+      if (!attachedDef || !graphic){
+        addLog(`[attached_weapons] parent=${parentTypeId} slot=${attachment.slot}: item definition ${attachment.itemId} is missing or has no graphic`);
+        continue;
+      }
+      const template = await loadGraphicTemplate(graphic);
+      if (generation !== state.glb.documentGeneration) return false;
+      if (!template) continue;
+      const anchor = new state.glb.THREE.Group();
+      anchor.name = `ATTACHED_WEAPON_${attachment.slot}_${attachment.itemId}`;
+      anchor.userData.isAttachedWeapon = true;
+      anchor.position.set(
+        attachment.x * ATTACHED_WEAPON_COORDINATE_SCALE,
+        attachment.y * ATTACHED_WEAPON_COORDINATE_SCALE,
+        attachment.z * ATTACHED_WEAPON_COORDINATE_SCALE
+      );
+      const visual = template.clone(true);
+      cloneGlbMaterials(visual);
+      applySolidTintToGlbObject(visual, attachedDef.tint);
+      applyItemModelTransform(visual, attachment.yaw, attachment.pitch, attachedDef.graphicScale);
+      visual.traverse((obj) => {
+        obj.userData.isAttachedWeapon = true;
+        if (obj.isMesh) obj.raycast = () => null;
+      });
+      anchor.add(visual);
+      parentInstance.add(anchor);
+    }
+    return true;
+  }
+
   function getGlbItemVisualSignature(it, graphic){
-    return [String(graphic || "").trim(), String(it?.typeId ?? ""), getItemTint(it)].join("|");
+    const rawTypeId = String(it?.kv?.type_id || it?.typeId || "");
+    const typeId = toDefIdFromMisTypeId(rawTypeId);
+    return [String(graphic || "").trim(), typeId, getItemTint(it), getAttachedWeaponSignature(typeId)].join("|");
   }
 
   function disposeGlbInstanceMaterials(instance){
@@ -12721,6 +12820,7 @@ end group
           applyWaypointColorToGlbObject(instance, it);
           applyAreaTriggerColorToGlbObject(instance, it);
           applyWaypointOutlineToGlbObject(instance, it);
+          if (!await addAttachedWeaponVisuals(instance, it, generation)) return;
           instance.userData.itemId = it.id;
           instance.userData.graphic = graphic;
           instance.userData.tint = getItemTint(it);
@@ -14277,7 +14377,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       statusEl.textContent = "Local mode detected: open File > Set Editor Folder to load catalogs.";
       defStatusEl.textContent = "";
     } else {
-      await Promise.all([loadGameStrings(), loadWeaponDefs(), loadWpNames()]);
+      await Promise.all([loadGameStrings(), loadWeaponDefs(), loadAttachedWeaponDefs(), loadWpNames()]);
     }
 
     const stringInfo = state.gameStrings.size
