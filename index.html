@@ -4686,12 +4686,26 @@ end group
   }
 
   function toggleInsertMode(){
+    if(state.tileEditModeActive){statusEl.textContent="Disable Tile Edit Mode before inserting other items.";return;}
     if (state.insertModeActive) return stopInsertMode();
     openInsertDialog();
   }
 
   function toggleTileEditMode(){
-    state.tileEditModeActive = !state.tileEditModeActive;
+    const willEnable = !state.tileEditModeActive;
+    if(willEnable && (state.insertModeActive || insertOverlay.classList.contains("open"))) stopInsertMode("");
+    state.tileEditModeActive = willEnable;
+    if(willEnable){
+      const tileIds=new Set(state.items.filter(isMapTileItem).map(it=>it.id));
+      state.multiSelectedIds=new Set(Array.from(state.multiSelectedIds).filter(id=>tileIds.has(id)));
+      if(!tileIds.has(state.selectedId))state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null;
+      state.selectedWaypointMarkerIds.clear();
+      updateWaypointMarkerCount(0);
+      if(state.modalOpen&&!isMapTileItem(getSelected()))closeModalCancel();
+      state.pastePlacementActive=false;
+      state.pastePreviewWorld=null;
+      renderList();
+    }
     buildMapTileBorders();
     renderMenuBar();
     requestRender();
@@ -5611,6 +5625,7 @@ end group
   }
 
   function selectAreaTriggerMarkers(){
+    if(state.tileEditModeActive){statusEl.textContent="Tile Edit Mode only allows MapTiles to be selected.";return;}
     const number = Math.max(1, Math.min(99, Number(state.sectionSelectedId) || 1));
     const markers = state.items.filter(it => isAreaTriggerItem(it) && getItemWaypointNumber(it) === number);
     state.selectedId = markers[0]?.id ?? null;
@@ -7796,7 +7811,7 @@ end group
   function selectAllGroupMembers(){
     const selectedGroup = Math.max(1, Math.min(63, Number(state.groupSelectedNumber) || 1));
     const matchedIds = state.items
-      .filter((it) => Number(it?.kv?.group_id) === selectedGroup)
+      .filter((it) => Number(it?.kv?.group_id) === selectedGroup && (!state.tileEditModeActive || isMapTileItem(it)))
       .map((it) => it.id);
 
     if (!matchedIds.length){
@@ -7900,6 +7915,10 @@ end group
   }
 
   function selectById(id, options = {}){
+    if(id!=null&&state.tileEditModeActive&&!isMapTileItem(getItemByIdFast(id))){
+      statusEl.textContent = "Tile Edit Mode only allows MapTiles to be selected.";
+      return false;
+    }
     const additive = !!options.additive;
     if (!additive){
       state.selectedId = id;
@@ -7914,6 +7933,7 @@ end group
     updateWaypointMarkerCount(0);
     renderList();
     requestRender();
+    return true;
   }
 
   function updateWaypointMarkerCount(count){
@@ -7930,6 +7950,7 @@ end group
   }
 
   function selectWaypointMarkers(){
+    if(state.tileEditModeActive){statusEl.textContent="Tile Edit Mode only allows MapTiles to be selected.";return;}
     const waypointNumber = Math.max(1, Math.min(127, Number(state.waypointSelectedNumber) || 1));
     const markers = state.items.filter(it => getItemWaypointId(it) === waypointNumber);
     state.selectedWaypointMarkerIds = new Set(markers.map(m => m.id));
@@ -7979,8 +8000,7 @@ end group
         selectById(id, { additive: canAdd });
       });
       el.addEventListener("dblclick", () => {
-        selectById(Number(el.dataset.id));
-        openModal();
+        if(selectById(Number(el.dataset.id)))openModal();
       });
     });
   }
@@ -8380,6 +8400,7 @@ end group
   function openModal(){
     const it = getSelected();
     if (!it) return;
+    if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be edited.";return;}
 
     state.modalSnapshot = structuredClone(it);
     state.modalOpen = true;
@@ -8582,6 +8603,7 @@ end group
       ? Array.from(state.multiSelectedIds)
       : (state.selectedId != null ? [state.selectedId] : []);
     const selectedItems = state.items.filter(it => selectedIds.includes(it.id));
+    if(state.tileEditModeActive&&selectedItems.some(it=>!isMapTileItem(it))){statusEl.textContent="Tile Edit Mode only allows MapTiles to be copied or edited.";return false;}
     if (!selectedItems.length){
       statusEl.textContent = "Selecione um item para copiar.";
       return false;
@@ -8646,6 +8668,7 @@ end group
       statusEl.textContent = "Nenhum item copiado para colar.";
       return;
     }
+    if(state.tileEditModeActive&&state.itemClipboardItems.some(entry=>!isMapTileItem(entry.item))){statusEl.textContent="Tile Edit Mode only allows MapTiles to be pasted.";return;}
     state.pastePlacementActive = true;
     state.pastePreviewWorld = screenToWorld(sx, sy);
     requestRender();
@@ -8700,6 +8723,7 @@ end group
   ui.dupBtn.addEventListener("click", () => {
     const it = getSelected();
     if (!it) return;
+    if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be duplicated.";return;}
     const sec = getItemSectionByStartFast(it.start);
     const copy = createPastedItemFrom(it, sec || null, { offset: true });
     markItemsChanged({ structure: true });
@@ -8710,6 +8734,7 @@ end group
   function deleteSelectedItem(){
     const it = getSelected();
     if (!it) return;
+    if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be deleted.";return;}
     const deletingMapTile=isMapTileItem(it);
     if(deletingMapTile&&state.mapTiles.dragPreviewIds.has(it.id))clearMapTileDragPreview(false);
     removeItemFromSpatialIndex(it.id);
@@ -12727,6 +12752,10 @@ end group
   }
 
   function pickItemAtCanvas(sx, sy){
+    if(state.tileEditModeActive){
+      const terrainPoint=screenToTerrain(sx,sy);
+      return terrainPoint?pickMapTileAtTerrainPoint(terrainPoint.x,terrainPoint.y):null;
+    }
     const glbItem=pickItemFromGlbAt(sx,sy);
     if(glbItem&&!isMapTileItem(glbItem))return glbItem;
     const terrainPoint=screenToTerrain(sx,sy);
@@ -12778,7 +12807,7 @@ end group
   }
   function selectedTransformItems(){
     const ids=state.multiSelectedIds.size?Array.from(state.multiSelectedIds):[state.selectedId];
-    return ids.map(id=>getItemByIdFast(id)).filter(Boolean);
+    return ids.map(id=>getItemByIdFast(id)).filter(it=>it&&(!state.tileEditModeActive||isMapTileItem(it)));
   }
   function gizmoPivot(items=selectedTransformItems()){
     const active=getSelected();
@@ -13790,7 +13819,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }
     state.lastMouse = { sx, sy };
   });
-  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const pickedId=state.pendingLeftClick.pickedId; selectById(pickedId != null ? pickedId : null); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); refreshLiveMisWindow(false, { force: true }); } }
+  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const pickedId=state.pendingLeftClick.pickedId; selectById(pickedId != null ? pickedId : null); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&!isMapTileItem(it))) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); refreshLiveMisWindow(false, { force: true }); } }
   cv.addEventListener('mouseup', e => {
     if (state.insertModeActive && state.insertDragStart){
       const rect = cv.getBoundingClientRect();
