@@ -194,29 +194,10 @@
       justify-content:center;
       background:var(--line-heavy);
     }
-    .globalModeBtn::before{
-      content:"";
+    .globalModeBtn img{
       width:20px;
       height:20px;
       display:block;
-      background:#fff;
-      mask-position:center;
-      mask-repeat:no-repeat;
-      mask-size:contain;
-      -webkit-mask-position:center;
-      -webkit-mask-repeat:no-repeat;
-      -webkit-mask-size:contain;
-    }
-    #insertModeBtn::before{
-      mask-image:url("resources/BHD/editor_icons/insert_mode.svg");
-      -webkit-mask-image:url("resources/BHD/editor_icons/insert_mode.svg");
-    }
-    #tileEditModeBtn::before{
-      mask-image:url("resources/BHD/editor_icons/tile_edit_mode.svg");
-      -webkit-mask-image:url("resources/BHD/editor_icons/tile_edit_mode.svg");
-    }
-    .globalModeBtn img{
-      display:none;
     }
     .globalModeBtn:hover:not(:disabled){
       background:var(--line-strong);
@@ -228,8 +209,8 @@
     .globalModeBtn.active:hover:not(:disabled){
       background:var(--control-hover-bg);
     }
-    .globalModeBtn.active::before{
-      background:#2c7be5;
+    .globalModeBtn.active img{
+      filter:brightness(0) saturate(100%) invert(44%) sepia(91%) saturate(1518%) hue-rotate(191deg) brightness(95%) contrast(88%);
     }
     #appLayout{
       display:grid;
