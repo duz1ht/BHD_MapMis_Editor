@@ -19,6 +19,7 @@ Todo:
 * `resources/BHD/items_lists/itemsDef.js` works similarly to the original `items.def`.
 * `resources/BHD/items_lists/otheritems.js` lists all the items that aren’t in `items.def` by default and also uses new variables, like graphic to indicate which 3D `.glb` file will be used for the item.
 * `resources/BHD/items_lists/weapon.def` provides the weapon catalog used to display loadout names.
+* See [`knowledge/emplaced_weapons_audit.md`](knowledge/emplaced_weapons_audit.md) for the current implementation audit and staged plan for mounted-weapon attachments and `.3di` control registers.
 * Today, when loading a map, the editor moves the camera to a spot near the center of the inserted items. This could be optimized to keep the camera from being positioned so high up in the sky.
 
 ## How to use
