@@ -317,6 +317,7 @@
     }
     #canvasModeToolbar{ left:10px; }
     #canvasViewToolbar{ right:10px; }
+    #canvasWrap.tilePaletteOpen #canvasViewToolbar{right:324px;}
     .toolbarSplit{ display:flex; gap:0; }
     .toolbarSplit .modeBtn:first-child{ border-radius:6px 0 0 6px; }
     .toolbarSplit .modeBtn:last-child{ min-width:24px; padding:0 5px; border-left:0; border-radius:0 6px 6px 0; }
@@ -751,14 +752,18 @@
     #tilePaletteTitle{font-size:12px;font-weight:700;color:var(--text-strong);}
     #tilePaletteAtlas{max-width:155px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-subtle);font-size:11px;}
     #tilePaletteBody{min-height:80px;overflow:auto;padding:8px;}
-    #tilePaletteGrid{display:grid;grid-template-columns:repeat(8,minmax(26px,1fr));gap:4px;}
-    .tilePaletteTile{position:relative;min-width:0;aspect-ratio:1;padding:0;overflow:hidden;border:1px solid var(--line-strong);border-radius:2px;background:var(--canvas);cursor:pointer;}
+    #tilePaletteGrid{display:grid;grid-template-columns:repeat(8,minmax(26px,1fr));grid-template-rows:repeat(8,minmax(26px,1fr));gap:4px;min-height:100%;}
+    .tilePaletteTile{position:relative;min-width:0;min-height:0;padding:0;overflow:hidden;border:1px solid var(--line-strong);border-radius:2px;background:var(--canvas);cursor:pointer;}
     .tilePaletteTile:hover{border-color:var(--accent);}
     .tilePaletteTile.selected{border:2px solid var(--accent);box-shadow:0 0 0 2px var(--accent-glow);}
     .tilePaletteTile canvas{display:block;width:100%;height:100%;image-rendering:auto;}
     .tilePaletteIndex{position:absolute;left:1px;bottom:1px;padding:0 2px;border-radius:2px;background:rgba(0,0,0,.68);color:#fff;font:9px/13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;pointer-events:none;}
     .tilePaletteCount{position:absolute;top:1px;right:1px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:var(--accent);color:#fff;font:bold 10px/16px system-ui,sans-serif;text-align:center;pointer-events:none;}
     #tilePaletteMessage{padding:12px;color:var(--text-subtle);font-size:12px;line-height:1.4;}
+    @media (max-width:900px){
+      #canvasWrap.tilePaletteOpen #canvasViewToolbar{right:10px;}
+      #tilePalette{top:44px;}
+    }
     #insertOverlay{
       position:absolute; inset:0; background:var(--overlay); display:none;
       align-items:center; justify-content:center; z-index:58; padding:18px;
@@ -10514,6 +10519,7 @@ end group
 
   function renderTilePalette(){
     if(!tilePaletteEl)return;
+    document.getElementById("canvasWrap")?.classList.toggle("tilePaletteOpen",state.tileEditModeActive);
     tilePaletteEl.classList.toggle("open",state.tileEditModeActive);
     tilePaletteEl.setAttribute("aria-hidden",String(!state.tileEditModeActive));
     tilePaletteAtlasEl.textContent=state.mapTiles.atlasName||generalTerrainTileName()||"No texture";
