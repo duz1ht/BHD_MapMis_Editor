@@ -178,8 +178,39 @@
     .globalMenuContent{
       display:flex;
       align-items:center;
-      justify-content:space-between;
-      gap:12px;
+      gap:8px;
+    }
+    .globalModeActions{
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    .globalModeBtn{
+      width:30px;
+      height:30px;
+      padding:4px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--line-heavy);
+    }
+    .globalModeBtn img{
+      width:20px;
+      height:20px;
+      display:block;
+    }
+    .globalModeBtn:hover:not(:disabled){
+      background:var(--line-strong);
+    }
+    .globalModeBtn.active{
+      background:var(--surface);
+      border-color:#2c7be5;
+    }
+    .globalModeBtn.active:hover:not(:disabled){
+      background:var(--control-hover-bg);
+    }
+    .globalModeBtn.active img{
+      filter:brightness(0) saturate(100%) invert(44%) sepia(91%) saturate(1518%) hue-rotate(191deg) brightness(95%) contrast(88%);
     }
     #appLayout{
       display:grid;
@@ -1052,7 +1083,7 @@
       position:relative;
       z-index:5;
       flex-wrap:wrap;
-      flex:1;
+      flex:0 1 auto;
     }
     .menuRoot{ position:relative; }
     .menuRootBtn{
@@ -1506,6 +1537,10 @@
   <div id="globalMenuWrap">
     <div class="globalMenuContent">
       <div class="menuBar" id="menuBar"></div>
+      <div class="globalModeActions" aria-label="Editor modes">
+        <button id="insertModeBtn" class="globalModeBtn" type="button" title="Insert Mode (I)" aria-label="Insert Mode" aria-keyshortcuts="I" aria-pressed="false"><img src="resources/BHD/editor_icons/insert_mode.svg" alt="" /></button>
+        <button id="tileEditModeBtn" class="globalModeBtn" type="button" title="Tile Edit Mode" aria-label="Tile Edit Mode" aria-pressed="false"><img src="resources/BHD/editor_icons/tile_edit_mode.svg" alt="" /></button>
+      </div>
     </div>
   </div>
 
@@ -2460,6 +2495,7 @@ end group
     pastePlacementActive: false,
     pastePreviewWorld: null,
     insertModeActive: false,
+    tileEditModeActive: false,
     insertDefinitionId: "",
     insertCategory: "foliage",
     insertSearchTerm: "",
@@ -2579,6 +2615,7 @@ end group
       atlasImage: null,
       overlayTexture: null,
       renderMesh: null,
+      borderLines: null,
       overlayResolution: 0,
       paintedTiles: 0,
       lastBuildMs: 0,
@@ -4630,8 +4667,30 @@ end group
   }
 
   function toggleInsertMode(){
+    if(state.tileEditModeActive){statusEl.textContent="Disable Tile Edit Mode before inserting other items.";return;}
     if (state.insertModeActive) return stopInsertMode();
     openInsertDialog();
+  }
+
+  function toggleTileEditMode(){
+    const willEnable = !state.tileEditModeActive;
+    if(willEnable && (state.insertModeActive || insertOverlay.classList.contains("open"))) stopInsertMode("");
+    state.tileEditModeActive = willEnable;
+    if(willEnable){
+      const tileIds=new Set(state.items.filter(isMapTileItem).map(it=>it.id));
+      state.multiSelectedIds=new Set(Array.from(state.multiSelectedIds).filter(id=>tileIds.has(id)));
+      if(!tileIds.has(state.selectedId))state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null;
+      state.selectedWaypointMarkerIds.clear();
+      updateWaypointMarkerCount(0);
+      if(state.modalOpen&&!isMapTileItem(getSelected()))closeModalCancel();
+      state.pastePlacementActive=false;
+      state.pastePreviewWorld=null;
+      renderList();
+    }
+    buildMapTileBorders();
+    renderMenuBar();
+    requestRender();
+    statusEl.textContent = `Tile Edit Mode ${state.tileEditModeActive ? "enabled" : "disabled"}.`;
   }
 
   function confirmInsertMode(){
@@ -5547,6 +5606,7 @@ end group
   }
 
   function selectAreaTriggerMarkers(){
+    if(state.tileEditModeActive){statusEl.textContent="Tile Edit Mode only allows MapTiles to be selected.";return;}
     const number = Math.max(1, Math.min(99, Number(state.sectionSelectedId) || 1));
     const markers = state.items.filter(it => isAreaTriggerItem(it) && getItemWaypointNumber(it) === number);
     state.selectedId = markers[0]?.id ?? null;
@@ -7732,7 +7792,7 @@ end group
   function selectAllGroupMembers(){
     const selectedGroup = Math.max(1, Math.min(63, Number(state.groupSelectedNumber) || 1));
     const matchedIds = state.items
-      .filter((it) => Number(it?.kv?.group_id) === selectedGroup)
+      .filter((it) => Number(it?.kv?.group_id) === selectedGroup && (!state.tileEditModeActive || isMapTileItem(it)))
       .map((it) => it.id);
 
     if (!matchedIds.length){
@@ -7836,6 +7896,10 @@ end group
   }
 
   function selectById(id, options = {}){
+    if(id!=null&&state.tileEditModeActive&&!isMapTileItem(getItemByIdFast(id))){
+      statusEl.textContent = "Tile Edit Mode only allows MapTiles to be selected.";
+      return false;
+    }
     const additive = !!options.additive;
     if (!additive){
       state.selectedId = id;
@@ -7850,6 +7914,7 @@ end group
     updateWaypointMarkerCount(0);
     renderList();
     requestRender();
+    return true;
   }
 
   function updateWaypointMarkerCount(count){
@@ -7866,6 +7931,7 @@ end group
   }
 
   function selectWaypointMarkers(){
+    if(state.tileEditModeActive){statusEl.textContent="Tile Edit Mode only allows MapTiles to be selected.";return;}
     const waypointNumber = Math.max(1, Math.min(127, Number(state.waypointSelectedNumber) || 1));
     const markers = state.items.filter(it => getItemWaypointId(it) === waypointNumber);
     state.selectedWaypointMarkerIds = new Set(markers.map(m => m.id));
@@ -7915,8 +7981,7 @@ end group
         selectById(id, { additive: canAdd });
       });
       el.addEventListener("dblclick", () => {
-        selectById(Number(el.dataset.id));
-        openModal();
+        if(selectById(Number(el.dataset.id)))openModal();
       });
     });
   }
@@ -8316,6 +8381,7 @@ end group
   function openModal(){
     const it = getSelected();
     if (!it) return;
+    if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be edited.";return;}
 
     state.modalSnapshot = structuredClone(it);
     state.modalOpen = true;
@@ -8518,6 +8584,7 @@ end group
       ? Array.from(state.multiSelectedIds)
       : (state.selectedId != null ? [state.selectedId] : []);
     const selectedItems = state.items.filter(it => selectedIds.includes(it.id));
+    if(state.tileEditModeActive&&selectedItems.some(it=>!isMapTileItem(it))){statusEl.textContent="Tile Edit Mode only allows MapTiles to be copied or edited.";return false;}
     if (!selectedItems.length){
       statusEl.textContent = "Selecione um item para copiar.";
       return false;
@@ -8582,6 +8649,7 @@ end group
       statusEl.textContent = "Nenhum item copiado para colar.";
       return;
     }
+    if(state.tileEditModeActive&&state.itemClipboardItems.some(entry=>!isMapTileItem(entry.item))){statusEl.textContent="Tile Edit Mode only allows MapTiles to be pasted.";return;}
     state.pastePlacementActive = true;
     state.pastePreviewWorld = screenToWorld(sx, sy);
     requestRender();
@@ -8636,6 +8704,7 @@ end group
   ui.dupBtn.addEventListener("click", () => {
     const it = getSelected();
     if (!it) return;
+    if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be duplicated.";return;}
     const sec = getItemSectionByStartFast(it.start);
     const copy = createPastedItemFrom(it, sec || null, { offset: true });
     markItemsChanged({ structure: true });
@@ -8646,6 +8715,7 @@ end group
   function deleteSelectedItem(){
     const it = getSelected();
     if (!it) return;
+    if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be deleted.";return;}
     const deletingMapTile=isMapTileItem(it);
     if(deletingMapTile&&state.mapTiles.dragPreviewIds.has(it.id))clearMapTileDragPreview(false);
     removeItemFromSpatialIndex(it.id);
@@ -10029,9 +10099,17 @@ end group
         if (willOpen) root.classList.add("open");
       });
     });
+    const insertModeBtn = document.getElementById("insertModeBtn");
+    insertModeBtn.classList.toggle("active", state.insertModeActive);
+    insertModeBtn.setAttribute("aria-pressed", String(state.insertModeActive));
+    const tileEditModeBtn = document.getElementById("tileEditModeBtn");
+    tileEditModeBtn.classList.toggle("active", state.tileEditModeActive);
+    tileEditModeBtn.setAttribute("aria-pressed", String(state.tileEditModeActive));
   }
 
   renderMenuBar();
+  document.getElementById("insertModeBtn").addEventListener("click", toggleInsertMode);
+  document.getElementById("tileEditModeBtn").addEventListener("click", toggleTileEditMode);
 
   document.addEventListener("keydown", (e) => {
     if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== "s") return;
@@ -10290,7 +10368,8 @@ end group
     state.mapTiles.generation++;
     state.mapTiles.overlayTexture?.dispose?.();
     disposeMapTileRenderMesh();
-    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),pendingOverlayRebuild:0,dirty:false});
+    disposeMapTileBorders();
+    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),pendingOverlayRebuild:0,dirty:false});
     state.threeTerrain.dirty=true;
   }
 
@@ -10392,6 +10471,42 @@ end group
     mesh.parent?.remove?.(mesh);mesh.geometry?.dispose?.();mesh.material?.map?.dispose?.();mesh.material?.dispose?.();state.mapTiles.renderMesh=null;
   }
 
+  function disposeMapTileBorders(){
+    const lines=state.mapTiles.borderLines;
+    if(!lines)return;
+    lines.parent?.remove?.(lines);lines.geometry?.dispose?.();lines.material?.dispose?.();state.mapTiles.borderLines=null;
+  }
+
+  function buildMapTileBorders(){
+    disposeMapTileBorders();
+    const THREE=state.glb.THREE,scene=state.glb.scene;
+    if(!state.tileEditModeActive||!THREE||!scene)return;
+    const positions=[],edgeKeys=new Set(),steps=16;
+    const addEdge=(x1,y1,x2,y2,it)=>{
+      const endpoints=[`${x1},${y1}`,`${x2},${y2}`].sort(),edgeKey=endpoints.join('|');
+      if(edgeKeys.has(edgeKey))return;
+      edgeKeys.add(edgeKey);
+      for(let step=0;step<steps;step++){
+        const addPoint=t=>{
+          const x=x1+(x2-x1)*t,y=y1+(y2-y1)*t,z=heightAtWorld(x,y,1.0);
+          positions.push(x,y,Number.isFinite(z)&&z>-1e8?z+.06:getItemInteractionAnchor(it).z);
+        };
+        addPoint(step/steps);addPoint((step+1)/steps);
+      }
+    };
+    for(const it of state.items.filter(isMapTileItem)){
+      const footprint=getMapTileFootprint(it);if(!footprint)continue;
+      addEdge(footprint.left,footprint.bottom,footprint.right,footprint.bottom,it);
+      addEdge(footprint.right,footprint.bottom,footprint.right,footprint.top,it);
+      addEdge(footprint.right,footprint.top,footprint.left,footprint.top,it);
+      addEdge(footprint.left,footprint.top,footprint.left,footprint.bottom,it);
+    }
+    if(!positions.length)return;
+    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.computeBoundingSphere();
+    const material=new THREE.LineBasicMaterial({color:0x808080,transparent:true,opacity:.3,depthTest:true,depthWrite:false,toneMapped:false});
+    const lines=new THREE.LineSegments(geometry,material);lines.name='MAP_TILE_EDIT_BORDERS';lines.renderOrder=19;lines.raycast=()=>null;scene.add(lines);state.mapTiles.borderLines=lines;
+  }
+
   function createMapTileAtlasTexture(){
     const img=state.mapTiles.atlasImage,THREE=state.glb.THREE;if(!img||!THREE)return null;
     const canvas=document.createElement('canvas');canvas.width=img.w;canvas.height=img.h;
@@ -10427,6 +10542,7 @@ end group
       const mesh=new THREE.Mesh(geometry,material);mesh.name='MAP_TILE_TERRAIN_LAYER';mesh.renderOrder=17;mesh.raycast=()=>null;scene.add(mesh);state.mapTiles.renderMesh=mesh;
     }
     state.mapTiles.overlayResolution=Math.max(img.w,img.h);state.mapTiles.paintedTiles=painted;state.mapTiles.lastBuildMs=performance.now()-started;
+    buildMapTileBorders();
     addLog(`[map_tiles] atlas mesh rebuilt: tiles=${painted}, atlas=${img.w}x${img.h}, time=${state.mapTiles.lastBuildMs.toFixed(2)}ms`);
   }
 
@@ -12617,6 +12733,10 @@ end group
   }
 
   function pickItemAtCanvas(sx, sy){
+    if(state.tileEditModeActive){
+      const terrainPoint=screenToTerrain(sx,sy);
+      return terrainPoint?pickMapTileAtTerrainPoint(terrainPoint.x,terrainPoint.y):null;
+    }
     const glbItem=pickItemFromGlbAt(sx,sy);
     if(glbItem&&!isMapTileItem(glbItem))return glbItem;
     const terrainPoint=screenToTerrain(sx,sy);
@@ -12668,7 +12788,7 @@ end group
   }
   function selectedTransformItems(){
     const ids=state.multiSelectedIds.size?Array.from(state.multiSelectedIds):[state.selectedId];
-    return ids.map(id=>getItemByIdFast(id)).filter(Boolean);
+    return ids.map(id=>getItemByIdFast(id)).filter(it=>it&&(!state.tileEditModeActive||isMapTileItem(it)));
   }
   function gizmoPivot(items=selectedTransformItems()){
     const active=getSelected();
@@ -13680,7 +13800,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }
     state.lastMouse = { sx, sy };
   });
-  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const pickedId=state.pendingLeftClick.pickedId; selectById(pickedId != null ? pickedId : null); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); refreshLiveMisWindow(false, { force: true }); } }
+  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const pickedId=state.pendingLeftClick.pickedId; selectById(pickedId != null ? pickedId : null); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&!isMapTileItem(it))) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); refreshLiveMisWindow(false, { force: true }); } }
   cv.addEventListener('mouseup', e => {
     if (state.insertModeActive && state.insertDragStart){
       const rect = cv.getBoundingClientRect();
