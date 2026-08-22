@@ -8354,9 +8354,17 @@ end group
   }
 
   function closeModalOk(){
-    commitFromWindow({ applyOrientation: true });
-    state.modalSnapshot = null;
-    state.modalOpen = false;
+    // Confirming the properties window is one discrete undoable action.  Do not
+    // leave it to the global debounce: a subsequent edit to another item could
+    // otherwise reset the timer and merge both confirmations into one snapshot.
+    beginUndoTransaction();
+    try{
+      commitFromWindow({ applyOrientation: true });
+      state.modalSnapshot = null;
+      state.modalOpen = false;
+    } finally {
+      endUndoTransaction();
+    }
 
     modalOverlay.classList.remove("open");
     modalOverlay.setAttribute("aria-hidden", "true");
