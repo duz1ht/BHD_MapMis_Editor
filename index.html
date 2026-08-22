@@ -685,8 +685,9 @@
     #selectedInfoBody:hover{ background:var(--surface); }
     #selectedInfoTilePreview{
       display:none;
-      width:100%;
+      width:70%;
       aspect-ratio:1;
+      justify-self:center;
       border:1px solid var(--line-soft);
       border-radius:var(--radius-sm);
       background:var(--surface-subtle);
@@ -1587,8 +1588,8 @@
           <button id="selectedInfoNextBtn" type="button" class="modeBtn" title="Next item">▶</button>
         </div>
       </div>
-      <canvas id="selectedInfoTilePreview" width="256" height="256" aria-label="Selected terrain tile preview"></canvas>
       <pre id="selectedInfoBody">No item selected.</pre>
+      <canvas id="selectedInfoTilePreview" width="256" height="256" aria-label="Selected terrain tile preview"></canvas>
     </div>
 
     <div id="misRealtimePanel">
