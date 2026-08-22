@@ -1,0 +1,159 @@
+// Editor-only attached-item visualization metadata.
+// Coordinates are local centimeters; yaw and pitch are degrees.
+// This catalog is never serialized to game mission or terrain files.
+
+begin "UN Truck with smoking engine used in Marka Breakdown"
+  id 101265
+  attached_weapon1 106213 0 0 0 0 0
+end
+
+begin "Iranian Patrol Boat"
+  id 106330
+  attached_weapon1 101877 0 490 50 0 0
+  attached_weapon2 101877 0 -427 50 90 0
+end
+
+begin "Drug Smuggler's Plane"
+  id 106259
+  attached_weapon1 101877 0 0 0 0 0
+end
+
+begin "Rigid Hull Inflatable Boat (collision perimeter)"
+  id 106324
+  attached_weapon1 101877 0 400 41 0 0
+end
+
+begin "Rigid Hull Inflatable Boat (collision bow)"
+  id 106214
+  attached_weapon1 101877 0 400 41 0 0
+end
+
+begin "Technical with Emplaced Cannon #5"
+  id 101274
+  attached_weapon1 101882 0 -159 84 0 0
+end
+
+begin "Technical with Emplaced Cannon #4"
+  id 101273
+  attached_weapon1 101882 0 -159 84 0 0
+end
+
+begin "Technical enemy vehicle with mounted 50cal"
+  id 101239
+  attached_weapon1 101885 0 -172 164 0 0
+end
+
+begin "Technical enemy vehicle - mounted 50cal - B - variant color"
+  id 106369
+  attached_weapon1 101885 0 -172 164 0 0
+end
+
+begin "Technical enemy vehicle with mounted Cannon"
+  id 101237
+attached_weapon1 101877 44 -11 61 0 0
+end
+
+begin "Hummer with Armored 50cal"
+  id 101241
+  attached_weapon1 101876 0 -53 138 0 0
+end
+
+begin "Hummer with Armored 50cal"
+  id 101284
+  attached_weapon1 101876 0 -53 138 0 0
+end
+
+begin "Indestructible Hummer with 50cal"
+  id 101270
+  attached_weapon1 101876 0 -53 138 0 0
+end
+
+begin "Hummer with NON-Armored 50cal"
+  id 101276
+  attached_weapon1 101892 0 -53 138 0 0
+end
+
+begin "Hummer with Mounted MK19"
+  id 101277
+  attached_weapon1 101893 0 0 0 0 0
+end
+
+begin "Hummer with Armored MK19"
+  id 101278
+  attached_weapon1 101894 0 0 0 0 0
+end
+
+begin "Blackhawk with two miniguns"
+  id 104643
+  attached_weapon1 101871 -195 240 -191 -90 0
+  attached_weapon2 101871 195 240 -191 90 0
+end
+
+begin "Blackhawk, miniguns, both doors open"
+  id 101272
+  attached_weapon1 101871 -195 240 -191 -90 0
+  attached_weapon2 101871 195 240 -191 90 0
+end
+
+begin "MH53 Pavelow"
+  id 106284
+  attached_weapon1 101871 -195 240 -191 -90 0
+end
+
+begin "Blackhawk, weak AI miniguns, both doors open"
+  id 101287
+  attached_weapon1 101871 -195 240 -191 -90 0
+  attached_weapon2 101871 195 240 -191 90 0
+end
+
+begin "Indestructible Blackhawk with two miniguns"
+  id 101269
+  attached_weapon1 101871 -195 240 -191 -90 0
+  attached_weapon2 101871 195 240 -191 90 0
+end
+
+begin "Parked Version of Enemy Cargo Truck"
+  id 101283
+  attached_weapon1 101885 0 0 0 0 0
+end
+
+begin "Parked Version of Friendly Hummer with mounted 50cal"
+  id 101248
+  attached_weapon1 101876 0 -53 138 0 0
+end
+
+begin "Technical Husk with working 50 Cal"
+  id 101255
+  attached_weapon1 101877 44 -11 61 0 0
+end
+
+begin "MK19 with bunker"
+  id 101879
+  attached_weapon1 101869 0 0 0 0 0
+end
+
+begin "Bunker with destroyable MK19"
+  id 101890
+  attached_weapon1 101886 0 0 0 0 0
+end
+
+begin "50cal on Tripod with bunker"
+  id 101880
+  attached_weapon1 101881 0 0 0 0 0
+end
+
+begin "Bunker with destroyable 50cal"
+  id 101889
+  attached_weapon1 101887 0 0 0 0 0
+end
+
+
+begin "Parked Version of Etek2 with mounted 50cal"
+  id 102135
+  attached_weapon1 101885 0 -172 164 0 0
+end
+
+begin "VBL with 7.62mm turret"
+  id 106207
+  attached_weapon1 106213 31 -71 219 0 0
+end

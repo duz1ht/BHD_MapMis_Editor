@@ -288,6 +288,22 @@
       pointer-events:none;
       display:none;
     }
+    /* Temporary attachment calibration UI: remove this block with the matching HTML/JS section when calibration is complete. */
+    #attachmentCalibrator{
+      position:absolute;left:10px;top:44px;z-index:30;width:330px;
+      display:none;padding:10px;border:1px solid var(--line);border-radius:8px;
+      background:color-mix(in srgb,var(--surface) 94%,transparent);color:var(--text);
+      box-shadow:0 8px 24px rgba(0,0,0,.28);font-size:12px;
+    }
+    #attachmentCalibrator.open{display:block}
+    #attachmentCalibrator header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-weight:700}
+    #attachmentCalibratorFields{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:8px 0}
+    #attachmentCalibratorFields label{display:grid;gap:3px;color:var(--text-muted)}
+    #attachmentCalibratorFields input{width:100%;box-sizing:border-box;padding:4px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:4px}
+    #attachmentCalibratorLine{display:block;margin:8px 0;padding:6px;overflow:auto;white-space:nowrap;background:var(--surface-2);border:1px solid var(--line);border-radius:4px;user-select:all}
+    #attachmentCalibratorActions{display:flex;align-items:center;gap:6px}
+    #attachmentCalibratorMessage{color:var(--text-muted);line-height:1.35}
+
     #sceneInfoHint{
       position:absolute;
       right:10px;
@@ -1639,6 +1655,7 @@
         <button id="showGroupsBtn" type="button" class="modeBtn">Groups</button>
         <button id="showWaypointsBtn" type="button" class="modeBtn">Waypoints</button>
         <button id="showAreaTriggersBtn" type="button" class="modeBtn">Area Triggers</button>
+        <button id="attachmentCalibratorToggle" type="button" class="modeBtn" aria-pressed="false" title="Temporary tool for positioning attached items">Adjust attachments</button>
       </div>
       <div id="canvasViewToolbar" class="canvasFloatingToolbar">
         <button id="debugFogBtn" type="button" class="modeBtn">Debug Fog</button>
@@ -1656,6 +1673,21 @@
         </div>
       </div>
       <canvas id="cv"></canvas>
+      <!-- Temporary attachment calibration UI. It only edits the in-memory editor catalog and can be removed after addeweap.def is finalized. -->
+      <section id="attachmentCalibrator" aria-label="Attachment position calibrator">
+        <header><span>Attachment position</span><button id="attachmentCalibratorClose" type="button" class="modeBtn" aria-label="Close">×</button></header>
+        <div id="attachmentCalibratorMessage">Select a parent item that has attached weapons.</div>
+        <select id="attachmentCalibratorSlot" aria-label="Attached item"></select>
+        <div id="attachmentCalibratorFields">
+          <label>X<input data-attachment-field="x" type="number" step="1"></label>
+          <label>Y<input data-attachment-field="y" type="number" step="1"></label>
+          <label>Z<input data-attachment-field="z" type="number" step="1"></label>
+          <label>Yaw<input data-attachment-field="yaw" type="number" step="1"></label>
+          <label>Pitch<input data-attachment-field="pitch" type="number" step="1"></label>
+        </div>
+        <code id="attachmentCalibratorLine"></code>
+        <div id="attachmentCalibratorActions"><button id="attachmentCalibratorCopy" type="button" class="modeBtn">Copy line</button><span>Use ↑/↓ in a field for fine adjustment.</span></div>
+      </section>
       <div id="boxSelection" aria-hidden="true"></div>
       <div id="insertPreviewLabel" aria-hidden="true"></div>
       <div id="camDebug"></div>
@@ -2577,6 +2609,9 @@ end group
     gameStrings: new Map(),
     missionGameStrings: new Map(),
     weaponDefs: new Map(),
+    attachedWeaponsByParentId: new Map(),
+    attachmentCalibratorOpen: false,
+    attachmentCalibratorSelection: null,
     wpNames: [],
     defaultWpNames: [],
     aiTextfileNames: [],
@@ -3695,6 +3730,58 @@ end group
     }
 
     return out;
+  }
+
+  function parseAttachedWeaponDefs(raw){
+    const out = new Map();
+    const lines = String(raw || "").replace(/\r\n/g, "\n").split("\n");
+    let cur = null;
+
+    for (const line of lines){
+      const t = line.trim();
+      if (!t || t.startsWith("//") || t.startsWith(";")) continue;
+      const begin = t.match(/^begin\s+"([^"]+)"/i);
+      if (begin){
+        cur = { name: begin[1], parentId: "", weapons: [] };
+        continue;
+      }
+      if (/^end\b/i.test(t)){
+        if (cur?.parentId && cur.weapons.length) out.set(cur.parentId, cur.weapons);
+        cur = null;
+        continue;
+      }
+      if (!cur) continue;
+      const id = t.match(/^id\s+(\S+)/i);
+      if (id){
+        cur.parentId = id[1];
+        continue;
+      }
+      const attached = t.match(/^attached_weapon(\d+)\s+(\S+)\s+(-?(?:\d+(?:\.\d*)?|\.\d+))\s+(-?(?:\d+(?:\.\d*)?|\.\d+))\s+(-?(?:\d+(?:\.\d*)?|\.\d+))\s+(-?(?:\d+(?:\.\d*)?|\.\d+))\s+(-?(?:\d+(?:\.\d*)?|\.\d+))\s*$/i);
+      if (!attached) continue;
+      cur.weapons.push({
+        slot: Number(attached[1]),
+        itemId: attached[2],
+        x: Number(attached[3]), y: Number(attached[4]), z: Number(attached[5]),
+        yaw: Number(attached[6]), pitch: Number(attached[7]),
+      });
+    }
+
+    for (const weapons of out.values()) weapons.sort((a, b) => a.slot - b.slot);
+    return out;
+  }
+
+  async function loadAttachedWeaponDefs(){
+    const path = "resources/BHD/items_lists/addeweap.def";
+    const text = await loadTextResource(path);
+    if (text === null){
+      state.attachedWeaponsByParentId = new Map();
+      addLog(`[attached_weapons] optional catalog unavailable: ${path}`);
+      return;
+    }
+    state.attachedWeaponsByParentId = parseAttachedWeaponDefs(text);
+    state.glb.structureDirty = true;
+    addLog(`[attached_weapons] loaded ${state.attachedWeaponsByParentId.size} parent definitions`);
+    requestRender();
   }
 
   function resolveStringKey(key){
@@ -7997,6 +8084,7 @@ end group
   }
 
   function renderList(){
+    renderAttachmentCalibrator();
     renderTilePaletteSelection();
     renderSelectedInfoPanel();
     if (!listEl) return;
@@ -9840,7 +9928,7 @@ end group
         state.editorFolderHandle = handle;
         statusEl.textContent = `Editor folder set: ${handle.name}`;
         await loadAndApplyItemCatalogs();
-        await Promise.all([loadGameStrings(), loadWeaponDefs(), loadWpNames(), loadAiTextfileCatalog(), preloadEnvironmentFiles()]);
+        await Promise.all([loadGameStrings(), loadWeaponDefs(), loadAttachedWeaponDefs(), loadWpNames(), loadAiTextfileCatalog(), preloadEnvironmentFiles()]);
         await refreshGeneralTerrainOptions();
         renderMenuBar();
       } catch (err){
@@ -11759,27 +11847,63 @@ end group
     });
   }
 
+  function normalizedGraphicScale(graphicScale){
+    const scale = Number(graphicScale);
+    return Number.isFinite(scale) && scale > 0 ? scale : 1;
+  }
+
+  function applyGlbModelCorrection(obj, graphicScale = 1){
+    if (!obj) return;
+    // Fixed import-basis correction only. Keep it below the logical Z-up pose group.
+    obj.rotation.order = "ZXY";
+    obj.rotation.set(90 * Math.PI / 180, 0, 180 * Math.PI / 180);
+    const scale = normalizedGraphicScale(graphicScale);
+    obj.scale.set(scale, scale, scale);
+  }
+
+  function applyLogicalZUpRotation(obj, yaw = 0, pitch = 0){
+    if (!obj) return;
+    obj.rotation.order = "ZXY";
+    obj.rotation.set(
+      -(Number(pitch) || 0) * Math.PI / 180,
+      0,
+      -(Number(yaw) || 0) * Math.PI / 180
+    );
+  }
+
+  function applyItemPoseTransform(obj, it){
+    if (!obj || !it) return;
+    obj.position.set(rawToWorld(it.x, "x"), rawToWorld(it.y, "y"), getItemWorldZ(it));
+    applyLogicalZUpRotation(obj, it.heading, it.pitch);
+    obj.scale.set(1, 1, 1);
+  }
+
+  function applyAttachedWeaponAnchorTransform(anchor, attachment){
+    if (!anchor || !attachment) return;
+    anchor.position.set(
+      attachment.x * ATTACHED_WEAPON_COORDINATE_SCALE,
+      attachment.y * ATTACHED_WEAPON_COORDINATE_SCALE,
+      attachment.z * ATTACHED_WEAPON_COORDINATE_SCALE
+    );
+    applyLogicalZUpRotation(anchor, attachment.yaw, attachment.pitch);
+    anchor.scale.set(1, 1, 1);
+  }
+
+  // Kept for standalone previews, where pose and import correction share one root.
   function applyItemModelTransform(obj, heading = 0, pitch = 0, graphicScale = 1){
     if (!obj) return;
-    // OpenNova-style orientation correction: sign-flip yaw/pitch and apply a +180° yaw phase shift.
-    const yawRad = ((-(Number(heading) || 0)) + 180) * Math.PI / 180;
-    const pitchCalibratedDeg = (-(Number(pitch) || 0)) + 90;
-    const pitchRad = pitchCalibratedDeg * Math.PI / 180;
     obj.rotation.order = "ZXY";
-    obj.rotation.z = yawRad;
-    obj.rotation.x = pitchRad;
-    const scale = Number.isFinite(Number(graphicScale)) && Number(graphicScale) > 0 ? Number(graphicScale) : 1;
+    obj.rotation.set(
+      (-(Number(pitch) || 0) + 90) * Math.PI / 180,
+      0,
+      (-(Number(heading) || 0) + 180) * Math.PI / 180
+    );
+    const scale = normalizedGraphicScale(graphicScale);
     obj.scale.set(scale, scale, scale);
   }
 
   function applyItemTransformToObject(obj, it){
-    if (!obj || !it) return;
-    obj.position.set(
-      rawToWorld(it.x,'x'),
-      rawToWorld(it.y,'y'),
-      getItemWorldZ(it)
-    );
-    applyItemModelTransform(obj, it.heading, it.pitch, getItemGraphicScale(it));
+    applyItemPoseTransform(obj, it);
   }
 
   function lodDistanceForLevel(level){
@@ -12437,8 +12561,147 @@ end group
   }
 
 
+  const ATTACHED_WEAPON_COORDINATE_SCALE = 0.01;
+
+  function getAttachedWeaponSignature(parentTypeId){
+    return (state.attachedWeaponsByParentId.get(String(parentTypeId || "")) || [])
+      .map((entry) => [entry.slot, entry.itemId, entry.x, entry.y, entry.z, entry.yaw, entry.pitch].join(":"))
+      .join(",");
+  }
+
+  async function addAttachedWeaponVisuals(parentInstance, parentItem, generation){
+    const rawParentTypeId = String(parentItem?.kv?.type_id || "").trim();
+    const parentTypeId = toDefIdFromMisTypeId(rawParentTypeId);
+    const attachments = state.attachedWeaponsByParentId.get(parentTypeId) || [];
+    for (const attachment of attachments){
+      const attachedDef = state.defsById.get(String(attachment.itemId));
+      const graphic = String(attachedDef?.graphic || "").trim();
+      if (!attachedDef || !graphic){
+        addLog(`[attached_weapons] parent=${parentTypeId} slot=${attachment.slot}: item definition ${attachment.itemId} is missing or has no graphic`);
+        continue;
+      }
+      const template = await loadGraphicTemplate(graphic);
+      if (generation !== state.glb.documentGeneration) return false;
+      if (!template) continue;
+      const anchor = new state.glb.THREE.Group();
+      anchor.name = `ATTACHED_WEAPON_${attachment.slot}_${attachment.itemId}`;
+      anchor.userData.isAttachedWeapon = true;
+      anchor.userData.attachmentSlot = attachment.slot;
+      anchor.userData.attachmentItemId = attachment.itemId;
+      applyAttachedWeaponAnchorTransform(anchor, attachment);
+      const visual = template.clone(true);
+      visual.name = `ATTACHED_WEAPON_MODEL_${attachment.slot}_${attachment.itemId}`;
+      cloneGlbMaterials(visual);
+      applySolidTintToGlbObject(visual, attachedDef.tint);
+      applyGlbModelCorrection(visual, attachedDef.graphicScale);
+      visual.traverse((obj) => {
+        obj.userData.isAttachedWeapon = true;
+        obj.userData.attachmentSlot = attachment.slot;
+      });
+      anchor.add(visual);
+      parentInstance.add(anchor);
+    }
+    return true;
+  }
+
+  // Temporary attachment calibration UI. This section is intentionally self-contained for easy removal.
+  const attachmentCalibratorEl = document.getElementById("attachmentCalibrator");
+  const attachmentCalibratorToggleEl = document.getElementById("attachmentCalibratorToggle");
+  const attachmentCalibratorSlotEl = document.getElementById("attachmentCalibratorSlot");
+  const attachmentCalibratorMessageEl = document.getElementById("attachmentCalibratorMessage");
+  const attachmentCalibratorLineEl = document.getElementById("attachmentCalibratorLine");
+  const attachmentCalibratorFieldEls = Array.from(document.querySelectorAll("[data-attachment-field]"));
+
+  function getAttachmentCalibratorContext(){
+    const parentItem = getSelected();
+    if (!parentItem) return null;
+    const parentTypeId = toDefIdFromMisTypeId(String(parentItem.kv?.type_id || ""));
+    const attachments = state.attachedWeaponsByParentId.get(parentTypeId) || [];
+    if (!attachments.length) return null;
+    let slot = Number(state.attachmentCalibratorSelection?.parentItemId === parentItem.id
+      ? state.attachmentCalibratorSelection.slot : attachments[0].slot);
+    let attachment = attachments.find(entry => entry.slot === slot) || attachments[0];
+    state.attachmentCalibratorSelection = { parentItemId: parentItem.id, slot: attachment.slot };
+    return { parentItem, parentTypeId, attachments, attachment };
+  }
+
+  function formatAttachedWeaponLine(attachment){
+    if (!attachment) return "";
+    return `attached_weapon${attachment.slot} ${attachment.itemId} ${attachment.x} ${attachment.y} ${attachment.z} ${attachment.yaw} ${attachment.pitch}`;
+  }
+
+  function renderAttachmentCalibrator(){
+    attachmentCalibratorEl?.classList.toggle("open", state.attachmentCalibratorOpen);
+    attachmentCalibratorToggleEl?.classList.toggle("active", state.attachmentCalibratorOpen);
+    attachmentCalibratorToggleEl?.setAttribute("aria-pressed", String(state.attachmentCalibratorOpen));
+    if (!state.attachmentCalibratorOpen || !attachmentCalibratorEl) return;
+    const context = getAttachmentCalibratorContext();
+    attachmentCalibratorSlotEl.hidden = !context;
+    attachmentCalibratorFieldEls.forEach(input => { input.disabled = !context; });
+    document.getElementById("attachmentCalibratorCopy").disabled = !context;
+    if (!context){
+      attachmentCalibratorMessageEl.textContent = "Select a parent item that has attached weapons.";
+      attachmentCalibratorLineEl.textContent = "";
+      attachmentCalibratorSlotEl.replaceChildren();
+      return;
+    }
+    attachmentCalibratorMessageEl.textContent = `Parent ${context.parentTypeId}. Changes are visual only until you copy the line into addeweap.def.`;
+    const selectedSlot = String(context.attachment.slot);
+    attachmentCalibratorSlotEl.innerHTML = context.attachments.map(entry => `<option value="${entry.slot}">attached_weapon${entry.slot} — ${escapeHtml(entry.itemId)}</option>`).join("");
+    attachmentCalibratorSlotEl.value = selectedSlot;
+    for (const input of attachmentCalibratorFieldEls) input.value = String(context.attachment[input.dataset.attachmentField]);
+    attachmentCalibratorLineEl.textContent = formatAttachedWeaponLine(context.attachment);
+  }
+
+  function updateAttachedWeaponVisual(parentItem, attachment){
+    const parentInstance = state.glb.itemInstances.get(parentItem.id);
+    const anchor = parentInstance?.children?.find(child => child.userData?.isAttachedWeapon && child.userData?.attachmentSlot === attachment.slot);
+    if (!anchor) return;
+    applyAttachedWeaponAnchorTransform(anchor, attachment);
+    requestRender();
+  }
+
+  function selectAttachedWeaponForCalibration(parentItemId, slot){
+    state.attachmentCalibratorOpen = true;
+    state.attachmentCalibratorSelection = { parentItemId, slot };
+    if (state.selectedId !== parentItemId) selectById(parentItemId);
+    renderAttachmentCalibrator();
+  }
+
+  attachmentCalibratorToggleEl?.addEventListener("click", () => {
+    state.attachmentCalibratorOpen = !state.attachmentCalibratorOpen;
+    renderAttachmentCalibrator();
+  });
+  document.getElementById("attachmentCalibratorClose")?.addEventListener("click", () => {
+    state.attachmentCalibratorOpen = false;
+    renderAttachmentCalibrator();
+  });
+  attachmentCalibratorSlotEl?.addEventListener("change", () => {
+    const parentItem = getSelected();
+    if (parentItem) state.attachmentCalibratorSelection = { parentItemId: parentItem.id, slot: Number(attachmentCalibratorSlotEl.value) };
+    renderAttachmentCalibrator();
+  });
+  for (const input of attachmentCalibratorFieldEls){
+    input.addEventListener("input", () => {
+      const context = getAttachmentCalibratorContext();
+      const value = Number(input.value);
+      if (!context || !Number.isFinite(value)) return;
+      context.attachment[input.dataset.attachmentField] = value;
+      updateAttachedWeaponVisual(context.parentItem, context.attachment);
+      attachmentCalibratorLineEl.textContent = formatAttachedWeaponLine(context.attachment);
+    });
+  }
+  document.getElementById("attachmentCalibratorCopy")?.addEventListener("click", async () => {
+    const line = attachmentCalibratorLineEl.textContent || "";
+    if (!line) return;
+    try { await navigator.clipboard.writeText(line); statusEl.textContent = "Attached weapon line copied."; }
+    catch { statusEl.textContent = "Clipboard unavailable; select and copy the displayed line."; }
+  });
+
   function getGlbItemVisualSignature(it, graphic){
-    return [String(graphic || "").trim(), String(it?.typeId ?? ""), getItemTint(it)].join("|");
+    const rawTypeId = String(it?.kv?.type_id || it?.typeId || "");
+    const typeId = toDefIdFromMisTypeId(rawTypeId);
+    return [String(graphic || "").trim(), typeId, getItemTint(it), getAttachedWeaponSignature(typeId)].join("|");
   }
 
   function disposeGlbInstanceMaterials(instance){
@@ -12715,12 +12978,19 @@ end group
           const template = await loadGraphicTemplate(graphic);
           if (generation !== state.glb.documentGeneration) return;
           if (!template) continue;
-          instance = template.clone(true);
-          cloneGlbMaterials(instance);
-          applySolidTintToGlbObject(instance, getItemTint(it));
-          applyWaypointColorToGlbObject(instance, it);
-          applyAreaTriggerColorToGlbObject(instance, it);
-          applyWaypointOutlineToGlbObject(instance, it);
+          instance = new state.glb.THREE.Group();
+          instance.name = `ITEM_POSE_${it.id}`;
+          const parentVisual = template.clone(true);
+          parentVisual.name = `ITEM_MODEL_${it.id}`;
+          parentVisual.userData.isPrimaryItemVisual = true;
+          cloneGlbMaterials(parentVisual);
+          applySolidTintToGlbObject(parentVisual, getItemTint(it));
+          applyGlbModelCorrection(parentVisual, getItemGraphicScale(it));
+          instance.add(parentVisual);
+          applyWaypointColorToGlbObject(parentVisual, it);
+          applyAreaTriggerColorToGlbObject(parentVisual, it);
+          applyWaypointOutlineToGlbObject(parentVisual, it);
+          if (!await addAttachedWeaponVisuals(instance, it, generation)) return;
           instance.userData.itemId = it.id;
           instance.userData.graphic = graphic;
           instance.userData.tint = getItemTint(it);
@@ -12944,6 +13214,17 @@ end group
     return null;
   }
 
+  function getAttachedWeaponPickFromObject3D(obj){
+    let cur = obj;
+    let slot = null;
+    while (cur){
+      if (slot == null && cur.userData?.isAttachedWeapon && Number.isFinite(Number(cur.userData?.attachmentSlot))) slot = Number(cur.userData.attachmentSlot);
+      if (slot != null && Object.prototype.hasOwnProperty.call(cur.userData || {}, "itemId")) return { parentItemId: cur.userData.itemId, slot };
+      cur = cur.parent;
+    }
+    return null;
+  }
+
   function pickItemFromGlbAt(sx, sy){
     if (!state.glb.ready || !state.glb.THREE || !state.glb.camera) return null;
     const rect = cv.getBoundingClientRect();
@@ -12965,6 +13246,15 @@ end group
       );
     } else state.glb.raycaster.setFromCamera(state.glb.pointerNdc, state.glb.camera);
     const hits = state.glb.raycaster.intersectObjects(Array.from(state.glb.itemInstances.values()), true);
+    state.glb.lastAttachmentPick = null;
+    if (state.attachmentCalibratorOpen){
+      for (const hit of hits){
+        const attachmentPick = getAttachedWeaponPickFromObject3D(hit.object);
+        if (!attachmentPick) continue;
+        const parentItem = getItemByIdFast(attachmentPick.parentItemId);
+        if (parentItem){ state.glb.lastAttachmentPick = attachmentPick; return parentItem; }
+      }
+    }
     for (const hit of hits){
       const itemId = getItemIdFromObject3D(hit.object);
       if (itemId == null) continue;
@@ -13947,6 +14237,13 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }
 
     const picked = pickItemAtCanvas(sx,sy);
+    const attachedPick = state.glb.lastAttachmentPick;
+    if (attachedPick && picked?.id === attachedPick.parentItemId){
+      selectAttachedWeaponForCalibration(attachedPick.parentItemId, attachedPick.slot);
+      state.glb.lastAttachmentPick = null;
+      e.preventDefault();
+      return;
+    }
 
     state.draggingItem = false;
     state.boxSelecting = false;
@@ -14277,7 +14574,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       statusEl.textContent = "Local mode detected: open File > Set Editor Folder to load catalogs.";
       defStatusEl.textContent = "";
     } else {
-      await Promise.all([loadGameStrings(), loadWeaponDefs(), loadWpNames()]);
+      await Promise.all([loadGameStrings(), loadWeaponDefs(), loadAttachedWeaponDefs(), loadWpNames()]);
     }
 
     const stringInfo = state.gameStrings.size
