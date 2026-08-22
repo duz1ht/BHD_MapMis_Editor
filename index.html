@@ -4110,6 +4110,7 @@ end group
           arrow: 0,
           drawCircle: 0,
           attrib: [],
+          addEweaps: [],
           kv: {},
         };
         continue;
@@ -4139,6 +4140,11 @@ end group
         const k = mKV[1].toLowerCase();
         let v = mKV[2].trim();
         if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1,-1);
+
+        if (k === "addeweap"){
+          const parts = v.split(/\s+/);
+          if (parts.length >= 2) cur.addEweaps.push({ register: parts[0], itemId: parts[1] });
+        }
 
         cur.kv[k] = v;
 
@@ -4176,6 +4182,7 @@ end group
         ...def,
         id,
         attrib: Array.isArray(def.attrib) ? def.attrib.slice() : [],
+        addEweaps: Array.isArray(def.addEweaps) ? def.addEweaps.map(entry => ({ ...entry })) : [],
         kv: { ...(def.kv || {}) },
       });
     };
@@ -4193,6 +4200,14 @@ end group
 
       const supplementKv = supplement.kv || {};
       const attrib = Array.from(new Set([...(base.attrib || []), ...(supplement.attrib || [])]));
+      const addEweaps = [];
+      const attachmentKeys = new Set();
+      for (const entry of [...(base.addEweaps || []), ...(supplement.addEweaps || [])]){
+        const key = `${String(entry?.register || "").toLowerCase()}:${String(entry?.itemId || "")}`;
+        if (!entry?.register || !entry?.itemId || attachmentKeys.has(key)) continue;
+        attachmentKeys.add(key);
+        addEweaps.push({ ...entry });
+      }
       mergedById.set(id, {
         ...base,
         id,
@@ -4204,6 +4219,7 @@ end group
         arrow: Object.prototype.hasOwnProperty.call(supplementKv, "arrow") ? supplement.arrow : base.arrow,
         drawCircle: Object.prototype.hasOwnProperty.call(supplementKv, "draw_circle") ? supplement.drawCircle : base.drawCircle,
         attrib,
+        addEweaps,
         kv: { ...(base.kv || {}), ...supplementKv },
       });
     }
@@ -4580,6 +4596,8 @@ end group
     if (preview.object) preview.scene.remove(preview.object);
     preview.object = template.clone(true);
     cloneGlbMaterials(preview.object);
+    await attachDefinitionChildren(preview.object, def);
+    if (revision !== preview.revision) return;
     applySolidTintToGlbObject(preview.object, def.tint);
     applyItemModelTransform(preview.object, 0, 0, def.graphicScale);
     preview.object.visible = true;
@@ -11604,10 +11622,23 @@ end group
     const subtype = String.fromCharCode(r.u8(2));
     if (!["GPM", "GPS", "GPP"].includes(magic) || r.u8(3) !== 2) throw new Error(`Unsupported 3DI format: ${magic || "unknown"}`);
     const skinned = subtype === "S" || subtype === "P";
-    const model = { vertices: [], normals: [], triangles: [], materials: [], textures: [] };
+    const model = { vertices: [], normals: [], triangles: [], materials: [], textures: [], controlRegisters: [] };
     const lodCount = r.u32(0x1c);
     if (lodCount < 1 || lodCount > 4) throw new Error(`Invalid 3DI LOD count: ${lodCount}`);
-    let pos = 236 + r.u32(0xb0) * 48;
+    const controlCount = r.u32(0xb0);
+    let pos = 236;
+    r.need(pos, controlCount * 48, "Truncated 3DI control registers");
+    for (let i = 0; i < controlCount; i++, pos += 48){
+      const name = r.string(pos + 32, 16);
+      if (!name) continue;
+      model.controlRegisters.push({
+        name,
+        key: name.toLowerCase(),
+        position: [r.view.getInt32(pos, true) / 65536, r.view.getInt32(pos + 4, true) / 65536, r.view.getInt32(pos + 8, true) / 65536],
+        pitch: r.i16(pos + 12) * Math.PI / 32768,
+        heading: r.i16(pos + 14) * Math.PI / 32768,
+      });
+    }
     r.need(pos, 4); const textureCount = r.u32(pos); pos += 4;
     if (textureCount > 10000) throw new Error("Invalid 3DI texture count");
     for (let i = 0; i < textureCount; i++, pos += 60) model.textures.push({ name: r.string(pos, 36), id: r.i16(pos + 0x24) });
@@ -11739,6 +11770,15 @@ end group
     const model = parseThreeDi(buffer, 0);
     const textures = await loadThreeDiTextures(model, graphic);
     const root = new THREE.Group(); root.name = `${graphic}_3DI`;
+    for (const control of model.controlRegisters){
+      const socket = new THREE.Group();
+      socket.name = `__3DI_CONTROL_${control.name}`;
+      socket.userData.controlRegister = control.name;
+      socket.userData.controlRegisterKey = control.key;
+      socket.position.set(-control.position[0], control.position[1], control.position[2]);
+      socket.rotation.set(control.pitch, 0, -control.heading);
+      root.add(socket);
+    }
     const trianglesByMaterial = new Map();
     for (const triangle of model.triangles){ if (!trianglesByMaterial.has(triangle.material)) trianglesByMaterial.set(triangle.material, []); trianglesByMaterial.get(triangle.material).push(triangle); }
     for (const [materialIndex, triangles] of trianglesByMaterial){
@@ -11851,6 +11891,59 @@ end group
         addLog(`[3d_items] GLB missing or invalid: ${path}`);
       }
       return placeholder;
+    }
+  }
+
+  function findControlRegisterObject(root, registerName){
+    const wanted = String(registerName || "").trim().toLowerCase();
+    let found = null;
+    root?.traverse?.((object) => {
+      if (!found && object?.userData?.controlRegisterKey === wanted) found = object;
+    });
+    return found;
+  }
+
+  async function attachDefinitionChildren(root, def, ancestry = new Set()){
+    const attachments = Array.isArray(def?.addEweaps) ? def.addEweaps : [];
+    if (!root || !attachments.length) return;
+    const defId = String(def?.id || def?.typeId || "").trim();
+    const nextAncestry = new Set(ancestry);
+    if (defId) nextAncestry.add(defId);
+
+    for (const attachment of attachments){
+      const childId = String(attachment?.itemId || "").trim();
+      const registerName = String(attachment?.register || "").trim();
+      if (!childId || !registerName) continue;
+      if (nextAncestry.has(childId)){
+        addLog(`[3d_items] attachment cycle ignored: ${defId || "<unknown>"} -> ${childId}`);
+        continue;
+      }
+      const childDef = state.defsById.get(childId);
+      if (!childDef){
+        addLog(`[3d_items] attachment item ${childId} not found for ${def?.graphic || defId}`);
+        continue;
+      }
+      const childGraphic = String(childDef.graphic || "").trim();
+      if (!childGraphic){
+        addLog(`[3d_items] attachment item ${childId} has no graphic`);
+        continue;
+      }
+      const socket = findControlRegisterObject(root, registerName);
+      if (!socket){
+        addLog(`[3d_items] control register ${registerName} not found in ${def?.graphic || defId}`);
+        continue;
+      }
+      const childTemplate = await loadGraphicTemplate(childGraphic);
+      if (!childTemplate || childTemplate.userData?.missingGraphic){
+        addLog(`[3d_items] attachment graphic unavailable: ${childGraphic}`);
+        continue;
+      }
+      const child = childTemplate.clone(true);
+      cloneGlbMaterials(child);
+      child.userData.attachedItemId = childId;
+      child.userData.attachedToRegister = registerName;
+      await attachDefinitionChildren(child, childDef, nextAncestry);
+      socket.add(child);
     }
   }
 
@@ -12542,6 +12635,8 @@ end group
           if (!template) continue;
           instance = template.clone(true);
           cloneGlbMaterials(instance);
+          await attachDefinitionChildren(instance, getDefForItem(it));
+          if (generation !== state.glb.documentGeneration) return;
           applySolidTintToGlbObject(instance, getItemTint(it));
           applyWaypointColorToGlbObject(instance, it);
           applyAreaTriggerColorToGlbObject(instance, it);
