@@ -4389,15 +4389,15 @@ end group
     if (!state.editorFolderHandle) return null;
     try{
       let dir = state.editorFolderHandle;
-      for (const part of ["resources", "3d_items"]) dir = await dir.getDirectoryHandle(part);
+      for (const part of ["resources", "BHD", "3d_items"]) dir = await dir.getDirectoryHandle(part);
       const files = new Set();
       for await (const [fileName, handle] of dir.entries()){
-        if (handle.kind === "file" && /\.(?:3di|glb)$/i.test(fileName)){
+        if (handle.kind === "file" && /\.(?:3di|glb|tga|dds|pcx)$/i.test(fileName)){
           files.add(fileName.toLowerCase());
           state.available3dFiles.set(fileName.toLowerCase(), fileName);
         }
       }
-      addLog(`[3d_items] folder indexed: ${files.size} 3DI/GLB files`);
+      addLog(`[3d_items] folder indexed: ${files.size} 3DI/GLB/texture files`);
       return files;
     } catch (err){
       addLog(`[3d_items] unable to index folder: ${err?.message || err}`);
@@ -11596,14 +11596,13 @@ end group
     const subtype = String.fromCharCode(r.u8(2));
     if (!["GPM", "GPS", "GPP"].includes(magic) || r.u8(3) !== 2) throw new Error(`Unsupported 3DI format: ${magic || "unknown"}`);
     const skinned = subtype === "S" || subtype === "P";
-    const model = { vertices: [], normals: [], triangles: [], materials: [] };
+    const model = { vertices: [], normals: [], triangles: [], materials: [], textures: [] };
     const lodCount = r.u32(0x1c);
     if (lodCount < 1 || lodCount > 4) throw new Error(`Invalid 3DI LOD count: ${lodCount}`);
     let pos = 236 + r.u32(0xb0) * 48;
     r.need(pos, 4); const textureCount = r.u32(pos); pos += 4;
     if (textureCount > 10000) throw new Error("Invalid 3DI texture count");
-    const textures = [];
-    for (let i = 0; i < textureCount; i++, pos += 60) textures.push({ name: r.string(pos, 36), id: r.i16(pos + 0x24) });
+    for (let i = 0; i < textureCount; i++, pos += 60) model.textures.push({ name: r.string(pos, 36), id: r.i16(pos + 0x24) });
     r.need(pos, 136, "Truncated 3DI CDTA header"); const cdtaSize = r.u32(pos + 4); r.need(pos + 136, cdtaSize); pos += 136 + cdtaSize;
     const vertexCount = r.u32(0x88), stride = subtype === "M" ? 44 : subtype === "S" ? 48 : 60, uvOffset = subtype === "P" ? 44 : subtype === "S" ? 32 : 28;
     r.need(pos, vertexCount * stride, "Truncated 3DI vertex data");
@@ -11640,14 +11639,97 @@ end group
     }
     for (let i = 0; i < materialCount; i++, q += 152){
       r.need(q, 152, "Truncated 3DI material");
-      model.materials.push({ name: r.string(q, 36) || `material_${i}`, flags: r.u32(q + 0x10), alphaCutoff: r.u8(q + 0x3b), blendMode: r.u8(q + 0x3c) });
+      const refs = [0, 1, 2, 3].map(index => { const value = r.u8(q + 0x28 + index); return value > 127 ? value - 256 : value; });
+      const tag0 = r.u8(q + 0x38), tag1 = r.u8(q + 0x39);
+      const textureId = tag0 === 1 || tag0 === 2 ? refs[0] : tag1 === 2 ? refs[3] : -1;
+      model.materials.push({ name: r.string(q, 36) || `material_${i}`, flags: r.u32(q + 0x10), alphaCutoff: r.u8(q + 0x3b), blendMode: r.u8(q + 0x3c), texture: model.textures.findIndex(entry => entry.id === textureId) });
     }
     return model;
   }
 
-  function createThreeDiObject(buffer, graphic){
+  function decodeThreeDiPcx(buffer){
+    const r = new ThreeDiReader(buffer);
+    if (r.u8(0) !== 10 || r.u8(2) !== 1 || r.u8(3) !== 8) throw new Error("Unsupported PCX");
+    const width = r.u16(8) - r.u16(4) + 1, height = r.u16(10) - r.u16(6) + 1, planes = r.u8(65), lineSize = r.u16(66);
+    if (planes !== 1 || r.length < 897 || r.u8(r.length - 769) !== 12) throw new Error("Unsupported paletted PCX");
+    let offset = 128, cursor = 0; const raw = new Uint8Array(lineSize * height);
+    while (cursor < raw.length && offset < r.length - 769){ let value = r.u8(offset++), count = 1; if ((value & 0xc0) === 0xc0){ count = value & 63; value = r.u8(offset++); } raw.fill(value, cursor, Math.min(cursor + count, raw.length)); cursor += count; }
+    const palette = new Uint8Array(buffer, r.length - 768, 768), pixels = new Uint8Array(width * height * 4);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++){ const value = raw[y * lineSize + x], out = (y * width + x) * 4; pixels[out] = palette[value * 3]; pixels[out + 1] = palette[value * 3 + 1]; pixels[out + 2] = palette[value * 3 + 2]; pixels[out + 3] = value ? 255 : 0; }
+    return { width, height, pixels };
+  }
+
+  function decodeThreeDiDds(buffer){
+    const r = new ThreeDiReader(buffer);
+    if (r.string(0, 4) !== "DDS") throw new Error("Invalid DDS");
+    const height = r.u32(12), width = r.u32(16), format = r.string(84, 4), pixels = new Uint8Array(width * height * 4), blockSize = format === "DXT1" ? 8 : 16;
+    if (!["DXT1", "DXT3", "DXT5"].includes(format)) throw new Error(`Unsupported DDS format ${format || "uncompressed"}`);
+    const rgb565 = value => [((value >> 11) & 31) * 255 / 31, ((value >> 5) & 63) * 255 / 63, (value & 31) * 255 / 31];
+    const put = (x, y, color, alpha) => { if (x >= width || y >= height) return; const out = (y * width + x) * 4; pixels[out] = color[0]; pixels[out + 1] = color[1]; pixels[out + 2] = color[2]; pixels[out + 3] = alpha; };
+    let offset = 128;
+    for (let by = 0; by < height; by += 4) for (let bx = 0; bx < width; bx += 4, offset += blockSize){
+      r.need(offset, blockSize, "Truncated DDS block"); let alpha = Array(16).fill(255), colorOffset = offset;
+      if (format === "DXT3"){ for (let i = 0; i < 16; i++){ const value = r.u8(offset + (i >> 1)); alpha[i] = ((i & 1) ? value >> 4 : value & 15) * 17; } colorOffset += 8; }
+      else if (format === "DXT5"){
+        const a0 = r.u8(offset), a1 = r.u8(offset + 1), table = [a0, a1]; let bits = 0n;
+        for (let i = 0; i < 6; i++) bits |= BigInt(r.u8(offset + 2 + i)) << BigInt(i * 8);
+        if (a0 > a1) for (let i = 1; i <= 6; i++) table.push(((7 - i) * a0 + i * a1) / 7); else { for (let i = 1; i <= 4; i++) table.push(((5 - i) * a0 + i * a1) / 5); table.push(0, 255); }
+        for (let i = 0; i < 16; i++) alpha[i] = table[Number((bits >> BigInt(i * 3)) & 7n)]; colorOffset += 8;
+      }
+      const c0 = r.u16(colorOffset), c1 = r.u16(colorOffset + 2), colors = [rgb565(c0), rgb565(c1)];
+      if (c0 > c1 || format !== "DXT1"){ colors.push(colors[0].map((value, i) => (2 * value + colors[1][i]) / 3)); colors.push(colors[0].map((value, i) => (value + 2 * colors[1][i]) / 3)); }
+      else { colors.push(colors[0].map((value, i) => (value + colors[1][i]) / 2)); colors.push([0, 0, 0]); }
+      const indices = r.u32(colorOffset + 4);
+      for (let i = 0; i < 16; i++){ const colorIndex = (indices >> (i * 2)) & 3; put(bx + i % 4, by + (i >> 2), colors[colorIndex], format === "DXT1" && c0 <= c1 && colorIndex === 3 ? 0 : alpha[i]); }
+    }
+    return { width, height, pixels };
+  }
+
+  function decodeThreeDiTexture(buffer, extension){
+    if (extension === "tga"){
+      const r = new ThreeDiReader(buffer), type = r.u8(2), width = r.u16(12), height = r.u16(14), bpp = r.u8(16), descriptor = r.u8(17), bytes = bpp >> 3;
+      if (![2, 3, 10, 11].includes(type) || ![8, 24, 32].includes(bpp) || !width || !height || ((type === 3 || type === 11) && bpp !== 8)) throw new Error("Unsupported TGA");
+      let offset = 18 + r.u8(0), cursor = 0; const pixels = new Uint8Array(width * height * 4), topOrigin = !!(descriptor & 0x20), rightOrigin = !!(descriptor & 0x10);
+      const readPixel = () => { if (bpp === 8){ const value = r.u8(offset++); return [value, value, value, 255]; } const blue = r.u8(offset++), green = r.u8(offset++), red = r.u8(offset++), alpha = bytes === 4 ? r.u8(offset++) : 255; return [red, green, blue, alpha]; };
+      const put = color => { const x = cursor % width, y = Math.floor(cursor / width), outX = rightOrigin ? width - 1 - x : x, outY = topOrigin ? y : height - 1 - y; pixels.set(color, (outY * width + outX) * 4); cursor += 1; };
+      while (cursor < width * height){
+        if (type === 2 || type === 3) put(readPixel());
+        else { const header = r.u8(offset++), count = (header & 127) + 1; if (header & 128){ const color = readPixel(); for (let i = 0; i < count && cursor < width * height; i++) put(color); } else for (let i = 0; i < count && cursor < width * height; i++) put(readPixel()); }
+      }
+      return { width, height, pixels };
+    }
+    if (extension === "pcx") return decodeThreeDiPcx(buffer);
+    if (extension === "dds") return decodeThreeDiDds(buffer);
+    throw new Error(`Unsupported texture extension .${extension}`);
+  }
+
+  async function loadThreeDiTextures(model, graphic){
+    const { THREE } = state.glb, loaded = [];
+    for (const entry of model.textures){
+      const baseName = String(entry.name || "").split(/[\\/]/).pop(), stem = baseName.replace(/\.[^.]+$/, ""), candidates = [];
+      for (const name of [baseName, `${stem}.tga`, `${stem}.dds`, `${stem}.pcx`]) if (name && !candidates.some(candidate => candidate.toLowerCase() === name.toLowerCase())) candidates.push(name);
+      let texture = null, lastError = null;
+      for (const candidate of candidates){
+        const actualName = state.available3dFiles.get(candidate.toLowerCase()) || candidate;
+        try {
+          const buffer = await loadBinaryResource(`resources/BHD/3d_items/${actualName.split("/").map(encodeURIComponent).join("/")}`);
+          if (!buffer) continue;
+          const extension = actualName.toLowerCase().split(".").pop(), image = decodeThreeDiTexture(buffer, extension);
+          texture = new THREE.DataTexture(image.pixels, image.width, image.height, THREE.RGBAFormat, THREE.UnsignedByteType);
+          texture.name = actualName; texture.colorSpace = THREE.SRGBColorSpace; texture.flipY = true; texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.needsUpdate = true;
+          break;
+        } catch (err){ lastError = err; }
+      }
+      if (!texture) addLog(`[3d_items] texture unavailable for ${graphic}: ${baseName || "<unnamed>"}${lastError ? ` (${lastError.message})` : ""}`);
+      loaded.push(texture);
+    }
+    return loaded;
+  }
+
+  async function createThreeDiObject(buffer, graphic){
     const { THREE } = state.glb;
     const model = parseThreeDi(buffer, 0);
+    const textures = await loadThreeDiTextures(model, graphic);
     const root = new THREE.Group(); root.name = `${graphic}_3DI`;
     const trianglesByMaterial = new Map();
     for (const triangle of model.triangles){ if (!trianglesByMaterial.has(triangle.material)) trianglesByMaterial.set(triangle.material, []); trianglesByMaterial.get(triangle.material).push(triangle); }
@@ -11666,7 +11748,8 @@ end group
       geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3)); geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2)); geometry.computeBoundingSphere();
       const source = model.materials[materialIndex] || {};
       const blended = source.blendMode === 2 || source.blendMode === 3;
-      const material = new THREE.MeshPhongMaterial({ color: 0xcccccc, shininess: 18, side: THREE.DoubleSide, transparent: blended, opacity: 1, alphaTest: (source.flags & 0x06) ? source.alphaCutoff / 255 : 0 });
+      const map = source.texture >= 0 ? textures[source.texture] || null : null;
+      const material = new THREE.MeshPhongMaterial({ color: map ? 0xffffff : 0xcccccc, map, shininess: 18, side: THREE.DoubleSide, transparent: blended, opacity: 1, alphaTest: (source.flags & 0x06) ? source.alphaCutoff / 255 : 0 });
       material.name = source.name || `material_${materialIndex}`;
       root.add(new THREE.Mesh(geometry, material));
     }
@@ -11690,7 +11773,7 @@ end group
       if (!assetData) throw new Error(`Failed to read 3D asset: ${path}`);
 
       if (threeDiName){
-        const root = createThreeDiObject(assetData, stem);
+        const root = await createThreeDiObject(assetData, stem);
         state.glb.templateByGraphic.set(key, root);
         return root;
       }
