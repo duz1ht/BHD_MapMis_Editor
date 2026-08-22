@@ -316,7 +316,7 @@
       gap:10px;
     }
     #canvasModeToolbar{ left:10px; }
-    #canvasViewToolbar{ right:10px; }
+    #canvasViewToolbar{ right:10px; z-index:25; }
     .toolbarSplit{ display:flex; gap:0; }
     .toolbarSplit .modeBtn:first-child{ border-radius:6px 0 0 6px; }
     .toolbarSplit .modeBtn:last-child{ min-width:24px; padding:0 5px; border-left:0; border-radius:0 6px 6px 0; }
@@ -544,7 +544,7 @@
       position:absolute;
       top:42px;
       left:148px;
-      z-index:11;
+      z-index:26;
       min-width:180px;
       max-height:min(68vh, 430px);
       display:none;
@@ -578,7 +578,7 @@
       position:absolute;
       top:42px;
       left:246px;
-      z-index:11;
+      z-index:26;
       min-width:330px;
       max-width:min(56vw, 520px);
       max-height:min(72vh, 640px);
@@ -730,6 +730,36 @@
     #tilePropertiesOverlay .modalBody{padding:16px;max-height:70vh;overflow:auto;}
     #tilePropertiesOverlay dd{margin:0;overflow-wrap:anywhere;}
     #tilePropertiesOverlay .dangerText{color:var(--danger,#d86161);}
+    #tilePalette{
+      position:absolute;
+      top:44px;
+      right:10px;
+      bottom:10px;
+      z-index:24;
+      width:min(304px,calc(100% - 20px));
+      display:none;
+      grid-template-rows:auto minmax(0,1fr);
+      overflow:hidden;
+      color:var(--text);
+      background:var(--panel);
+      border:1px solid var(--line-heavy);
+      border-radius:var(--radius-md);
+      box-shadow:var(--shadow-md);
+    }
+    #tilePalette.open{display:grid;}
+    #tilePaletteHeader{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);}
+    #tilePaletteTitle{font-size:12px;font-weight:700;color:var(--text-strong);}
+    #tilePaletteAtlas{max-width:155px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-subtle);font-size:11px;}
+    #tilePaletteBody{min-height:80px;overflow:auto;padding:8px;}
+    #tilePaletteGrid{display:grid;gap:4px;place-content:center;min-height:100%;}
+    .tilePaletteTile{position:relative;min-width:0;min-height:0;aspect-ratio:1;padding:0;overflow:hidden;border:1px solid var(--line-strong);border-radius:2px;background:var(--canvas);cursor:pointer;}
+    .tilePaletteTile:hover{border-color:var(--accent);}
+    .tilePaletteTile.selected{border:2px solid var(--accent);box-shadow:0 0 0 2px var(--accent-glow);}
+    .tilePaletteTile.paletteSelected{border:2px solid #f0c84b;box-shadow:0 0 0 2px rgba(240,200,75,.28);}
+    .tilePaletteTile.inserting{border:3px solid #55d98b;box-shadow:0 0 0 3px rgba(85,217,139,.35);}
+    .tilePaletteTile canvas{display:block;width:100%;height:100%;image-rendering:auto;}
+    .tilePaletteCount{position:absolute;top:1px;right:1px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:var(--accent);color:#fff;font:bold 10px/16px system-ui,sans-serif;text-align:center;pointer-events:none;}
+    #tilePaletteMessage{padding:12px;color:var(--text-subtle);font-size:12px;line-height:1.4;}
     #insertOverlay{
       position:absolute; inset:0; background:var(--overlay); display:none;
       align-items:center; justify-content:center; z-index:58; padding:18px;
@@ -1633,6 +1663,17 @@
       <div id="sceneInfoHint">Show Scene Info (Home)</div>
       <canvas id="gizmoCanvas" aria-hidden="true"></canvas>
 
+      <section id="tilePalette" aria-labelledby="tilePaletteTitle" aria-hidden="true">
+        <header id="tilePaletteHeader">
+          <span id="tilePaletteTitle">Tile Palette</span>
+          <span id="tilePaletteAtlas"></span>
+        </header>
+        <div id="tilePaletteBody">
+          <div id="tilePaletteGrid"></div>
+          <div id="tilePaletteMessage">Load a mission with terrain tiles to see its palette.</div>
+        </div>
+      </section>
+
       <div id="canvasShowPanel" aria-hidden="true">
         <div id="canvasShowPanelControls">
           <button id="hideAllShowOptionsBtn" type="button">Hide All</button>
@@ -1718,7 +1759,7 @@
         <section class="floatingPanelSection">
           <div class="floatingPanelTitle">Rotation Snap</div>
           <div class="floatingPanelFields">
-            <label>Angle Increment <input id="rotationSnap" type="number" min="0.1" step="1" value="15" title="Rotation snap, degrees"></label>
+            <label>Angle Increment <select id="rotationSnap" title="Rotation snap, degrees"><option value="5">5º</option><option value="10">10º</option><option value="15">15º</option><option value="30">30º</option><option value="45">45º</option><option value="60">60º</option><option value="90" selected>90º</option><option value="180">180º</option></select></label>
             <label>Mode <select id="rotationSnapMode"><option value="relative">Relative increment</option><option value="absolute">Absolute angle</option></select></label>
           </div>
         </section>
@@ -2506,6 +2547,9 @@ end group
     pastePreviewWorld: null,
     insertModeActive: false,
     tileEditModeActive: false,
+    tilePaletteSelectedIndex: null,
+    tileInsertIndex: null,
+    tileInsertFlags: 0,
     insertDefinitionId: "",
     insertCategory: "foliage",
     insertSearchTerm: "",
@@ -2527,7 +2571,7 @@ end group
     transformPivot: "center",
     gridSnapEnabled: false,
     rotationSnapEnabled: false,
-    rotationSnap: 15,
+    rotationSnap: 90,
     rotationSnapMode: "relative",
     hoveredGizmoHandle: null,
 
@@ -2567,6 +2611,7 @@ end group
     redoStack: [],
     undoCurrentText: "",
     undoCurrentTilFlags: [],
+    undoCurrentTilRecords: [],
     undoCaptureTimer: 0,
     undoRestoring: false,
     undoTransactionDepth: 0,
@@ -2638,6 +2683,9 @@ end group
       dragPreviewIds: new Set(),
       dragPreviewGroup: null,
       dragPreviewMeshes: new Map(),
+      insertPreviewMesh: null,
+      insertPreviewIndex: null,
+      insertPreviewWorld: null,
       pendingOverlayRebuild: 0,
       dirty: false,
     },
@@ -2778,6 +2826,11 @@ end group
   const misRealtimeClearBtn = document.getElementById("misRealtimeClearBtn");
   const exportBtn = document.getElementById("exportBtn");
   const appLayoutEl = document.getElementById("appLayout");
+  const tilePaletteEl = document.getElementById("tilePalette");
+  const tilePaletteBodyEl = document.getElementById("tilePaletteBody");
+  const tilePaletteGridEl = document.getElementById("tilePaletteGrid");
+  const tilePaletteMessageEl = document.getElementById("tilePaletteMessage");
+  const tilePaletteAtlasEl = document.getElementById("tilePaletteAtlas");
   const sidebarCloseBtn = document.getElementById("sidebarCloseBtn");
   const sidebarOpenBtn = document.getElementById("sidebarOpenBtn");
   const showPanelBtn = document.getElementById("showPanelBtn");
@@ -4687,6 +4740,8 @@ end group
     const willEnable = !state.tileEditModeActive;
     if(willEnable && (state.insertModeActive || insertOverlay.classList.contains("open"))) stopInsertMode("");
     state.tileEditModeActive = willEnable;
+    if(!willEnable)cancelTileInsertMode("");
+    renderTilePalette();
     if(willEnable){
       const tileIds=new Set(state.items.filter(isMapTileItem).map(it=>it.id));
       state.multiSelectedIds=new Set(Array.from(state.multiSelectedIds).filter(id=>tileIds.has(id)));
@@ -6494,6 +6549,7 @@ end group
     state.redoStack = [];
     state.undoCurrentText = text == null ? getCurrentMisText() : text;
     state.undoCurrentTilFlags = state.mapTiles.records.map(record=>record.flags);
+    state.undoCurrentTilRecords = structuredClone(state.mapTiles.records);
     state.undoRestoring = false;
     state.undoTransactionDepth = 0;
   }
@@ -6504,17 +6560,20 @@ end group
     if (state.undoRestoring || !state.rawText) return;
     const currentText = getCurrentMisText();
     const currentTilFlags = state.mapTiles.records.map(record=>record.flags);
+    const currentTilRecords = structuredClone(state.mapTiles.records);
     if (!state.undoCurrentText){
       state.undoCurrentText = currentText;
       state.undoCurrentTilFlags = currentTilFlags;
+      state.undoCurrentTilRecords = currentTilRecords;
       return;
     }
     if (currentText === state.undoCurrentText && currentTilFlags.length === state.undoCurrentTilFlags.length && currentTilFlags.every((flag,index)=>flag===state.undoCurrentTilFlags[index])) return;
-    state.undoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice()});
+    state.undoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice(),tilRecords:structuredClone(state.undoCurrentTilRecords)});
     if (state.undoStack.length > UNDO_HISTORY_LIMIT) state.undoStack.shift();
     state.redoStack = [];
     state.undoCurrentText = currentText;
     state.undoCurrentTilFlags = currentTilFlags;
+    state.undoCurrentTilRecords = currentTilRecords;
   }
 
   function scheduleUndoCapture(){
@@ -6549,9 +6608,11 @@ end group
     disposeAreaTriggerVolumes();
     state.areaTriggerVolumes.signature = "";
     state.undoCurrentText = text;
-    const tilFlags=Array.isArray(snapshot?.tilFlags)?snapshot.tilFlags:[],tilChanged=tilFlags.some((flag,index)=>state.mapTiles.records[index]?.flags!==flag);
-    for(let i=0;i<tilFlags.length&&i<state.mapTiles.records.length;i++)state.mapTiles.records[i].flags=tilFlags[i];
+    const tilFlags=Array.isArray(snapshot?.tilFlags)?snapshot.tilFlags:[],tilRecords=Array.isArray(snapshot?.tilRecords)?structuredClone(snapshot.tilRecords):null,tilChanged=!!tilRecords||tilFlags.some((flag,index)=>state.mapTiles.records[index]?.flags!==flag);
+    if(tilRecords){state.mapTiles.records=tilRecords;state.mapTiles.byPosition=new Map(tilRecords.map(record=>[mapTilePositionKey(record.x,record.y),record]));}
+    else for(let i=0;i<tilFlags.length&&i<state.mapTiles.records.length;i++)state.mapTiles.records[i].flags=tilFlags[i];
     state.undoCurrentTilFlags=state.mapTiles.records.map(record=>record.flags);
+    state.undoCurrentTilRecords=structuredClone(state.mapTiles.records);
     if(tilChanged)state.mapTiles.dirty=true;
     state.selectedId = null;
     state.multiSelectedIds.clear();
@@ -6581,7 +6642,7 @@ end group
       statusEl.textContent = "Nothing to undo.";
       return;
     }
-    state.redoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice()});
+    state.redoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice(),tilRecords:structuredClone(state.undoCurrentTilRecords)});
     restoreHistoryText(previousState);
     statusEl.textContent = `Undo complete. ${state.undoStack.length} earlier change${state.undoStack.length === 1 ? "" : "s"} available.`;
   }
@@ -6593,7 +6654,7 @@ end group
       statusEl.textContent = "Nothing to redo.";
       return;
     }
-    state.undoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice()});
+    state.undoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice(),tilRecords:structuredClone(state.undoCurrentTilRecords)});
     if (state.undoStack.length > UNDO_HISTORY_LIMIT) state.undoStack.shift();
     restoreHistoryText(nextState);
     statusEl.textContent = `Redo complete. ${state.redoStack.length} later change${state.redoStack.length === 1 ? "" : "s"} available.`;
@@ -7964,6 +8025,7 @@ end group
   }
 
   function renderList(){
+    renderTilePaletteSelection();
     renderSelectedInfoPanel();
     if (!listEl) return;
     const items = getFilteredItems();
@@ -8475,6 +8537,7 @@ end group
       else undoLastChange();
       return;
     }
+    if (e.key === "Escape" && state.tileInsertIndex!==null){e.preventDefault();cancelTileInsertMode();return;}
     if (e.key === "Escape" && state.modalOpen) closeModalCancel();
     if (e.key === "Escape" && state.sectionEditorOpen) closeSectionEditor();
     if (e.key === "Escape" && state.liveMisOpen) closeLiveMisWindow();
@@ -8967,6 +9030,7 @@ end group
   });
   gridSnapToggleBtn?.addEventListener('click',event=>{
     event.stopPropagation();state.gridSnapEnabled=!state.gridSnapEnabled;syncGridSnapButton();updateItemGizmo();
+    if(state.tileInsertIndex!==null&&state.mapTiles.insertPreviewWorld)updateTileInsertCursorPreview(state.mapTiles.insertPreviewWorld);
   });
   transformSpaceBtn?.addEventListener('click',event=>{
     event.stopPropagation();toggleTransformSpace();
@@ -10374,19 +10438,21 @@ end group
       validateTilCompanionRecords(mapItems);
       if(window.showSaveFilePicker){const handle=(!forcePicker&&state.currentTilFileHandle)?state.currentTilFileHandle:await window.showSaveFilePicker({suggestedName:name,...(misHandle?{startIn:misHandle}:{}),types:[{description:"Terrain Tile Files",accept:{"application/octet-stream":[".til"]}}]});const writable=await handle.createWritable();await writable.write(data);await writable.close();state.currentTilFileHandle=handle;}
       else downloadBinary(name,data);
-      state.mapTiles.dirty=false;state.undoCurrentTilFlags=state.mapTiles.records.map(record=>record.flags);return true;
+      state.mapTiles.dirty=false;state.undoCurrentTilFlags=state.mapTiles.records.map(record=>record.flags);state.undoCurrentTilRecords=structuredClone(state.mapTiles.records);return true;
     }catch(err){if(err?.name==='AbortError')addLog("TIL save canceled; MIS was saved but tile rotations remain unsaved.");else addLog(`ERROR saving .til: ${err?.message||"unknown error"}`);statusEl.textContent="MIS saved, but the companion TIL was not saved.";return false;}
   }
 
   function resetMapTiles(){
     if(state.mapTiles.pendingOverlayRebuild)cancelAnimationFrame(state.mapTiles.pendingOverlayRebuild);
-    clearMapTileDragPreview(false);
+    clearMapTileDragPreview(false);clearTileInsertCursorPreview();
     state.mapTiles.generation++;
     state.mapTiles.overlayTexture?.dispose?.();
     disposeMapTileRenderMesh();
     disposeMapTileBorders();
-    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),pendingOverlayRebuild:0,dirty:false});
+    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,dirty:false});
     state.threeTerrain.dirty=true;
+    state.tilePaletteSelectedIndex=null;cancelTileInsertMode("");
+    renderTilePalette();
   }
 
   function generalTerrainTileName(){
@@ -10406,6 +10472,7 @@ end group
       if(generation!==state.mapTiles.generation)return;
       const parsed=parseTil(tilBuf);state.mapTiles.filename=tilName;state.mapTiles.records=parsed.records;state.mapTiles.headerReserved=parsed.headerReserved;state.mapTiles.byPosition=parsed.byPosition;
       state.undoCurrentTilFlags=parsed.records.map(record=>record.flags);
+      state.undoCurrentTilRecords=structuredClone(parsed.records);
       const sizes=mapItems.map(it=>{const r=parsed.records[Math.trunc(Number(it.kv?.extra_val2))];return r?Math.max(Math.abs(it.x-r.x),Math.abs(it.y-r.y))*2/65536:0;}).filter(v=>Number.isFinite(v)&&v>0).sort((a,b)=>a-b);
       state.mapTiles.tileSize=sizes.length?sizes[Math.floor(sizes.length/2)]:16;
       let atlasBase=generalTerrainTileName();if(!atlasBase)throw new Error("general_information has no Terrain_tile_tga");if(!/\.tga$/i.test(atlasBase))atlasBase+=".tga";
@@ -10413,10 +10480,11 @@ end group
       const atlasPath=`resources/BHD/terrain_tiles/${atlasFile}`,atlasBuf=await loadBinaryResource(atlasPath);if(!atlasBuf)throw new Error(`Unable to load tile atlas '${atlasPath}'`);
       if(generation!==state.mapTiles.generation)return;
       state.mapTiles.atlasName=atlasFile;state.mapTiles.atlasImage=decodeTGA(atlasBuf,true);
+      renderTilePalette();
       addLog(`[map_tiles] loaded ${tilName}: ${parsed.records.length} records, atlas=${atlasFile}`);
       buildMapTileOverlay();
       await syncGlbItems();requestRender();
-    }catch(err){state.mapTiles.error=err?.message||String(err);addLog(`[map_tiles] ERROR: ${state.mapTiles.error}`);statusEl.textContent=state.mapTiles.error;}
+    }catch(err){state.mapTiles.error=err?.message||String(err);renderTilePalette();addLog(`[map_tiles] ERROR: ${state.mapTiles.error}`);statusEl.textContent=state.mapTiles.error;}
   }
 
   function mapTileRecordForItem(it){
@@ -10426,6 +10494,136 @@ end group
 
   function mapTileAtlasIndex(it){
     const index=mapTileRecordForItem(it)?.tileIndex;return Number.isInteger(index)&&index>=0&&index<=255?index:null;
+  }
+
+  function selectedMapTileIndexCounts(){
+    const ids=state.multiSelectedIds.size?state.multiSelectedIds:(state.selectedId!=null?new Set([state.selectedId]):new Set());
+    const counts=new Map();
+    for(const id of ids){
+      const it=getItemByIdFast(id);if(!isMapTileItem(it))continue;
+      const index=mapTileAtlasIndex(it);if(index===null)continue;
+      counts.set(index,(counts.get(index)||0)+1);
+    }
+    return counts;
+  }
+
+  function renderTilePaletteSelection(){
+    if(!tilePaletteGridEl)return;
+    const counts=selectedMapTileIndexCounts();
+    for(const button of tilePaletteGridEl.children){
+      const count=counts.get(Number(button.dataset.tileIndex))||0;
+      button.classList.toggle("selected",count>0);
+      const tileIndex=Number(button.dataset.tileIndex);
+      button.classList.toggle("paletteSelected",state.tilePaletteSelectedIndex===tileIndex&&state.tileInsertIndex!==tileIndex);
+      button.classList.toggle("inserting",state.tileInsertIndex===tileIndex);
+      button.setAttribute("aria-pressed",String(count>0||state.tilePaletteSelectedIndex===tileIndex));
+      button.title=`Tile ${button.dataset.tileIndex}${state.tileInsertIndex===tileIndex?" — insertion mode":count?` — ${count} selected on map`:""}`;
+      let badge=button.querySelector(".tilePaletteCount");
+      if(count){
+        if(!badge){badge=document.createElement("span");badge.className="tilePaletteCount";button.appendChild(badge);}
+        badge.textContent=String(count);
+      }else badge?.remove();
+    }
+  }
+
+  function cancelTileInsertMode(message="Tile insertion canceled."){
+    if(state.tileInsertIndex===null)return false;
+    state.tileInsertIndex=null;state.tileInsertFlags=0;clearTileInsertCursorPreview();cv.style.cursor="";renderTilePaletteSelection();requestRender();
+    if(message)statusEl.textContent=message;
+    return true;
+  }
+
+  function selectMapTilesFromPalette(tileIndex,additive=false){
+    let canceledInsertion=false;
+    if(state.tileInsertIndex!==null){
+      canceledInsertion=true;
+      cancelTileInsertMode("");
+    }else if(state.tilePaletteSelectedIndex===tileIndex){
+      state.tileInsertIndex=tileIndex;state.tileInsertFlags=0;state.selectedId=null;state.multiSelectedIds.clear();state.selectedWaypointMarkerIds.clear();updateWaypointMarkerCount(0);cv.style.cursor="crosshair";
+      renderList();statusEl.textContent=`Tile ${tileIndex} ready to insert. Shift + mouse wheel rotates it; Esc cancels.`;return;
+    }
+    state.tilePaletteSelectedIndex=tileIndex;
+    const matching=state.items.filter(it=>isMapTileItem(it)&&mapTileAtlasIndex(it)===tileIndex);
+    if(!additive)state.multiSelectedIds.clear();
+    for(const it of matching)state.multiSelectedIds.add(it.id);
+    state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null;
+    state.selectedInfoIndex=0;state.selectedWaypointMarkerIds.clear();updateWaypointMarkerCount(0);
+    renderList();requestRender();
+    if(canceledInsertion)statusEl.textContent=`Tile insertion canceled. ${matching.length} matching tile${matching.length===1?"":"s"} selected.`;
+  }
+
+  function setItemKvLine(item,key,value){
+    item.kv[key]=String(value);const pattern=new RegExp(`^\\s*${key}\\b`,"i"),line=`  ${key} ${value}`,index=item.lines.findIndex(raw=>pattern.test(String(raw||"")));
+    if(index>=0)item.lines[index]=line;else item.lines.push(line);
+  }
+
+  function tileInsertPosition(world){
+    if(!world||!state.gridSnapEnabled)return world;
+    const step=gridSizeMeters();
+    return {...world,x:snapValue(world.x,step),y:snapValue(world.y,step)};
+  }
+
+  function insertPaletteTileAt(world){
+    const tileIndex=state.tileInsertIndex,source=state.items.find(isMapTileItem);if(tileIndex===null||!source)return false;
+    const position=tileInsertPosition(world),size=Number(state.mapTiles.tileSize)||16,centerX=position.x,centerY=position.y;
+    const sourceSection=getItemSectionByStartFast(source.start);beginUndoTransaction();
+    try{
+      const recordIndex=state.mapTiles.records.length,record={x:worldToRaw(centerX-size*.5,"x"),y:worldToRaw(centerY+size*.5,"y"),tileIndex,flags:state.tileInsertFlags,reserved:0,recordIndex};
+      state.mapTiles.records.push(record);state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);state.mapTiles.dirty=true;
+      const item=createPastedItemFrom(source,sourceSection,{offset:false,worldPosition:{x:centerX,y:centerY},selectCreated:false,refresh:false});
+      const section=state.sectionBlocks.find(sec=>sec.kind==="item"&&sec.beginLine===item.beginLine);if(section){item.start=section.start;item.end=section.end;}
+      setItemKvLine(item,"extra_val2",recordIndex);if(section){section.kv={...item.kv};section.lines=item.lines.slice();}
+      markItemsChanged({structure:true});buildMapTileOverlay();renderList();renderItemWindow();scheduleLiveMisRefresh();syncGlbItems();requestRender();
+      statusEl.textContent=`Tile ${tileIndex} inserted at ${tileInsertRotationDegrees()}°.`;
+    }finally{endUndoTransaction();}
+    return true;
+  }
+
+  function layoutTilePaletteGrid(){
+    const count=tilePaletteGridEl?.childElementCount||0;
+    if(!count||!tilePaletteBodyEl)return;
+    const style=getComputedStyle(tilePaletteGridEl),gap=parseFloat(style.gap)||0;
+    const width=tilePaletteBodyEl.clientWidth-(parseFloat(getComputedStyle(tilePaletteBodyEl).paddingLeft)||0)-(parseFloat(getComputedStyle(tilePaletteBodyEl).paddingRight)||0);
+    const height=tilePaletteBodyEl.clientHeight-(parseFloat(getComputedStyle(tilePaletteBodyEl).paddingTop)||0)-(parseFloat(getComputedStyle(tilePaletteBodyEl).paddingBottom)||0);
+    if(width<=0||height<=0)return;
+    let bestColumns=1,bestSize=0;
+    for(let columns=1;columns<=count;columns++){
+      const rows=Math.ceil(count/columns);
+      const size=Math.min((width-gap*(columns-1))/columns,(height-gap*(rows-1))/rows);
+      if(size>bestSize){bestSize=size;bestColumns=columns;}
+    }
+    const rows=Math.ceil(count/bestColumns),size=Math.max(1,Math.floor(bestSize));
+    tilePaletteGridEl.style.gridTemplateColumns=`repeat(${bestColumns},${size}px)`;
+    tilePaletteGridEl.style.gridTemplateRows=`repeat(${rows},${size}px)`;
+  }
+
+  const tilePaletteResizeObserver=typeof ResizeObserver!=="undefined"?new ResizeObserver(layoutTilePaletteGrid):null;
+  tilePaletteResizeObserver?.observe(tilePaletteBodyEl);
+  if(!tilePaletteResizeObserver)addEventListener("resize",layoutTilePaletteGrid);
+
+  function renderTilePalette(){
+    if(!tilePaletteEl)return;
+    tilePaletteEl.classList.toggle("open",state.tileEditModeActive);
+    tilePaletteEl.setAttribute("aria-hidden",String(!state.tileEditModeActive));
+    tilePaletteAtlasEl.textContent=state.mapTiles.atlasName||generalTerrainTileName()||"No texture";
+    tilePaletteGridEl.replaceChildren();
+    const img=state.mapTiles.atlasImage;
+    if(!img){
+      tilePaletteMessageEl.hidden=false;
+      tilePaletteMessageEl.textContent=state.mapTiles.error||"Load a mission with terrain tiles to see its palette.";
+      return;
+    }
+    tilePaletteMessageEl.hidden=true;
+    const columns=8,rows=8,cellW=Math.floor(img.w/columns),cellH=Math.floor(img.h/rows);
+    for(let index=0;index<columns*rows;index++){
+      const button=document.createElement("button");button.type="button";button.className="tilePaletteTile";button.dataset.tileIndex=String(index);button.setAttribute("aria-pressed","false");
+      const canvas=document.createElement("canvas");canvas.width=cellW;canvas.height=cellH;canvas.setAttribute("aria-hidden","true");
+      const ctx=canvas.getContext("2d"),data=ctx?.createImageData(cellW,cellH),col=index%columns,row=Math.floor(index/columns);
+      if(data&&ctx){for(let y=0;y<cellH;y++)for(let x=0;x<cellW;x++){const src=((row*cellH+y)*img.w+col*cellW+x)*4,dst=(y*cellW+x)*4;data.data[dst]=img.pixels[src];data.data[dst+1]=img.pixels[src+1];data.data[dst+2]=img.pixels[src+2];data.data[dst+3]=img.pixels[src+3];}ctx.putImageData(data,0,0);}
+      button.append(canvas);button.addEventListener("click",event=>selectMapTilesFromPalette(index,event.shiftKey));tilePaletteGridEl.appendChild(button);
+    }
+    renderTilePaletteSelection();
+    requestAnimationFrame(layoutTilePaletteGrid);
   }
 
   function transformMapTileUv(u,v,flags){
@@ -10447,6 +10645,20 @@ end group
       orientation=Array.from({length:8},(_,candidate)=>candidate).find(candidate=>mapTileOrientationSignature(candidate)===target)??orientation;
     }
     return (Number(flags)&0xf8)|orientation;
+  }
+
+  function tileInsertRotationDegrees(){
+    const orientation=Number(state.tileInsertFlags)&0x07;
+    for(let turns=0;turns<4;turns++)if((rotateMapTileFlags(0,turns)&0x07)===orientation)return turns*90;
+    return 0;
+  }
+
+  function rotateTileInsert(quarterTurns){
+    if(state.tileInsertIndex===null)return false;
+    state.tileInsertFlags=rotateMapTileFlags(state.tileInsertFlags,quarterTurns);
+    if(state.mapTiles.insertPreviewWorld)updateTileInsertCursorPreview(state.mapTiles.insertPreviewWorld);
+    statusEl.textContent=`Tile ${state.tileInsertIndex} ready to insert at ${tileInsertRotationDegrees()}°.`;
+    requestRender();return true;
   }
 
   function mapTileFlagLabels(flags){
@@ -10585,6 +10797,32 @@ end group
     }
     ctx.putImageData(data,0,0);
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;return texture;
+  }
+
+  function clearTileInsertCursorPreview(){
+    const mesh=state.mapTiles.insertPreviewMesh;if(mesh){mesh.parent?.remove?.(mesh);mesh.geometry?.dispose?.();mesh.material?.map?.dispose?.();mesh.material?.dispose?.();}
+    state.mapTiles.insertPreviewMesh=null;state.mapTiles.insertPreviewIndex=null;state.mapTiles.insertPreviewWorld=null;
+  }
+
+  function updateTileInsertCursorPreview(world){
+    const THREE=state.glb.THREE,scene=state.glb.scene,tileIndex=state.tileInsertIndex;if(!world||tileIndex===null||!THREE||!scene){clearTileInsertCursorPreview();requestRender();return;}
+    const cursorWorld=world;world=tileInsertPosition(world);
+    let mesh=state.mapTiles.insertPreviewMesh;
+    if(!mesh||state.mapTiles.insertPreviewIndex!==tileIndex){
+      clearTileInsertCursorPreview();
+      const steps=16,count=(steps+1)*(steps+1),positions=new Float32Array(count*3),uvs=new Float32Array(count*2),indices=[];
+      for(let y=0;y<=steps;y++)for(let x=0;x<=steps;x++){const i=y*(steps+1)+x;uvs[i*2]=x/steps;uvs[i*2+1]=y/steps;}
+      for(let y=0;y<steps;y++)for(let x=0;x<steps;x++){const a=y*(steps+1)+x,b=a+1,c=a+steps+1,d=c+1;indices.push(a,b,c,b,d,c);}
+      const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.setAttribute('uv',new THREE.BufferAttribute(uvs,2));geometry.setIndex(indices);
+      const texture=createMapTilePreviewTexture(tileIndex),material=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:.78,depthTest:true,depthWrite:false,side:THREE.DoubleSide,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+      mesh=new THREE.Mesh(geometry,material);mesh.name='MAP_TILE_INSERT_CURSOR_PREVIEW';mesh.userData.steps=steps;mesh.renderOrder=20;mesh.raycast=()=>null;scene.add(mesh);state.mapTiles.insertPreviewMesh=mesh;state.mapTiles.insertPreviewIndex=tileIndex;
+    }
+    const size=Number(state.mapTiles.tileSize)||16,steps=mesh.userData.steps,position=mesh.geometry.getAttribute('position'),uv=mesh.geometry.getAttribute('uv');
+    for(let y=0;y<=steps;y++)for(let x=0;x<=steps;x++){
+      const wx=world.x-size*.5+size*x/steps,wy=world.y-size*.5+size*y/steps,z=heightAtWorld(wx,wy,1.0),i=y*(steps+1)+x,orientedUv=transformMapTileUv(x/steps,y/steps,state.tileInsertFlags);
+      position.setXYZ(i,wx,wy,Number.isFinite(z)&&z>-1e8?z+.055:world.z||0);uv.setXY(i,orientedUv.u,orientedUv.v);
+    }
+    state.mapTiles.insertPreviewWorld=cursorWorld;position.needsUpdate=true;uv.needsUpdate=true;mesh.geometry.computeBoundingSphere();requestRender();
   }
 
   function updateMapTilePreviewMesh(mesh,it){
@@ -11846,7 +12084,9 @@ end group
       .join(", ");
   }
 
-  function createWhiteWireframeMaterialFrom(baseMat, colorHex = 0xffffff){
+  const GLB_WIREFRAME_COLOR = 0xcdcdcd;
+
+  function createWireframeMaterialFrom(baseMat, colorHex = GLB_WIREFRAME_COLOR){
     const { THREE } = state.glb;
     const mat = new THREE.MeshBasicMaterial({
       color: colorHex,
@@ -12138,7 +12378,7 @@ end group
       depthWrite: false, fog: false, toneMapped: false,
     });
     if (mode === "wireframe" || mode === "transparent_wireframe"){
-      const mat = createWhiteWireframeMaterialFrom(baseMat, colorHex);
+      const mat = createWireframeMaterialFrom(baseMat, colorHex);
       if (mode === "transparent_wireframe"){
         mat.transparent = true;
         mat.opacity = 0.32;
@@ -12178,7 +12418,7 @@ end group
       const colorOverride = mode === "category_colors"
         ? GLB_CATEGORY_COLORS[category]
         : ((mode === "wireframe" || mode === "transparent_wireframe")
-          ? (root.userData._selectedGlbVisual ? 0xffff00 : 0xffffff)
+          ? (root.userData._selectedGlbVisual ? 0xffff00 : GLB_WIREFRAME_COLOR)
           : undefined);
       const converted = originals.map((mat) => createViewModeMaterial(mat, mode, colorOverride));
       obj.material = Array.isArray(obj.userData._viewModeOriginalMaterial) ? converted : converted[0];
@@ -13641,7 +13881,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
   const rotationSnapEl=document.getElementById('rotationSnap');
   const rotationSnapModeEl=document.getElementById('rotationSnapMode');
   transformPivotEl?.addEventListener('change',()=>{state.transformPivot=transformPivotEl.value;updateItemGizmo();});
-  rotationSnapEl?.addEventListener('change',()=>{state.rotationSnap=Math.max(.1,Number(rotationSnapEl.value)||15);rotationSnapEl.value=String(state.rotationSnap);});
+  rotationSnapEl?.addEventListener('change',()=>{state.rotationSnap=Number(rotationSnapEl.value)||90;});
   rotationSnapModeEl?.addEventListener('change',()=>{state.rotationSnapMode=rotationSnapModeEl.value;});
   document.getElementById('gridPlus')?.addEventListener('click',()=>stepGridExponent(1));
   document.getElementById('gridMinus')?.addEventListener('click',()=>stepGridExponent(-1));
@@ -13673,6 +13913,12 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       state.cameraLookStart = { sx, sy };
       state.lastMouse = { sx, sy };
       return;
+    }
+
+    if(state.tileEditModeActive&&state.tileInsertIndex!==null){
+      const world=screenToTerrain(sx,sy);
+      if(!world){statusEl.textContent="The cursor is not over the terrain.";return;}
+      insertPaletteTileAt(world);e.preventDefault();return;
     }
 
     if (state.insertModeActive){
@@ -13750,6 +13996,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     ]);
   });
   cv.addEventListener("dblclick", (e) => { const rect=cv.getBoundingClientRect(); const picked=pickItemAtCanvas(e.clientX-rect.left,e.clientY-rect.top); if(picked){ selectById(picked.id); openModal(); } });
+  cv.addEventListener("mouseleave",()=>{if(state.tileInsertIndex!==null)updateTileInsertCursorPreview(null);});
   cv.addEventListener("mousemove", (e) => {
     if (state.modalOpen) return;
     const rect = cv.getBoundingClientRect();
@@ -13776,6 +14023,10 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       }
     }
     if (state.cameraLookActive) return;
+
+    if(state.tileEditModeActive&&state.tileInsertIndex!==null){
+      const terrainPoint=screenToTerrain(sx,sy);updateTileInsertCursorPreview(terrainPoint);state.lastMouse={sx,sy};return;
+    }
 
     if (state.insertModeActive){
       const terrainPoint = screenToTerrain(sx, sy);
@@ -13884,7 +14135,16 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }
     stopDrag();
   }); cv.addEventListener('mouseleave',()=>{ state.cameraLookActive=false; if(state.insertModeActive){state.insertDragStart=null;state.insertDragStartScreen=null;state.insertHoverPoint=null;state.insertPreviewSamples=[];state.insertPreviewPoints=[];insertPreviewLabel.style.display='none';requestRender();return;} stopDrag(); });
-  cv.addEventListener('wheel',(e)=>{ e.preventDefault(); if(topViewLocked){ topViewScale=Math.max(1,Math.min(1000000,topViewScale*Math.exp(e.deltaY*0.001))); } else { const dir=e.deltaY<0?1:-1; renderUiState.speedLevel=Math.max(1,Math.min(8,renderUiState.speedLevel+dir)); renderMenuBar(); } requestRender(); },{passive:false});
+  cv.addEventListener('wheel',(e)=>{
+    e.preventDefault();
+    if(state.tileEditModeActive&&state.tileInsertIndex!==null&&e.shiftKey){
+      if(e.deltaY!==0)rotateTileInsert(e.deltaY<0?1:-1);
+      return;
+    }
+    if(topViewLocked){ topViewScale=Math.max(1,Math.min(1000000,topViewScale*Math.exp(e.deltaY*0.001))); }
+    else { const dir=e.deltaY<0?1:-1; renderUiState.speedLevel=Math.max(1,Math.min(8,renderUiState.speedLevel+dir)); renderMenuBar(); }
+    requestRender();
+  },{passive:false});
 
   document.addEventListener("pointerlockchange", () => {
     if (document.pointerLockElement===cv) return;
