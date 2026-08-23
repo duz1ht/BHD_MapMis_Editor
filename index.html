@@ -12072,6 +12072,50 @@ end group
     });
   }
 
+  function sanitizeGlbGeometry(root, label = "GLB"){
+    let meshCount = 0, finiteVertexCount = 0, repairedValues = 0;
+    const sanitizePositionAttribute = (attribute) => {
+      if (!attribute || attribute.itemSize < 3) return;
+      for (let index = 0; index < attribute.count; index += 1){
+        const x = attribute.getX(index), y = attribute.getY(index), z = attribute.getZ(index);
+        const nx = Number.isFinite(x) ? x : 0;
+        const ny = Number.isFinite(y) ? y : 0;
+        const nz = Number.isFinite(z) ? z : 0;
+        if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) finiteVertexCount += 1;
+        if (nx !== x || ny !== y || nz !== z){
+          attribute.setXYZ(index, nx, ny, nz);
+          repairedValues += Number(nx !== x) + Number(ny !== y) + Number(nz !== z);
+        }
+      }
+      if (repairedValues) attribute.needsUpdate = true;
+    };
+    root?.traverse?.((object) => {
+      if (object.position && (![object.position.x, object.position.y, object.position.z].every(Number.isFinite))){
+        object.position.set(Number.isFinite(object.position.x) ? object.position.x : 0, Number.isFinite(object.position.y) ? object.position.y : 0, Number.isFinite(object.position.z) ? object.position.z : 0);
+        repairedValues += 1;
+      }
+      if (object.quaternion && (![object.quaternion.x, object.quaternion.y, object.quaternion.z, object.quaternion.w].every(Number.isFinite))){
+        object.quaternion.identity();
+        repairedValues += 1;
+      }
+      if (object.scale && (![object.scale.x, object.scale.y, object.scale.z].every(Number.isFinite))){
+        object.scale.set(Number.isFinite(object.scale.x) ? object.scale.x : 1, Number.isFinite(object.scale.y) ? object.scale.y : 1, Number.isFinite(object.scale.z) ? object.scale.z : 1);
+        repairedValues += 1;
+      }
+      if (!object.isMesh || !object.geometry) return;
+      meshCount += 1;
+      sanitizePositionAttribute(object.geometry.getAttribute("position"));
+      for (const attribute of object.geometry.morphAttributes?.position || []) sanitizePositionAttribute(attribute);
+      object.geometry.boundingBox = null;
+      object.geometry.boundingSphere = null;
+      object.geometry.computeBoundingBox();
+      object.geometry.computeBoundingSphere();
+    });
+    if (!meshCount || !finiteVertexCount) throw new Error(`${label} has no valid mesh vertices`);
+    if (repairedValues) addLog(`[reference_glb] repaired ${repairedValues} non-finite position values in ${label}`);
+    return { meshCount, finiteVertexCount, repairedValues };
+  }
+
   // GLB color precedence, from lowest to highest: base material, DEF tint,
   // waypoint/area-trigger color, then temporary view/selection visuals.
   function applySolidTintToGlbObject(root, tint){
@@ -12327,6 +12371,7 @@ end group
           });
       const root = gltf.scene || gltf.scenes?.[0] || null;
       if (!root) return null;
+      sanitizeGlbGeometry(root, key);
 
       root.traverse((obj) => {
         if (!obj.isMesh) return;
@@ -12355,7 +12400,6 @@ end group
             lightMapIntensity: Number.isFinite(m.lightMapIntensity) ? m.lightMapIntensity : 1,
             specularMap: m.specularMap || null,
             envMap: m.envMap || null,
-            envMapIntensity: Number.isFinite(m.envMapIntensity) ? m.envMapIntensity : 1,
             shininess: Number.isFinite(m.shininess) ? m.shininess : 24,
             transparent: !!m.transparent,
             opacity: Number.isFinite(m.opacity) ? m.opacity : 1,
@@ -13081,7 +13125,8 @@ end group
       const glbHandle = await directory.getFileHandle(record.glb);
       state.currentReferenceSidecarHandle = sidecarHandle;
       state.referenceGlbRestore = record;
-      await importReferenceGlb(await glbHandle.getFile(), record);
+      const imported = await importReferenceGlb(await glbHandle.getFile(), record);
+      if (!imported) throw new Error(`Failed to import ${record.glb}`);
       rememberReferenceGlbRecord(record);
       addLog(`[reference_glb] restored sidecar=${sidecarName} glb=${record.glb}`);
       return true;
@@ -13146,6 +13191,7 @@ end group
         : await new Promise((resolve, reject) => state.glb.loader.parse(data, "", resolve, reject));
       const source = gltf.scene || gltf.scenes?.[0];
       if (!source) throw new Error("The GLB has no scene");
+      sanitizeGlbGeometry(source, file.name);
       disposeReferenceGlb();
       const root = new state.glb.THREE.Group();
       root.name = `REFERENCE_GLB:${file.name}`;
@@ -13180,9 +13226,11 @@ end group
       selectReferenceGlb(true);
       statusEl.textContent = `Reference GLB imported: ${file.name}. It will not be saved to MIS/TIL.`;
       addLog(`[reference_glb] imported=${file.name} bytes=${data.byteLength}`);
+      return true;
     } catch (err){
       statusEl.textContent = "Failed to import reference GLB (see Logs).";
       addLog(`[reference_glb] import error: ${err?.message || err}`);
+      return false;
     } finally {
       fileReferenceGlbEl.value = "";
     }
