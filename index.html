@@ -2835,6 +2835,8 @@ end group
       ready: false,
     },
     referenceGlb: null,
+    referenceGlbRestore: null,
+    currentReferenceSidecarHandle: null,
     debugFog: {
       selectedPreset: 0,
       presetValues: new Map(),
@@ -8932,6 +8934,8 @@ end group
   function deleteSelectedItem(){
     if (state.referenceGlb?.selected){
       const fileName = state.referenceGlb.fileName;
+      localStorage.removeItem(referenceSidecarStorageKey());
+      state.referenceGlbRestore = null;
       disposeReferenceGlb();
       statusEl.textContent = `Reference GLB removed: ${fileName}`;
       addLog(`[reference_glb] removed=${fileName}`);
@@ -9827,6 +9831,8 @@ end group
     state.filename = "";
     state.currentMisFileHandle = null;
     state.currentTilFileHandle = null;
+    state.currentReferenceSidecarHandle = null;
+    state.referenceGlbRestore = null;
     state.itemClipboard = null;
     state.itemClipboardSection = null;
     state.itemClipboardItems = [];
@@ -9885,9 +9891,10 @@ end group
         state.filename = handle.name || state.filename;
         // A companion handle belongs to the previous mission name/location.  It
         // must never be reused after Save As, even when both missions use tiles.
-        if(forcePicker||previousMisHandle!==handle)state.currentTilFileHandle=null;
+        if(forcePicker||previousMisHandle!==handle){state.currentTilFileHandle=null;state.currentReferenceSidecarHandle=null;}
         const tilResult=await saveTilCompanion(forcePicker,handle);
-        if(tilResult!==false)statusEl.textContent = tilResult ? "MIS and TIL files saved." : "File saved.";
+        const referenceSaved=state.referenceGlb ? await saveReferenceGlbCompanion({forcePicker,misHandle:handle}) : false;
+        if(tilResult!==false)statusEl.textContent = referenceSaved ? "Map and reference GLB sidecar saved." : (tilResult ? "MIS and TIL files saved." : "File saved.");
         return true;
       } catch (err){
         if (err?.name === "AbortError"){
@@ -9901,7 +9908,8 @@ end group
     }
     downloadText(state.filename || "edited.mis", out);
     const tilResult=await saveTilCompanion(forcePicker);
-    if(tilResult!==false)statusEl.textContent = tilResult ? "MIS and TIL files downloaded." : "File saved.";
+    const referenceSaved=state.referenceGlb ? await saveReferenceGlbCompanion({forcePicker}) : false;
+    if(tilResult!==false)statusEl.textContent = referenceSaved ? "Map and reference GLB sidecar downloaded." : (tilResult ? "MIS and TIL files downloaded." : "File saved.");
     return true;
   }
 
@@ -10392,6 +10400,7 @@ end group
     const documentGeneration = clearGlbItemInstances();
     state.filename = file.name;
     state.currentMisFileHandle = fileHandle;
+    state.currentReferenceSidecarHandle = null;
     await loadMissionGameStrings(file.name);
     if (documentGeneration !== state.glb.documentGeneration) return;
     const misBuffer = await file.arrayBuffer();
@@ -10417,12 +10426,16 @@ end group
     state.selectedWaypointMarkerIds.clear();
     updateWaypointMarkerCount(0);
 
+    state.referenceGlbRestore = loadRememberedReferenceGlbRecord(file.name);
+
 
     buildLayerOptions();
     buildWaypointList();
     buildGroupOptions();
 
-    statusEl.textContent = `${file.name} loaded (${decodedMis.encoding}). items: ${state.items.length}`;
+    statusEl.textContent = state.referenceGlbRestore
+      ? `${file.name} loaded. Re-import ${state.referenceGlbRestore.glb} to restore its saved reference position.`
+      : `${file.name} loaded (${decodedMis.encoding}). items: ${state.items.length}`;
     fitView();
     renderList();
     requestRender();
@@ -12954,7 +12967,79 @@ end group
     requestRender();
   }
 
-  async function importReferenceGlb(file){
+  function referenceSidecarName(mapName = state.filename){
+    const name = String(mapName || "edited.mis").replace(/\.[^.]+$/, "");
+    return `${name}.txt`;
+  }
+
+  function referenceSidecarStorageKey(mapName = state.filename){
+    return `bhd-reference-glb:${String(mapName || "").toLowerCase()}`;
+  }
+
+  function referenceGlbRecord(){
+    const reference = state.referenceGlb;
+    if (!reference?.item) return null;
+    return {
+      format: "BHD MapMis Editor Reference GLB",
+      version: 1,
+      map: state.filename || "",
+      glb: reference.fileName,
+      sourcePath: reference.sourcePath || reference.fileName,
+      transform: {
+        x: reference.item.x,
+        y: reference.item.y,
+        z: reference.item.z,
+        heading: Number(reference.item.heading) || 0,
+        pitch: Number(reference.item.pitch) || 0,
+      },
+    };
+  }
+
+  function serializeReferenceGlbRecord(record = referenceGlbRecord()){
+    return record ? `${JSON.stringify(record, null, 2)}\n` : "";
+  }
+
+  function rememberReferenceGlbRecord(record){
+    if (!record) return;
+    const key = referenceSidecarStorageKey(record?.map || state.filename);
+    if (!key.endsWith(":")) localStorage.setItem(key, JSON.stringify(record));
+  }
+
+  function loadRememberedReferenceGlbRecord(mapName = state.filename){
+    try{
+      const raw = localStorage.getItem(referenceSidecarStorageKey(mapName));
+      const record = raw ? JSON.parse(raw) : null;
+      return record?.glb && record?.transform ? record : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function saveReferenceGlbCompanion({ forcePicker = false, misHandle = state.currentMisFileHandle } = {}){
+    const record = referenceGlbRecord();
+    if (!record) return false;
+    record.map = state.filename || record.map;
+    const text = serializeReferenceGlbRecord(record);
+    rememberReferenceGlbRecord(record);
+    const name = referenceSidecarName(record.map);
+    if (window.showSaveFilePicker){
+      const handle = (!forcePicker && state.currentReferenceSidecarHandle)
+        ? state.currentReferenceSidecarHandle
+        : await window.showSaveFilePicker({
+          suggestedName: name,
+          ...(misHandle ? { startIn: misHandle } : {}),
+          types: [{ description: "Reference GLB Sidecar", accept: { "text/plain": [".txt"] } }]
+        });
+      const writable = await handle.createWritable();
+      await writable.write(text);
+      await writable.close();
+      state.currentReferenceSidecarHandle = handle;
+    } else downloadText(name, text);
+    addLog(`[reference_glb] sidecar saved=${name} source=${record.sourcePath}`);
+    return true;
+  }
+
+  async function importReferenceGlb(file, restoreRecord = state.referenceGlbRestore){
     if (!file) return;
     if (!/\.glb$/i.test(file.name || "")){
       statusEl.textContent = "Select a binary .GLB file.";
@@ -12984,10 +13069,24 @@ end group
       state.glb.scene.add(root);
       state.referenceGlb = {
         fileName: file.name,
+        sourcePath: file.path || file.webkitRelativePath || file.name,
         root,
         selected: false,
         item: { id: "__reference_glb__", x: worldToRaw(root.position.x, "x"), y: worldToRaw(root.position.y, "y"), z: worldToRaw(root.position.z, "z"), heading: 0, pitch: 0, kv: {} }
       };
+      if (restoreRecord?.glb?.toLowerCase() === file.name.toLowerCase()){
+        const transform = restoreRecord.transform || {};
+        Object.assign(state.referenceGlb.item, {
+          x: Number(transform.x) || 0,
+          y: Number(transform.y) || 0,
+          z: Number(transform.z) || 0,
+          heading: Number(transform.heading) || 0,
+          pitch: Number(transform.pitch) || 0,
+        });
+        state.referenceGlb.sourcePath = restoreRecord.sourcePath || state.referenceGlb.sourcePath;
+        syncReferenceGlbTransform();
+        state.referenceGlbRestore = null;
+      }
       selectReferenceGlb(true);
       statusEl.textContent = `Reference GLB imported: ${file.name}. It will not be saved to MIS/TIL.`;
       addLog(`[reference_glb] imported=${file.name} bytes=${data.byteLength}`);
