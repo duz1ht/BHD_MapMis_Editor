@@ -2678,6 +2678,7 @@ end group
     editorFolderHandle: null,
     currentMisFileHandle: null,
     currentTilFileHandle: null,
+    currentMapDirectoryHandle: null,
     generalTerrainNames: [],
     generalInfoLoadGeneration: 0,
     soundGraphicFromOtherItems: "",
@@ -8936,6 +8937,10 @@ end group
       const fileName = state.referenceGlb.fileName;
       localStorage.removeItem(referenceSidecarStorageKey());
       state.referenceGlbRestore = null;
+      state.currentMapDirectoryHandle?.removeEntry?.(referenceSidecarName()).catch(err => {
+        if (err?.name !== "NotFoundError") addLog(`[reference_glb] sidecar delete error: ${err?.message || err}`);
+      });
+      state.currentReferenceSidecarHandle = null;
       disposeReferenceGlb();
       statusEl.textContent = `Reference GLB removed: ${fileName}`;
       addLog(`[reference_glb] removed=${fileName}`);
@@ -9772,6 +9777,41 @@ end group
     return Boolean(state.filename || state.rawText || state.items.length || state.sectionBlocks.length);
   }
 
+  async function openMapFromDirectory(){
+    if (!window.showDirectoryPicker){
+      statusEl.textContent = "Your browser does not support opening a map folder.";
+      return;
+    }
+    try{
+      const directory = await window.showDirectoryPicker({ mode: "readwrite" });
+      const missions = [];
+      for await (const [name, handle] of directory.entries()){
+        if (handle.kind === "file" && /\.mis$/i.test(name)) missions.push({ name, handle });
+      }
+      missions.sort((a, b) => a.name.localeCompare(b.name));
+      if (!missions.length){
+        statusEl.textContent = "No .mis file was found in the selected folder.";
+        return;
+      }
+      let selected = missions[0];
+      if (missions.length > 1){
+        const answer = window.prompt(`Choose the map number:\n${missions.map((entry, index) => `${index + 1}. ${entry.name}`).join("\n")}`, "1");
+        if (answer == null) return;
+        const index = Number(answer) - 1;
+        if (!Number.isInteger(index) || !missions[index]){
+          statusEl.textContent = "Invalid map selection.";
+          return;
+        }
+        selected = missions[index];
+      }
+      await loadMisFile(await selected.handle.getFile(), selected.handle, directory);
+    } catch (err){
+      if (err?.name === "AbortError") return;
+      addLog(`[map_folder] open error: ${err?.message || err}`);
+      statusEl.textContent = "Failed to open map folder (see Logs).";
+    }
+  }
+
   async function clearEditorMap(){
     resetMapTiles();
     clearGlbItemInstances();
@@ -9831,6 +9871,7 @@ end group
     state.filename = "";
     state.currentMisFileHandle = null;
     state.currentTilFileHandle = null;
+    state.currentMapDirectoryHandle = null;
     state.currentReferenceSidecarHandle = null;
     state.referenceGlbRestore = null;
     state.itemClipboard = null;
@@ -9891,7 +9932,7 @@ end group
         state.filename = handle.name || state.filename;
         // A companion handle belongs to the previous mission name/location.  It
         // must never be reused after Save As, even when both missions use tiles.
-        if(forcePicker||previousMisHandle!==handle){state.currentTilFileHandle=null;state.currentReferenceSidecarHandle=null;}
+        if(forcePicker||previousMisHandle!==handle){state.currentTilFileHandle=null;state.currentReferenceSidecarHandle=null;state.currentMapDirectoryHandle=null;}
         const tilResult=await saveTilCompanion(forcePicker,handle);
         const referenceSaved=state.referenceGlb ? await saveReferenceGlbCompanion({forcePicker,misHandle:handle}) : false;
         if(tilResult!==false)statusEl.textContent = referenceSaved ? "Map and reference GLB sidecar saved." : (tilResult ? "MIS and TIL files saved." : "File saved.");
@@ -9992,6 +10033,7 @@ end group
 
   const menuHandlers = {
     "file.new": async () => handleNewProject(),
+    "file.openFolder": openMapFromDirectory,
     "file.open": async () => {
       if (window.showOpenFilePicker){
         try{
@@ -10080,6 +10122,7 @@ end group
         { label: "Set Editor Folder", command: "file.setEditorFolder", attention: !state.editorFolderHandle },
       ] : []),
       { label: "Create New Map", command: "file.new" },
+      { label: "Open Map Folder...", command: "file.openFolder" },
       { label: "Open", command: "file.open" },
       { label: "Save (.mis)", shortcut: "Ctrl + S", command: "file.save" },
       { label: "Save As (.mis)", shortcut: "Ctrl + Shift + S", command: "file.saveAs" },
@@ -10395,11 +10438,12 @@ end group
   }
 
   // File inputs
-  async function loadMisFile(file, fileHandle = null){
+  async function loadMisFile(file, fileHandle = null, mapDirectoryHandle = null){
     if (!file) return;
     const documentGeneration = clearGlbItemInstances();
     state.filename = file.name;
     state.currentMisFileHandle = fileHandle;
+    state.currentMapDirectoryHandle = mapDirectoryHandle;
     state.currentReferenceSidecarHandle = null;
     await loadMissionGameStrings(file.name);
     if (documentGeneration !== state.glb.documentGeneration) return;
@@ -10426,14 +10470,15 @@ end group
     state.selectedWaypointMarkerIds.clear();
     updateWaypointMarkerCount(0);
 
-    state.referenceGlbRestore = loadRememberedReferenceGlbRecord(file.name);
+    state.referenceGlbRestore = mapDirectoryHandle ? null : loadRememberedReferenceGlbRecord(file.name);
 
 
     buildLayerOptions();
     buildWaypointList();
     buildGroupOptions();
 
-    statusEl.textContent = state.referenceGlbRestore
+    const referenceRestored = await restoreReferenceGlbFromMapDirectory(file.name);
+    if (!referenceRestored) statusEl.textContent = state.referenceGlbRestore
       ? `${file.name} loaded. Re-import ${state.referenceGlbRestore.glb} to restore its saved reference position.`
       : `${file.name} loaded (${decodedMis.encoding}). items: ${state.items.length}`;
     fitView();
@@ -13015,6 +13060,42 @@ end group
     }
   }
 
+  function validateReferenceGlbRecord(record, mapName){
+    if (!record || record.format !== "BHD MapMis Editor Reference GLB" || record.version !== 1) throw new Error("Unsupported reference sidecar format");
+    if (String(record.map || "").toLowerCase() !== String(mapName || "").toLowerCase()) throw new Error("Reference sidecar belongs to another map");
+    if (!/^[^/\\]+\.glb$/i.test(String(record.glb || ""))) throw new Error("Invalid GLB filename in reference sidecar");
+    const transform = record.transform;
+    for (const key of ["x", "y", "z", "heading", "pitch"]){
+      if (!Number.isFinite(Number(transform?.[key]))) throw new Error(`Invalid reference transform: ${key}`);
+    }
+    return record;
+  }
+
+  async function restoreReferenceGlbFromMapDirectory(mapName){
+    const directory = state.currentMapDirectoryHandle;
+    if (!directory) return false;
+    const sidecarName = referenceSidecarName(mapName);
+    try{
+      const sidecarHandle = await directory.getFileHandle(sidecarName);
+      const record = validateReferenceGlbRecord(JSON.parse(await (await sidecarHandle.getFile()).text()), mapName);
+      const glbHandle = await directory.getFileHandle(record.glb);
+      state.currentReferenceSidecarHandle = sidecarHandle;
+      state.referenceGlbRestore = record;
+      await importReferenceGlb(await glbHandle.getFile(), record);
+      rememberReferenceGlbRecord(record);
+      addLog(`[reference_glb] restored sidecar=${sidecarName} glb=${record.glb}`);
+      return true;
+    } catch (err){
+      if (err?.name === "NotFoundError"){
+        addLog(`[reference_glb] no complete companion found for ${mapName}: ${err?.message || err}`);
+        return false;
+      }
+      addLog(`[reference_glb] sidecar load error (${sidecarName}): ${err?.message || err}`);
+      statusEl.textContent = `Map loaded, but ${sidecarName} is invalid (see Logs).`;
+      return false;
+    }
+  }
+
   async function saveReferenceGlbCompanion({ forcePicker = false, misHandle = state.currentMisFileHandle } = {}){
     const record = referenceGlbRecord();
     if (!record) return false;
@@ -13022,6 +13103,15 @@ end group
     const text = serializeReferenceGlbRecord(record);
     rememberReferenceGlbRecord(record);
     const name = referenceSidecarName(record.map);
+    if (state.currentMapDirectoryHandle){
+      const handle = await state.currentMapDirectoryHandle.getFileHandle(name, { create: true });
+      const writable = await handle.createWritable();
+      await writable.write(text);
+      await writable.close();
+      state.currentReferenceSidecarHandle = handle;
+      addLog(`[reference_glb] sidecar saved=${name} source=${record.sourcePath}`);
+      return true;
+    }
     if (window.showSaveFilePicker){
       const handle = (!forcePicker && state.currentReferenceSidecarHandle)
         ? state.currentReferenceSidecarHandle
@@ -14963,8 +15053,8 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
   window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();clearMapTileDragPreview();persistMapTileEditorState();renderTileInstances();updateItemGizmo();});
 
   const _origLoadMisFile = loadMisFile;
-  loadMisFile = async function(file, fileHandle = null){
-    await _origLoadMisFile(file, fileHandle);
+  loadMisFile = async function(file, fileHandle = null, mapDirectoryHandle = null){
+    await _origLoadMisFile(file, fileHandle, mapDirectoryHandle);
     try{ await loadTerrainFromMis(); }catch(err){ addLog(`[terrain] load error: ${err?.message || err}`); camDebugEl.textContent = `Failed to load terrain: ${err.message||err}`; }
     await loadMapTilesForMission();
     fitView();
