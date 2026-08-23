@@ -97,7 +97,7 @@ end
 
 begin "MH53 Pavelow"
   id 106284
-  attached_weapon1 101871 -195 240 -191 -90 0
+  attached_weapon1 101871 171 245 234 90 0
 end
 
 begin "Blackhawk, weak AI miniguns, both doors open"
