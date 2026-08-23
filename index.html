@@ -761,12 +761,16 @@
       border:1px solid var(--line-heavy);
       border-radius:var(--radius-md);
       box-shadow:var(--shadow-md);
+      resize:horizontal;
     }
     #tilePalette.open{display:grid;}
     #tilePaletteHeader{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);}
+    #tilePaletteHeading{display:flex;align-items:center;gap:7px;min-width:0;}
     #tilePaletteTitle{font-size:12px;font-weight:700;color:var(--text-strong);}
     #tilePaletteAtlas{max-width:155px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-subtle);font-size:11px;}
+    #tilePaletteFlip{width:26px;height:24px;padding:0;font-size:16px;line-height:1;flex:none;}
     #tilePaletteBody{min-height:80px;overflow:auto;padding:8px;}
+    #tilePaletteBody > [hidden]{display:none!important;}
     #tilePaletteGrid{display:grid;gap:4px;place-content:center;min-height:100%;}
     .tilePaletteTile{position:relative;min-width:0;min-height:0;aspect-ratio:1;padding:0;overflow:hidden;border:1px solid var(--line-strong);border-radius:2px;background:var(--canvas);cursor:pointer;}
     .tilePaletteTile:hover{border-color:var(--accent);}
@@ -776,6 +780,29 @@
     .tilePaletteTile canvas{display:block;width:100%;height:100%;image-rendering:auto;}
     .tilePaletteCount{position:absolute;top:1px;right:1px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:var(--accent);color:#fff;font:bold 10px/16px system-ui,sans-serif;text-align:center;pointer-events:none;}
     #tilePaletteMessage{padding:12px;color:var(--text-subtle);font-size:12px;line-height:1.4;}
+    #tileInstancesView{display:grid;grid-template-rows:auto minmax(0,1fr);height:100%;min-height:0;gap:7px;}
+    #tileInstancesTools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;}
+    #tileInstancesActions{grid-column:1/-1;display:flex;gap:5px;flex-wrap:wrap;}
+    #tileInstancesActions button{padding:3px 6px;font-size:11px;}
+    #tileInstancesSearch{min-width:0;width:100%;}
+    #tileInstancesList{display:grid;align-content:start;gap:6px;overflow:auto;min-height:0;}
+    .tileInstanceGroup{border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--surface);}
+    .tileInstanceHeader{display:grid;grid-template-columns:auto 38px minmax(0,1fr) 28px 28px;align-items:center;gap:5px;width:100%;padding:5px;border:0;border-radius:0;text-align:left;background:var(--surface-2);}
+    .tileInstanceHeader .disclosure{width:12px;text-align:center;}
+    .tileInstanceThumb{width:36px;height:36px;display:block;border:1px solid var(--line-strong);background:var(--canvas);image-rendering:auto;}
+    .tileInstanceName{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .tileInstanceRows{display:grid;}
+    .tileInstanceGroup.collapsed .tileInstanceRows{display:none;}
+    .tileInstanceRow{display:grid;grid-template-columns:38px minmax(0,1fr) 28px 28px;align-items:center;gap:5px;padding:5px;border-top:1px solid var(--line-soft);cursor:pointer;}
+    .tileInstanceRow:hover{background:var(--surface-subtle);}
+    .tileInstanceRow.selected{outline:2px solid var(--accent);outline-offset:-2px;}
+    .tileInstanceRow.locked{background:color-mix(in srgb,var(--surface) 80%,#d5a52d 20%);}
+    .tileInstanceRow.hiddenTile{opacity:.58;}
+    .tileInstanceMeta{min-width:0;font-size:11px;line-height:1.3;}
+    .tileInstanceMeta strong,.tileInstanceMeta span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .tileInstanceMeta span{color:var(--text-subtle);}
+    .tileIconButton{width:28px;height:26px;padding:0;display:grid;place-items:center;font-size:14px;}
+    .tileInstancesEmpty{padding:12px;color:var(--text-subtle);font-size:12px;}
     #insertOverlay{
       position:absolute; inset:0; background:var(--overlay); display:none;
       align-items:center; justify-content:center; z-index:58; padding:18px;
@@ -1696,11 +1723,15 @@
 
       <section id="tilePalette" aria-labelledby="tilePaletteTitle" aria-hidden="true">
         <header id="tilePaletteHeader">
-          <span id="tilePaletteTitle">Tile Palette</span>
+          <div id="tilePaletteHeading"><button id="tilePaletteFlip" type="button" aria-pressed="false" title="Show tiles on map" aria-label="Show tiles on map">&#x25C0;</button><span id="tilePaletteTitle">Tile Palette</span></div>
           <span id="tilePaletteAtlas"></span>
         </header>
         <div id="tilePaletteBody">
           <div id="tilePaletteGrid"></div>
+          <div id="tileInstancesView" hidden>
+            <div id="tileInstancesTools"><input id="tileInstancesSearch" type="search" placeholder="Tile, item or coordinates" aria-label="Search map tiles"><select id="tileInstancesFilter" aria-label="Filter map tiles"><option value="all">All</option><option value="locked">Locked</option><option value="unlocked">Unlocked</option><option value="hidden">Hidden</option><option value="visible">Visible</option><option value="selected">Selected</option><option value="overlap">Overlapping</option></select><div id="tileInstancesActions"><button id="unlockAllTilesBtn" type="button">Unlock all</button><button id="showAllTilesBtn" type="button">Show all</button><button id="clearTileSettingsBtn" type="button">Clear saved settings</button></div></div>
+            <div id="tileInstancesList"></div>
+          </div>
           <div id="tilePaletteMessage">Load a mission with terrain tiles to see its palette.</div>
         </div>
       </section>
@@ -2578,6 +2609,12 @@ end group
     pastePreviewWorld: null,
     insertModeActive: false,
     tileEditModeActive: false,
+    tilePaletteView: "atlas",
+    tileInstancesSearch: "",
+    tileInstancesFilter: "all",
+    collapsedTileGroups: new Set(),
+    lockedMapTileIds: new Set(),
+    hiddenMapTileIds: new Set(),
     tilePaletteSelectedIndex: null,
     tileInsertIndex: null,
     tileInsertFlags: 0,
@@ -2865,6 +2902,15 @@ end group
   const tilePaletteGridEl = document.getElementById("tilePaletteGrid");
   const tilePaletteMessageEl = document.getElementById("tilePaletteMessage");
   const tilePaletteAtlasEl = document.getElementById("tilePaletteAtlas");
+  const tilePaletteTitleEl = document.getElementById("tilePaletteTitle");
+  const tilePaletteFlipEl = document.getElementById("tilePaletteFlip");
+  const tileInstancesViewEl = document.getElementById("tileInstancesView");
+  const tileInstancesListEl = document.getElementById("tileInstancesList");
+  const tileInstancesSearchEl = document.getElementById("tileInstancesSearch");
+  const tileInstancesFilterEl = document.getElementById("tileInstancesFilter");
+  const unlockAllTilesBtn = document.getElementById("unlockAllTilesBtn");
+  const showAllTilesBtn = document.getElementById("showAllTilesBtn");
+  const clearTileSettingsBtn = document.getElementById("clearTileSettingsBtn");
   const sidebarCloseBtn = document.getElementById("sidebarCloseBtn");
   const sidebarOpenBtn = document.getElementById("sidebarOpenBtn");
   const showPanelBtn = document.getElementById("showPanelBtn");
@@ -3295,6 +3341,10 @@ end group
       state.glb.transformDirtyIds.clear();
       rebuildLookupIndexes();
       rebuildSpatialIndex();
+      const validIds=new Set(state.items.filter(isMapTileItem).map(it=>it.id));
+      state.lockedMapTileIds=new Set([...state.lockedMapTileIds].filter(id=>validIds.has(id)));
+      state.hiddenMapTileIds=new Set([...state.hiddenMapTileIds].filter(id=>validIds.has(id)));
+      if(state.tilePaletteView==="instances")requestAnimationFrame(renderTileInstances);
     }
     updateShowCategoryCounts();
   }
@@ -6689,6 +6739,7 @@ end group
     buildGroupOptions();
     updateWaypointMarkerCount(0);
     renderList();
+    if(state.tilePaletteView==="instances")renderTileInstances();
     requestRender();
     refreshLiveMisWindow(true, { force: true });
     state.undoRestoring = false;
@@ -7975,6 +8026,7 @@ end group
       statusEl.textContent = "Global Replace: 'Find' cannot be empty.";
       return;
     }
+    if(state.items.some(it=>isMapTileItem(it)&&isMapTileLocked(it))){statusEl.textContent="Global Replace canceled: unlock map tiles before changing mission items.";return;}
 
     let changed = 0;
     for (const it of state.items){
@@ -8044,6 +8096,7 @@ end group
     state.selectedWaypointMarkerIds.clear();
     updateWaypointMarkerCount(0);
     renderList();
+    if(state.tilePaletteView==="instances")renderTileInstances();
     requestRender();
     return true;
   }
@@ -8161,8 +8214,9 @@ end group
     const it = getSelected();
     const hasSelection = !!it;
 
-    ui.dupBtn.disabled = !hasSelection;
-    ui.delBtn.disabled = !hasSelection;
+    const editorLocked=hasSelection&&isMapTileLocked(it);
+    ui.dupBtn.disabled = !hasSelection||editorLocked;
+    ui.delBtn.disabled = !hasSelection||editorLocked;
 
     if (!it){
       ui.itemTitle.textContent = "No item selected.";
@@ -8515,6 +8569,7 @@ end group
     const it = getSelected();
     if (!it) return;
     if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be edited.";return;}
+    if(isMapTileLocked(it)){statusEl.textContent=`Tile item #${mapTileDisplayNumber(it)} is locked. Unlock it in Tiles on map before editing.`;return;}
 
     state.modalSnapshot = structuredClone(it);
     state.modalOpen = true;
@@ -8748,6 +8803,8 @@ end group
   function cutSelectedItems(){
     if (!copySelectedItem()) return false;
 
+    if(state.itemClipboardItems.some(entry=>isMapTileLocked(entry.item.id))){statusEl.textContent="Locked tiles cannot be cut. Unlock the selection first.";return false;}
+
     const cutIds = new Set(state.itemClipboardItems.map(entry => entry.item.id));
     const cutMapTile = state.itemClipboardItems.some(entry => isMapTileItem(entry.item));
     if(cutMapTile&&Array.from(cutIds).some(id=>state.mapTiles.dragPreviewIds.has(id)))clearMapTileDragPreview(false);
@@ -8838,6 +8895,7 @@ end group
   ui.dupBtn.addEventListener("click", () => {
     const it = getSelected();
     if (!it) return;
+    if(isMapTileLocked(it)){statusEl.textContent="Locked tiles cannot be duplicated.";return;}
     if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be duplicated.";return;}
     const sec = getItemSectionByStartFast(it.start);
     const copy = createPastedItemFrom(it, sec || null, { offset: true });
@@ -8849,6 +8907,7 @@ end group
   function deleteSelectedItem(){
     const selectedItems = getSelectedItems();
     if (!selectedItems.length) return;
+    if(selectedItems.some(isMapTileLocked)){statusEl.textContent="Locked tiles cannot be deleted. Unlock the selection first.";return;}
     if(state.tileEditModeActive&&selectedItems.some(it=>!isMapTileItem(it))){statusEl.textContent="Tile Edit Mode only allows MapTiles to be deleted.";return;}
 
     const selectedIds=new Set(selectedItems.map(it=>it.id));
@@ -9520,6 +9579,7 @@ end group
   function runSelectionTransformCommand(label, transform){
     const items=selectedTransformItems().filter(it=>kvHas(it,'position'));
     if(!items.length){statusEl.textContent=`${label}: no positioned items selected.`;return;}
+    if(items.some(isMapTileLocked)){statusEl.textContent=`${label}: locked tiles cannot be changed.`;return;}
     beginUndoTransaction();
     let changed=0;
     try{
@@ -9602,7 +9662,11 @@ end group
 
     const itemsToRender = menuItems || [
       { label: "Edit Item Attributes", action: () => openModal() },
-      ...(isMapTileItem(selected) ? [{ label: "Tile properties", action: () => showTileProperties(selected.id) }] : []),
+      ...(isMapTileItem(selected) ? [
+        { label: "Tile properties", action: () => showTileProperties(selected.id) },
+        { label: isMapTileLocked(selected)?"Unlock tile":"Lock tile", action: () => updateMapTileEditorState([selected.id],"lock",!isMapTileLocked(selected)) },
+        { label: isMapTileHidden(selected)?"Show tile":"Hide tile", action: () => updateMapTileEditorState([selected.id],"hide",!isMapTileHidden(selected)) }
+      ] : []),
       { separator: true },
       { label: "Cut", action: () => cutSelectedItems() },
       { label: "Copy", action: () => copySelectedItem() },
@@ -10539,7 +10603,7 @@ end group
       const atlasFile=TERRAIN_TILE_FILE_INDEX.find(n=>n.toLowerCase()===atlasBase.toLowerCase());if(!atlasFile)throw new Error(`Tile atlas '${atlasBase}' is not available`);
       const atlasPath=`resources/BHD/terrain_tiles/${atlasFile}`,atlasBuf=await loadBinaryResource(atlasPath);if(!atlasBuf)throw new Error(`Unable to load tile atlas '${atlasPath}'`);
       if(generation!==state.mapTiles.generation)return;
-      state.mapTiles.atlasName=atlasFile;state.mapTiles.atlasImage=decodeTGA(atlasBuf,true);
+      state.mapTiles.atlasName=atlasFile;state.mapTiles.atlasImage=decodeTGA(atlasBuf,true);restoreMapTileEditorState();
       renderTilePalette();
       addLog(`[map_tiles] loaded ${tilName}: ${parsed.records.length} records, atlas=${atlasFile}`);
       buildMapTileOverlay();
@@ -10554,6 +10618,81 @@ end group
 
   function mapTileAtlasIndex(it){
     const index=mapTileRecordForItem(it)?.tileIndex;return Number.isInteger(index)&&index>=0&&index<=255?index:null;
+  }
+
+  function mapTileEditorIdentity(it){
+    if(!isMapTileItem(it))return "";
+    const block=String(it.beginLine||getItemSectionByStartFast(it.start)?.beginLine||"").trim();
+    return `${block}|${String(it.kv?.extra_val2??"")}|${it.x}|${it.y}`;
+  }
+  function mapTileEditorStorageKey(){return `dz.mapTileEditor.${String(state.filename||"untitled").toLowerCase()}`;}
+  function isMapTileLocked(itOrId){const id=typeof itOrId==="object"?itOrId?.id:itOrId;return state.lockedMapTileIds.has(id);}
+  function isMapTileHidden(itOrId){const id=typeof itOrId==="object"?itOrId?.id:itOrId;return state.hiddenMapTileIds.has(id);}
+  function persistMapTileEditorState(){
+    const locked=[],hidden=[];
+    for(const it of state.items.filter(isMapTileItem)){const key=mapTileEditorIdentity(it);if(isMapTileLocked(it))locked.push(key);if(isMapTileHidden(it))hidden.push(key);}
+    try{localStorage.setItem(mapTileEditorStorageKey(),JSON.stringify({locked,hidden}));localStorage.setItem("dz.tilePaletteView",state.tilePaletteView);}catch(_){ }
+  }
+  function restoreMapTileEditorState(){
+    state.lockedMapTileIds.clear();state.hiddenMapTileIds.clear();let saved=null;
+    try{saved=JSON.parse(localStorage.getItem(mapTileEditorStorageKey())||"null");}catch(_){ }
+    const locked=new Set(saved?.locked||[]),hidden=new Set(saved?.hidden||[]);
+    for(const it of state.items.filter(isMapTileItem)){const key=mapTileEditorIdentity(it);if(locked.has(key))state.lockedMapTileIds.add(it.id);if(hidden.has(key))state.hiddenMapTileIds.add(it.id);}
+  }
+  function updateMapTileEditorState(ids,kind,value){
+    const target=kind==="lock"?state.lockedMapTileIds:state.hiddenMapTileIds;
+    for(const id of ids){const it=getItemByIdFast(id);if(!isMapTileItem(it))continue;if(value)target.add(id);else target.delete(id);}
+    if(kind==="hide"){
+      for(const id of ids)if(value){state.multiSelectedIds.delete(id);if(state.selectedId===id)state.selectedId=null;}
+      buildMapTileOverlay();
+    }
+    persistMapTileEditorState();renderTileInstances();renderTilePaletteSelection();renderList();updateItemGizmo();requestRender();
+  }
+  function setTilePaletteView(view){
+    state.tilePaletteView=view==="instances"?"instances":"atlas";
+    const instances=state.tilePaletteView==="instances";
+    tilePaletteGridEl.hidden=instances;tileInstancesViewEl.hidden=!instances;
+    tilePaletteTitleEl.textContent=instances?"Tiles on map":"Tile Palette";
+    tilePaletteFlipEl.textContent=instances?"▶":"◀";tilePaletteFlipEl.setAttribute("aria-pressed",String(instances));
+    tilePaletteFlipEl.title=instances?"Back to tile atlas":"Show tiles on map";tilePaletteFlipEl.setAttribute("aria-label",tilePaletteFlipEl.title);
+    if(instances)renderTileInstances();else layoutTilePaletteGrid();
+    try{localStorage.setItem("dz.tilePaletteView",state.tilePaletteView);}catch(_){ }
+  }
+  function drawMapTileThumbnail(canvas,tileIndex){
+    const img=state.mapTiles.atlasImage,ctx=canvas?.getContext?.("2d");if(!img||!ctx||tileIndex===null)return;
+    const cellW=Math.floor(img.w/8),cellH=Math.floor(img.h/8),col=tileIndex%8,row=Math.floor(tileIndex/8),data=ctx.createImageData(cellW,cellH);
+    canvas.width=cellW;canvas.height=cellH;
+    for(let y=0;y<cellH;y++)for(let x=0;x<cellW;x++){const src=((row*cellH+y)*img.w+col*cellW+x)*4,dst=(y*cellW+x)*4;data.data[dst]=img.pixels[src];data.data[dst+1]=img.pixels[src+1];data.data[dst+2]=img.pixels[src+2];data.data[dst+3]=img.pixels[src+3];}ctx.putImageData(data,0,0);
+  }
+  function mapTileOverlapKey(it){const f=getMapTileFootprint(it);return f?`${f.centerX.toFixed(4)},${f.centerY.toFixed(4)}`:`${it.x},${it.y}`;}
+  function mapTileDisplayNumber(it){const match=String(it.beginLine||"").match(/^begin\s+item\s+(.+)$/i);return match?.[1]?.trim()||it.id;}
+  function renderTileInstances(){
+    if(!tileInstancesListEl)return;tileInstancesListEl.replaceChildren();
+    const all=state.items.filter(isMapTileItem),overlapCounts=new Map();for(const it of all){const key=mapTileOverlapKey(it);overlapCounts.set(key,(overlapCounts.get(key)||0)+1);}
+    const term=state.tileInstancesSearch.trim().toLowerCase(),selected=state.multiSelectedIds.size?state.multiSelectedIds:new Set(state.selectedId==null?[]:[state.selectedId]);
+    const matches=it=>{const locked=isMapTileLocked(it),hidden=isMapTileHidden(it),overlap=(overlapCounts.get(mapTileOverlapKey(it))||0)>1,f=state.tileInstancesFilter;if(f==="locked"&&!locked||f==="unlocked"&&locked||f==="hidden"&&!hidden||f==="visible"&&hidden||f==="selected"&&!selected.has(it.id)||f==="overlap"&&!overlap)return false;const index=mapTileAtlasIndex(it),hay=`${index} ${mapTileDisplayNumber(it)} ${it.id} ${it.x} ${it.y}`.toLowerCase();return !term||hay.includes(term);};
+    const groups=new Map();for(const it of all.filter(matches)){const index=mapTileAtlasIndex(it);if(index===null)continue;if(!groups.has(index))groups.set(index,[]);groups.get(index).push(it);}
+    if(!groups.size){const empty=document.createElement("div");empty.className="tileInstancesEmpty";empty.textContent=all.length?"No map tiles match this filter.":"This mission has no map tiles.";tileInstancesListEl.append(empty);return;}
+    for(const [index,items] of [...groups].sort((a,b)=>a[0]-b[0])){
+      items.sort((a,b)=>String(mapTileDisplayNumber(a)).localeCompare(String(mapTileDisplayNumber(b)),undefined,{numeric:true}));
+      const group=document.createElement("section");group.className="tileInstanceGroup"+(state.collapsedTileGroups.has(index)?" collapsed":"");
+      const header=document.createElement("div");header.className="tileInstanceHeader";
+      const disclosure=document.createElement("button");disclosure.type="button";disclosure.className="tileIconButton disclosure";disclosure.textContent=state.collapsedTileGroups.has(index)?"▶":"▼";disclosure.title=`${state.collapsedTileGroups.has(index)?"Expand":"Collapse"} Tile ${index}`;
+      disclosure.onclick=()=>{state.collapsedTileGroups.has(index)?state.collapsedTileGroups.delete(index):state.collapsedTileGroups.add(index);renderTileInstances();};
+      const thumb=document.createElement("canvas");thumb.className="tileInstanceThumb";drawMapTileThumbnail(thumb,index);
+      const name=document.createElement("span");name.className="tileInstanceName";name.textContent=`Tile ${index} (${items.length})`;
+      const allLocked=items.every(isMapTileLocked),allHidden=items.every(isMapTileHidden);
+      const lock=document.createElement("button");lock.type="button";lock.className="tileIconButton";lock.textContent=allLocked?"🔒":"🔓";lock.title=`${allLocked?"Unlock":"Lock"} every Tile ${index}`;lock.setAttribute("aria-pressed",String(allLocked));lock.onclick=()=>updateMapTileEditorState(items.map(it=>it.id),"lock",!allLocked);
+      const eye=document.createElement("button");eye.type="button";eye.className="tileIconButton";eye.textContent=allHidden?"◉":"👁";eye.title=`${allHidden?"Show":"Hide"} every Tile ${index}`;eye.setAttribute("aria-pressed",String(!allHidden));eye.onclick=()=>updateMapTileEditorState(items.map(it=>it.id),"hide",!allHidden);
+      header.append(disclosure,thumb,name,lock,eye);group.append(header);
+      const rows=document.createElement("div");rows.className="tileInstanceRows";
+      for(const it of items){const row=document.createElement("div");row.className=`tileInstanceRow${selected.has(it.id)?" selected":""}${isMapTileLocked(it)?" locked":""}${isMapTileHidden(it)?" hiddenTile":""}`;row.dataset.itemId=String(it.id);row.tabIndex=0;row.setAttribute("role","button");
+        const mini=document.createElement("canvas");mini.className="tileInstanceThumb";drawMapTileThumbnail(mini,index);const meta=document.createElement("div");meta.className="tileInstanceMeta";const overlap=overlapCounts.get(mapTileOverlapKey(it))||0;meta.innerHTML=`<strong>Item #${escapeHtml(String(mapTileDisplayNumber(it)))}</strong><span>X ${escapeHtml(String(it.x))} · Y ${escapeHtml(String(it.y))}${overlap>1?` · ${overlap} overlapping`:""}</span>`;
+        const itemLock=document.createElement("button");itemLock.type="button";itemLock.className="tileIconButton";itemLock.textContent=isMapTileLocked(it)?"🔒":"🔓";itemLock.title=`${isMapTileLocked(it)?"Unlock":"Lock"} item ${mapTileDisplayNumber(it)}`;itemLock.onclick=e=>{e.stopPropagation();updateMapTileEditorState([it.id],"lock",!isMapTileLocked(it));};
+        const itemEye=document.createElement("button");itemEye.type="button";itemEye.className="tileIconButton";itemEye.textContent=isMapTileHidden(it)?"◉":"👁";itemEye.title=`${isMapTileHidden(it)?"Show":"Hide"} item ${mapTileDisplayNumber(it)}`;itemEye.onclick=e=>{e.stopPropagation();updateMapTileEditorState([it.id],"hide",!isMapTileHidden(it));};
+        const choose=()=>{if(isMapTileHidden(it)){focusCameraNearItem(it);statusEl.textContent=`Tile item #${mapTileDisplayNumber(it)} is hidden. Use the eye button to show it before selecting.`;}else selectById(it.id);renderTileInstances();};row.onclick=choose;row.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();choose();}else if(e.key===" "){e.preventDefault();updateMapTileEditorState([it.id],"lock",!isMapTileLocked(it));}};row.append(mini,meta,itemLock,itemEye);rows.append(row);}
+      group.append(rows);tileInstancesListEl.append(group);
+    }
   }
 
   function selectedMapTileIndexCounts(){
@@ -10660,6 +10799,13 @@ end group
   const tilePaletteResizeObserver=typeof ResizeObserver!=="undefined"?new ResizeObserver(layoutTilePaletteGrid):null;
   tilePaletteResizeObserver?.observe(tilePaletteBodyEl);
   if(!tilePaletteResizeObserver)addEventListener("resize",layoutTilePaletteGrid);
+  tilePaletteFlipEl.addEventListener("click",()=>setTilePaletteView(state.tilePaletteView==="atlas"?"instances":"atlas"));
+  tileInstancesSearchEl.addEventListener("input",()=>{state.tileInstancesSearch=tileInstancesSearchEl.value;renderTileInstances();});
+  tileInstancesFilterEl.addEventListener("change",()=>{state.tileInstancesFilter=tileInstancesFilterEl.value;renderTileInstances();});
+  unlockAllTilesBtn.addEventListener("click",()=>{const ids=[...state.lockedMapTileIds];if(ids.length&&confirm(`Unlock ${ids.length} tile${ids.length===1?"":"s"}?`))updateMapTileEditorState(ids,"lock",false);});
+  showAllTilesBtn.addEventListener("click",()=>updateMapTileEditorState([...state.hiddenMapTileIds],"hide",false));
+  clearTileSettingsBtn.addEventListener("click",()=>{if(!confirm("Clear every saved lock and visibility setting for this mission?"))return;state.lockedMapTileIds.clear();state.hiddenMapTileIds.clear();try{localStorage.removeItem(mapTileEditorStorageKey());}catch(_){ }buildMapTileOverlay();renderTileInstances();renderList();requestRender();});
+  try{state.tilePaletteView=localStorage.getItem("dz.tilePaletteView")==="instances"?"instances":"atlas";}catch(_){ }
 
   function renderTilePalette(){
     if(!tilePaletteEl)return;
@@ -10671,6 +10817,7 @@ end group
     if(!img){
       tilePaletteMessageEl.hidden=false;
       tilePaletteMessageEl.textContent=state.mapTiles.error||"Load a mission with terrain tiles to see its palette.";
+      setTilePaletteView(state.tilePaletteView);
       return;
     }
     tilePaletteMessageEl.hidden=true;
@@ -10683,6 +10830,7 @@ end group
       button.append(canvas);button.addEventListener("click",event=>selectMapTilesFromPalette(index,event.shiftKey));tilePaletteGridEl.appendChild(button);
     }
     renderTilePaletteSelection();
+    setTilePaletteView(state.tilePaletteView);
     requestAnimationFrame(layoutTilePaletteGrid);
   }
 
@@ -10782,7 +10930,7 @@ end group
         addPoint(step/steps);addPoint((step+1)/steps);
       }
     };
-    for(const it of state.items.filter(isMapTileItem)){
+    for(const it of state.items.filter(it=>isMapTileItem(it)&&!isMapTileHidden(it))){
       const footprint=getMapTileFootprint(it);if(!footprint)continue;
       addEdge(footprint.left,footprint.bottom,footprint.right,footprint.bottom,it);
       addEdge(footprint.right,footprint.bottom,footprint.right,footprint.top,it);
@@ -10810,7 +10958,7 @@ end group
     // prevents it from competing with area volumes and transparent item modes.
     const img=state.mapTiles.atlasImage,THREE=state.glb.THREE,scene=state.threeTerrain.scene;if(!img||!THREE||!scene||!state.mapTiles.records.length)return;
     const steps=16,positions=[],uvs=[],indices=[];let painted=0;
-    for(const it of state.items.filter(isMapTileItem)){
+    for(const it of state.items.filter(it=>isMapTileItem(it)&&!isMapTileHidden(it))){
       if(state.mapTiles.dragPreviewIds.has(it.id))continue;
       const record=mapTileRecordForItem(it),tileIndex=mapTileAtlasIndex(it);if(!record||tileIndex===null)continue;
       const footprint=getMapTileFootprint(it);if(!footprint)continue;
@@ -13259,7 +13407,7 @@ end group
       const itemId = getItemIdFromObject3D(hit.object);
       if (itemId == null) continue;
       const it = state.items.find(x => x.id === itemId) || null;
-      if (it) return it;
+      if (it && !(isMapTileItem(it)&&(isMapTileLocked(it)||isMapTileHidden(it)))) return it;
     }
     return null;
   }
@@ -13281,7 +13429,7 @@ end group
     // visible/topmost one when footprints overlap.
     for(let i=state.items.length-1;i>=0;i--){
       const it=state.items[i];
-      if(!isMapTileItem(it)||!allowed.has(it.id)||!isItemVisibilityFilterMatch(it))continue;
+      if(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)||!allowed.has(it.id)||!isItemVisibilityFilterMatch(it))continue;
       const f=getMapTileFootprint(it);
       if(f&&x>=f.left&&x<=f.right&&y>=f.bottom&&y<=f.top)return it;
     }
@@ -14375,7 +14523,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }
     state.lastMouse = { sx, sy };
   });
-  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; boxSelectionEl.style.display='none'; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const {pickedId,additive}=state.pendingLeftClick; selectById(pickedId != null ? pickedId : null,{additive}); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&!isMapTileItem(it))) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); refreshLiveMisWindow(false, { force: true }); } }
+  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; boxSelectionEl.style.display='none'; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const {pickedId,additive}=state.pendingLeftClick; selectById(pickedId != null ? pickedId : null,{additive}); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)))) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); renderTileInstances(); refreshLiveMisWindow(false, { force: true }); } }
   cv.addEventListener('mouseup', e => {
     if (state.insertModeActive && state.insertDragStart){
       const rect = cv.getBoundingClientRect();
@@ -14488,6 +14636,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
   function beginGizmoDrag(mode,clientX,clientY,itemIds){
     if(!isGizmoHandleInteractive(mode))return null;
     const items=itemIds.map(id=>getItemByIdFast(id)).filter(Boolean),visual=state.gizmoVisual,h=visual?.handles?.[mode],pivot=visual?.center?.world;
+    if(items.some(isMapTileLocked)){statusEl.textContent="Locked tiles cannot be transformed.";return null;}
     if(!items.length||!h||!pivot)return null;
     const ray=screenRay(clientX-cv.getBoundingClientRect().left,clientY-cv.getBoundingClientRect().top),snapshots=items.map(it=>{const record=mapTileRecordForItem(it);return {id:it.id,x:it.x,y:it.y,z:it.z,heading:Number(it.heading)||0,pitch:Number(it.pitch)||0,tilRecordIndex:record?.recordIndex,tilFlags:record?.flags,world:vec3(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it))};});
     const drag={mode,itemIds,lastX:clientX,lastY:clientY,pivot,basis:visual.basis,handle:h,snapshots,label:'',onlyMapTiles:items.every(isMapTileItem)};
@@ -14523,7 +14672,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }
     commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean));updateMapTileDragPreview();updateItemGizmo();
   });
-  window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();clearMapTileDragPreview();updateItemGizmo();});
+  window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();clearMapTileDragPreview();persistMapTileEditorState();renderTileInstances();updateItemGizmo();});
 
   const _origLoadMisFile = loadMisFile;
   loadMisFile = async function(file, fileHandle = null){
