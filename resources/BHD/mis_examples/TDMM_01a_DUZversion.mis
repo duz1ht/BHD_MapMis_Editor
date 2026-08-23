@@ -14,7 +14,7 @@ begin general_information
   fog_level 19660800
   weather_type 0
   lowest_elev 0
-  num_items 1087
+  num_items 1092
   num_events 27
   sunset day1
   viewx 132708
@@ -37719,6 +37719,176 @@ begin item 1085
   extra_mlink ""
   extra_val1 0
   extra_val2 1078
+  extra_val3 0
+  extra_val4 0
+  extra_val5 0
+  extra_valmode 0
+  extra_bheight 25
+  gen_string ""
+  height_lock 1
+end item
+
+begin item 1090
+  type_id 28
+  name "MapTile"
+  iai_name ""
+  ai_textfile ""
+  id 5123
+  position 24248320 -97714176 0
+  team 1
+  wpdistance 4
+  fov 180
+  layer 9
+  obliqueness 15
+  waccuracy1 100
+  waccuracy2 100
+  perception2 100
+  perfectionist2 100
+  crouchtimer 3
+  shoottimer 5
+  attention 30
+  advancetimer 10
+  max_attack_distance 100
+  edistances 10 100
+  extra_mlink ""
+  extra_val1 0
+  extra_val2 1083
+  extra_val3 0
+  extra_val4 0
+  extra_val5 0
+  extra_valmode 0
+  extra_bheight 25
+  gen_string ""
+  height_lock 1
+end item
+
+begin item 1089
+  type_id 28
+  name "MapTile"
+  iai_name ""
+  ai_textfile ""
+  id 5122
+  position 25296896 -98828288 0
+  team 1
+  wpdistance 4
+  fov 180
+  layer 9
+  obliqueness 15
+  waccuracy1 100
+  waccuracy2 100
+  perception2 100
+  perfectionist2 100
+  crouchtimer 3
+  shoottimer 5
+  attention 30
+  advancetimer 10
+  max_attack_distance 100
+  edistances 10 100
+  extra_mlink ""
+  extra_val1 0
+  extra_val2 1082
+  extra_val3 0
+  extra_val4 0
+  extra_val5 0
+  extra_valmode 0
+  extra_bheight 25
+  gen_string ""
+  height_lock 1
+end item
+
+begin item 1088
+  type_id 28
+  name "MapTile"
+  iai_name ""
+  ai_textfile ""
+  id 5121
+  position 26345472 -97910784 0
+  team 1
+  wpdistance 4
+  fov 180
+  layer 9
+  obliqueness 15
+  waccuracy1 100
+  waccuracy2 100
+  perception2 100
+  perfectionist2 100
+  crouchtimer 3
+  shoottimer 5
+  attention 30
+  advancetimer 10
+  max_attack_distance 100
+  edistances 10 100
+  extra_mlink ""
+  extra_val1 0
+  extra_val2 1081
+  extra_val3 0
+  extra_val4 0
+  extra_val5 0
+  extra_valmode 0
+  extra_bheight 25
+  gen_string ""
+  height_lock 1
+end item
+
+begin item 1087
+  type_id 28
+  name "MapTile"
+  iai_name ""
+  ai_textfile ""
+  id 5120
+  position 27394048 -98828288 0
+  team 1
+  wpdistance 4
+  fov 180
+  layer 9
+  obliqueness 15
+  waccuracy1 100
+  waccuracy2 100
+  perception2 100
+  perfectionist2 100
+  crouchtimer 3
+  shoottimer 5
+  attention 30
+  advancetimer 10
+  max_attack_distance 100
+  edistances 10 100
+  extra_mlink ""
+  extra_val1 0
+  extra_val2 1080
+  extra_val3 0
+  extra_val4 0
+  extra_val5 0
+  extra_valmode 0
+  extra_bheight 25
+  gen_string ""
+  height_lock 1
+end item
+
+begin item 1091
+  type_id 28
+  name "MapTile"
+  iai_name ""
+  ai_textfile ""
+  id 5124
+  position 23789568 -98631680 0
+  team 1
+  wpdistance 4
+  fov 180
+  layer 9
+  obliqueness 15
+  waccuracy1 100
+  waccuracy2 100
+  perception2 100
+  perfectionist2 100
+  crouchtimer 3
+  shoottimer 5
+  attention 30
+  advancetimer 10
+  max_attack_distance 100
+  edistances 10 100
+  extra_mlink ""
+  extra_val1 0
+  extra_val2 1084
   extra_val3 0
   extra_val4 0
   extra_val5 0
