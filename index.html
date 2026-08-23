@@ -13501,61 +13501,75 @@ end group
     return null;
   }
 
-  function pickItemFromGlbAt(sx, sy){
+  function configureGlbPickRay(sx, sy){
     if (!state.glb.ready || !state.glb.THREE || !state.glb.camera) return null;
     const rect = cv.getBoundingClientRect();
-    const nx = (sx / rect.width) * 2 - 1;
-    const ny = 1 - (sy / rect.height) * 2;
     const { P, V } = currentPV();
     applyThreeCameraFromPV(P, V);
-
     if (!state.glb.raycaster) state.glb.raycaster = new state.glb.THREE.Raycaster();
-    if (!state.glb.pointerNdc) state.glb.pointerNdc = new state.glb.THREE.Vector2();
-    state.glb.pointerNdc.set(nx, ny);
     if (topViewLocked){
-      // The render camera is a PerspectiveCamera with an orthographic matrix
-      // while Top View is active, so Three.js cannot infer the correct ray type.
+      // Top View uses an orthographic projection matrix on a PerspectiveCamera,
+      // so Three.js cannot infer the correct ray type by itself.
       const ray = screenRay(sx, sy);
       state.glb.raycaster.set(
         new state.glb.THREE.Vector3(ray.origin.x, ray.origin.y, ray.origin.z),
         new state.glb.THREE.Vector3(ray.dir.x, ray.dir.y, ray.dir.z),
       );
-    } else state.glb.raycaster.setFromCamera(state.glb.pointerNdc, state.glb.camera);
-    const hits = state.glb.raycaster.intersectObjects(Array.from(state.glb.itemInstances.values()), true);
-    state.glb.lastAttachmentPick = null;
-    if (state.attachmentCalibratorOpen){
-      for (const hit of hits){
-        const attachmentPick = getAttachedWeaponPickFromObject3D(hit.object);
-        if (!attachmentPick) continue;
-        const parentItem = getItemByIdFast(attachmentPick.parentItemId);
-        if (parentItem){ state.glb.lastAttachmentPick = attachmentPick; return parentItem; }
-      }
+    } else {
+      if (!state.glb.pointerNdc) state.glb.pointerNdc = new state.glb.THREE.Vector2();
+      state.glb.pointerNdc.set((sx / rect.width) * 2 - 1, 1 - (sy / rect.height) * 2);
+      state.glb.raycaster.setFromCamera(state.glb.pointerNdc, state.glb.camera);
     }
+    return state.glb.raycaster;
+  }
+
+  function isReferenceGlbObject3D(obj){
+    let cur = obj;
+    while (cur){
+      if (cur === state.referenceGlb?.root || cur.userData?.isReferenceGlb) return true;
+      cur = cur.parent;
+    }
+    return false;
+  }
+
+  function pickNearestSceneObjectAt(sx, sy, { includeReference = true } = {}){
+    const raycaster = configureGlbPickRay(sx, sy);
+    if (!raycaster) return null;
+    const roots = Array.from(state.glb.itemInstances.values());
+    if (includeReference && state.referenceGlb?.root) roots.push(state.referenceGlb.root);
+    const hits = raycaster.intersectObjects(roots, true);
+    state.glb.lastAttachmentPick = null;
+
+    // intersectObjects is sorted nearest-first. Resolving both reference and map
+    // objects in this single hit list prevents the reference from stealing clicks
+    // from a map item that is visibly in front of it.
     for (const hit of hits){
+      if (includeReference && isReferenceGlbObject3D(hit.object)){
+        return { kind: "reference", reference: state.referenceGlb, distance: hit.distance, hit };
+      }
+      if (state.attachmentCalibratorOpen){
+        const attachmentPick = getAttachedWeaponPickFromObject3D(hit.object);
+        if (attachmentPick){
+          const parentItem = getItemByIdFast(attachmentPick.parentItemId);
+          if (parentItem){
+            state.glb.lastAttachmentPick = attachmentPick;
+            return { kind: "item", item: parentItem, distance: hit.distance, hit, attachmentPick };
+          }
+        }
+      }
       const itemId = getItemIdFromObject3D(hit.object);
       if (itemId == null) continue;
-      const it = state.items.find(x => x.id === itemId) || null;
-      if (it && !(isMapTileItem(it)&&(isMapTileLocked(it)||isMapTileHidden(it)))) return it;
+      const item = getItemByIdFast(itemId);
+      if (item && !(isMapTileItem(item) && (isMapTileLocked(item) || isMapTileHidden(item)))){
+        return { kind: "item", item, distance: hit.distance, hit };
+      }
     }
     return null;
   }
 
-  function pickReferenceGlbAt(sx, sy){
-    const reference = state.referenceGlb;
-    if (!reference?.root || !state.glb.ready || !state.glb.camera) return false;
-    const rect = cv.getBoundingClientRect(), nx = (sx / rect.width) * 2 - 1, ny = 1 - (sy / rect.height) * 2;
-    const { P, V } = currentPV();
-    applyThreeCameraFromPV(P, V);
-    if (!state.glb.raycaster) state.glb.raycaster = new state.glb.THREE.Raycaster();
-    if (topViewLocked){
-      const ray = screenRay(sx, sy);
-      state.glb.raycaster.set(new state.glb.THREE.Vector3(ray.origin.x, ray.origin.y, ray.origin.z), new state.glb.THREE.Vector3(ray.dir.x, ray.dir.y, ray.dir.z));
-    } else {
-      if (!state.glb.pointerNdc) state.glb.pointerNdc = new state.glb.THREE.Vector2();
-      state.glb.pointerNdc.set(nx, ny);
-      state.glb.raycaster.setFromCamera(state.glb.pointerNdc, state.glb.camera);
-    }
-    return state.glb.raycaster.intersectObject(reference.root, true).length > 0;
+  function pickItemFromGlbAt(sx, sy){
+    const picked = pickNearestSceneObjectAt(sx, sy, { includeReference: false });
+    return picked?.kind === "item" ? picked.item : null;
   }
 
   function pickItemAtCanvas(sx, sy){
@@ -14533,15 +14547,16 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       return;
     }
 
-    if (pickReferenceGlbAt(sx, sy)){
+    const scenePick = pickNearestSceneObjectAt(sx, sy);
+    if (scenePick?.kind === "reference"){
       selectReferenceGlb(true);
       state.lastMouse = { sx, sy };
       e.preventDefault();
       return;
     }
     if (state.referenceGlb?.selected) selectReferenceGlb(false);
-    const picked = pickItemAtCanvas(sx,sy);
-    const attachedPick = state.glb.lastAttachmentPick;
+    const picked = scenePick?.kind === "item" ? scenePick.item : pickItemAtCanvas(sx,sy);
+    const attachedPick = scenePick?.attachmentPick || state.glb.lastAttachmentPick;
     if (attachedPick && picked?.id === attachedPick.parentItemId){
       selectAttachedWeaponForCalibration(attachedPick.parentItemId, attachedPick.slot);
       state.glb.lastAttachmentPick = null;
@@ -14572,14 +14587,15 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     if (state.cameraLookActive || (state.cameraLookPending && state.cameraLookButton === 2)) return;
     const rect = cv.getBoundingClientRect();
     const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
-    if (pickReferenceGlbAt(sx, sy)){
+    const scenePick = pickNearestSceneObjectAt(sx, sy);
+    if (scenePick?.kind === "reference"){
       selectReferenceGlb(true);
       showItemContextMenu(e.clientX, e.clientY, [
         { label: "Delete Reference GLB", action: deleteSelectedItem }
       ]);
       return;
     }
-    const picked = pickItemAtCanvas(sx, sy);
+    const picked = scenePick?.kind === "item" ? scenePick.item : pickItemAtCanvas(sx, sy);
     if (picked){
       if (!(picked.id === state.selectedId || state.multiSelectedIds.has(picked.id))) selectById(picked.id);
       showItemContextMenu(e.clientX, e.clientY);
@@ -14589,7 +14605,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       { label: "Insert Item", action: toggleInsertMode }
     ]);
   });
-  cv.addEventListener("dblclick", (e) => { const rect=cv.getBoundingClientRect(); const picked=pickItemAtCanvas(e.clientX-rect.left,e.clientY-rect.top); if(picked){ selectById(picked.id); openModal(); } });
+  cv.addEventListener("dblclick", (e) => { const rect=cv.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top,scenePick=pickNearestSceneObjectAt(sx,sy); const picked=scenePick?.kind==="item"?scenePick.item:(scenePick?null:pickItemAtCanvas(sx,sy)); if(picked){ selectById(picked.id); openModal(); } });
   cv.addEventListener("mouseleave",()=>{if(state.tileInsertIndex!==null)updateTileInsertCursorPreview(null);});
   cv.addEventListener("mousemove", (e) => {
     if (state.modalOpen) return;
