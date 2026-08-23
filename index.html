@@ -769,7 +769,8 @@
     #tilePaletteTitle{font-size:12px;font-weight:700;color:var(--text-strong);}
     #tilePaletteAtlas{max-width:155px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-subtle);font-size:11px;}
     #tilePaletteFlip{width:26px;height:24px;padding:0;font-size:16px;line-height:1;flex:none;}
-    #tilePaletteBody{min-height:80px;overflow:auto;padding:8px;}
+    #tilePaletteBody{min-height:0;overflow:auto;padding:8px;}
+    #tilePalette[data-view="instances"] #tilePaletteBody{overflow:hidden;}
     #tilePaletteBody > [hidden]{display:none!important;}
     #tilePaletteGrid{display:grid;gap:4px;place-content:center;min-height:100%;}
     .tilePaletteTile{position:relative;min-width:0;min-height:0;aspect-ratio:1;padding:0;overflow:hidden;border:1px solid var(--line-strong);border-radius:2px;background:var(--canvas);cursor:pointer;}
@@ -780,18 +781,18 @@
     .tilePaletteTile canvas{display:block;width:100%;height:100%;image-rendering:auto;}
     .tilePaletteCount{position:absolute;top:1px;right:1px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:var(--accent);color:#fff;font:bold 10px/16px system-ui,sans-serif;text-align:center;pointer-events:none;}
     #tilePaletteMessage{padding:12px;color:var(--text-subtle);font-size:12px;line-height:1.4;}
-    #tileInstancesView{display:grid;grid-template-rows:auto minmax(0,1fr);height:100%;min-height:0;gap:7px;}
+    #tileInstancesView{display:grid;grid-template-rows:auto minmax(0,1fr);height:100%;min-height:0;overflow:hidden;gap:7px;}
     #tileInstancesTools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;}
     #tileInstancesActions{grid-column:1/-1;display:flex;gap:5px;flex-wrap:wrap;}
     #tileInstancesActions button{padding:3px 6px;font-size:11px;}
     #tileInstancesSearch{min-width:0;width:100%;}
-    #tileInstancesList{display:grid;align-content:start;gap:6px;overflow:auto;min-height:0;}
-    .tileInstanceGroup{border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--surface);}
+    #tileInstancesList{display:grid;grid-auto-rows:max-content;align-content:start;gap:6px;overflow-x:hidden;overflow-y:auto;min-height:0;}
+    .tileInstanceGroup{min-height:max-content;border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--surface);}
     .tileInstanceHeader{display:grid;grid-template-columns:auto 38px minmax(0,1fr) 28px 28px;align-items:center;gap:5px;width:100%;padding:5px;border:0;border-radius:0;text-align:left;background:var(--surface-2);}
     .tileInstanceHeader .disclosure{width:12px;text-align:center;}
     .tileInstanceThumb{width:36px;height:36px;display:block;border:1px solid var(--line-strong);background:var(--canvas);image-rendering:auto;}
     .tileInstanceName{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .tileInstanceRows{display:grid;}
+    .tileInstanceRows{display:grid;grid-auto-rows:max-content;}
     .tileInstanceGroup.collapsed .tileInstanceRows{display:none;}
     .tileInstanceRow{display:grid;grid-template-columns:38px minmax(0,1fr) 28px 28px;align-items:center;gap:5px;padding:5px;border-top:1px solid var(--line-soft);cursor:pointer;}
     .tileInstanceRow:hover{background:var(--surface-subtle);}
@@ -10651,6 +10652,7 @@ end group
   function setTilePaletteView(view){
     state.tilePaletteView=view==="instances"?"instances":"atlas";
     const instances=state.tilePaletteView==="instances";
+    tilePaletteEl.dataset.view=state.tilePaletteView;
     tilePaletteGridEl.hidden=instances;tileInstancesViewEl.hidden=!instances;
     tilePaletteTitleEl.textContent=instances?"Tiles on map":"Tile Palette";
     tilePaletteFlipEl.textContent=instances?"▶":"◀";tilePaletteFlipEl.setAttribute("aria-pressed",String(instances));
@@ -10675,9 +10677,10 @@ end group
     if(!groups.size){const empty=document.createElement("div");empty.className="tileInstancesEmpty";empty.textContent=all.length?"No map tiles match this filter.":"This mission has no map tiles.";tileInstancesListEl.append(empty);return;}
     for(const [index,items] of [...groups].sort((a,b)=>a[0]-b[0])){
       items.sort((a,b)=>String(mapTileDisplayNumber(a)).localeCompare(String(mapTileDisplayNumber(b)),undefined,{numeric:true}));
-      const group=document.createElement("section");group.className="tileInstanceGroup"+(state.collapsedTileGroups.has(index)?" collapsed":"");
+      const collapsed=state.collapsedTileGroups.has(index),rowsId=`tileInstanceRows-${index}`;
+      const group=document.createElement("section");group.className="tileInstanceGroup"+(collapsed?" collapsed":"");
       const header=document.createElement("div");header.className="tileInstanceHeader";
-      const disclosure=document.createElement("button");disclosure.type="button";disclosure.className="tileIconButton disclosure";disclosure.textContent=state.collapsedTileGroups.has(index)?"▶":"▼";disclosure.title=`${state.collapsedTileGroups.has(index)?"Expand":"Collapse"} Tile ${index}`;
+      const disclosure=document.createElement("button");disclosure.type="button";disclosure.className="tileIconButton disclosure";disclosure.textContent=collapsed?"▶":"▼";disclosure.title=`${collapsed?"Expand":"Collapse"} Tile ${index}`;disclosure.setAttribute("aria-expanded",String(!collapsed));disclosure.setAttribute("aria-controls",rowsId);
       disclosure.onclick=()=>{state.collapsedTileGroups.has(index)?state.collapsedTileGroups.delete(index):state.collapsedTileGroups.add(index);renderTileInstances();};
       const thumb=document.createElement("canvas");thumb.className="tileInstanceThumb";drawMapTileThumbnail(thumb,index);
       const name=document.createElement("span");name.className="tileInstanceName";name.textContent=`Tile ${index} (${items.length})`;
@@ -10685,7 +10688,7 @@ end group
       const lock=document.createElement("button");lock.type="button";lock.className="tileIconButton";lock.textContent=allLocked?"🔒":"🔓";lock.title=`${allLocked?"Unlock":"Lock"} every Tile ${index}`;lock.setAttribute("aria-pressed",String(allLocked));lock.onclick=()=>updateMapTileEditorState(items.map(it=>it.id),"lock",!allLocked);
       const eye=document.createElement("button");eye.type="button";eye.className="tileIconButton";eye.textContent=allHidden?"◉":"👁";eye.title=`${allHidden?"Show":"Hide"} every Tile ${index}`;eye.setAttribute("aria-pressed",String(!allHidden));eye.onclick=()=>updateMapTileEditorState(items.map(it=>it.id),"hide",!allHidden);
       header.append(disclosure,thumb,name,lock,eye);group.append(header);
-      const rows=document.createElement("div");rows.className="tileInstanceRows";
+      const rows=document.createElement("div");rows.className="tileInstanceRows";rows.id=rowsId;
       for(const it of items){const row=document.createElement("div");row.className=`tileInstanceRow${selected.has(it.id)?" selected":""}${isMapTileLocked(it)?" locked":""}${isMapTileHidden(it)?" hiddenTile":""}`;row.dataset.itemId=String(it.id);row.tabIndex=0;row.setAttribute("role","button");
         const mini=document.createElement("canvas");mini.className="tileInstanceThumb";drawMapTileThumbnail(mini,index);const meta=document.createElement("div");meta.className="tileInstanceMeta";const overlap=overlapCounts.get(mapTileOverlapKey(it))||0;meta.innerHTML=`<strong>Item #${escapeHtml(String(mapTileDisplayNumber(it)))}</strong><span>X ${escapeHtml(String(it.x))} · Y ${escapeHtml(String(it.y))}${overlap>1?` · ${overlap} overlapping`:""}</span>`;
         const itemLock=document.createElement("button");itemLock.type="button";itemLock.className="tileIconButton";itemLock.textContent=isMapTileLocked(it)?"🔒":"🔓";itemLock.title=`${isMapTileLocked(it)?"Unlock":"Lock"} item ${mapTileDisplayNumber(it)}`;itemLock.onclick=e=>{e.stopPropagation();updateMapTileEditorState([it.id],"lock",!isMapTileLocked(it));};
