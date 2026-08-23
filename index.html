@@ -2632,6 +2632,7 @@ end group
     tileInstancesSearch: "",
     tileInstancesFilter: "all",
     collapsedTileGroups: new Set(),
+    knownTileGroupIndices: new Set(),
     lockedMapTileIds: new Set(),
     hiddenMapTileIds: new Set(),
     tilePaletteSelectedIndex: null,
@@ -10594,6 +10595,7 @@ end group
     disposeMapTileBorders();
     Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,dirty:false});
     state.threeTerrain.dirty=true;
+    state.collapsedTileGroups.clear();state.knownTileGroupIndices.clear();
     state.tilePaletteSelectedIndex=null;cancelTileInsertMode("");
     renderTilePalette();
   }
@@ -10693,6 +10695,7 @@ end group
     const matches=it=>{const locked=isMapTileLocked(it),hidden=isMapTileHidden(it),overlap=(overlapCounts.get(mapTileOverlapKey(it))||0)>1,f=state.tileInstancesFilter;if(f==="locked"&&!locked||f==="unlocked"&&locked||f==="hidden"&&!hidden||f==="visible"&&hidden||f==="selected"&&!selected.has(it.id)||f==="overlap"&&!overlap)return false;const index=mapTileAtlasIndex(it),hay=`${index} ${mapTileDisplayNumber(it)} ${it.id} ${it.x} ${it.y}`.toLowerCase();return !term||hay.includes(term);};
     const groups=new Map();for(const it of all.filter(matches)){const index=mapTileAtlasIndex(it);if(index===null)continue;if(!groups.has(index))groups.set(index,[]);groups.get(index).push(it);}
     if(!groups.size){const empty=document.createElement("div");empty.className="tileInstancesEmpty";empty.textContent=all.length?"No map tiles match this filter.":"This mission has no map tiles.";tileInstancesListEl.append(empty);return;}
+    for(const index of groups.keys())if(!state.knownTileGroupIndices.has(index)){state.knownTileGroupIndices.add(index);state.collapsedTileGroups.add(index);}
     for(const [index,items] of [...groups].sort((a,b)=>a[0]-b[0])){
       items.sort((a,b)=>String(mapTileDisplayNumber(a)).localeCompare(String(mapTileDisplayNumber(b)),undefined,{numeric:true}));
       const collapsed=state.collapsedTileGroups.has(index),rowsId=`tileInstanceRows-${index}`;
