@@ -1647,6 +1647,7 @@
   <div id="appLayout">
   <div id="sidebar">
     <input id="fileMis" type="file" accept=".mis,.txt" style="display:none;" />
+    <input id="fileReferenceGlb" type="file" accept=".glb,model/gltf-binary" style="display:none;" />
 
     <div id="sidebarHeaderActions">
       <button id="sidebarCloseBtn" type="button" class="modeBtn" title="Close sidebar (C)" aria-label="Close sidebar" aria-keyshortcuts="C"><img class="toolbarIcon" src="resources/BHD/editor_icons/sidebar_close.svg" alt="" /></button>
@@ -2833,6 +2834,7 @@ end group
       gizmoPointerNdc: null,
       ready: false,
     },
+    referenceGlb: null,
     debugFog: {
       selectedPreset: 0,
       presetValues: new Map(),
@@ -2904,6 +2906,7 @@ end group
 
   // UI refs
   const fileMisEl = document.getElementById("fileMis");
+  const fileReferenceGlbEl = document.getElementById("fileReferenceGlb");
   const defStatusEl = document.getElementById("defStatus");
   const searchEl = document.getElementById("search");
   const listEl = document.getElementById("list");
@@ -8104,6 +8107,7 @@ end group
       return false;
     }
     const additive = !!options.additive;
+    if (state.referenceGlb?.selected) selectReferenceGlb(false);
     if (!additive){
       state.selectedId = id;
       state.multiSelectedIds = new Set(id != null ? [id] : []);
@@ -8698,7 +8702,8 @@ end group
       stopInsertMode();
       return;
     }
-    if (e.key === "Escape" && (state.selectedId != null || state.multiSelectedIds.size || state.selectedWaypointMarkerIds.size)){
+    if (e.key === "Escape" && (state.selectedId != null || state.multiSelectedIds.size || state.selectedWaypointMarkerIds.size || state.referenceGlb?.selected)){
+      if (state.referenceGlb?.selected) selectReferenceGlb(false);
       state.selectedId = null;
       state.multiSelectedIds.clear();
       state.selectedWaypointMarkerIds.clear();
@@ -8925,6 +8930,13 @@ end group
   });
 
   function deleteSelectedItem(){
+    if (state.referenceGlb?.selected){
+      const fileName = state.referenceGlb.fileName;
+      disposeReferenceGlb();
+      statusEl.textContent = `Reference GLB removed: ${fileName}`;
+      addLog(`[reference_glb] removed=${fileName}`);
+      return;
+    }
     const selectedItems = getSelectedItems();
     if (!selectedItems.length) return;
     if(selectedItems.some(isMapTileLocked)){statusEl.textContent="Locked tiles cannot be deleted. Unlock the selection first.";return;}
@@ -10045,6 +10057,7 @@ end group
     "view.showSectors": () => toggleViewOption("showSectors"),
     "view.showGrid": () => toggleViewOption("showGrid"),
     "view.showAnchorPoints": () => toggleViewOption("showAnchorPoints"),
+    "tools.importReferenceGlb": () => fileReferenceGlbEl.click(),
     "mis.liveChanges": openLiveMisWindow,
     "logs.open": openLogsWindow,
     "more.keyboardShortcuts": openKeyboardShortcuts,
@@ -10129,6 +10142,8 @@ end group
       {
         label: "Tools",
         children: [
+          { label: "Import Reference GLB...", command: "tools.importReferenceGlb" },
+          { separator: true },
           { label: "Tile Tool", command: "tools.tileTool" },
           { label: "Run Text Tool", command: "tools.textTool" },
           { separator: true },
@@ -10417,6 +10432,9 @@ end group
   fileMisEl.addEventListener("change", async (e) => {
     const f = e.target.files?.[0];
     await loadMisFile(f);
+  });
+  fileReferenceGlbEl.addEventListener("change", async (e) => {
+    await importReferenceGlb(e.target.files?.[0]);
   });
   // Canvas (WebGL terrain viewer + editor items)
   const cv = document.getElementById("cv");
@@ -12896,9 +12914,95 @@ end group
     disposeGlbInstanceMaterials(instance);
   }
 
+  function disposeReferenceGlb(){
+    const reference = state.referenceGlb;
+    if (!reference) return;
+    clearGlbSelectionOutline(reference.root);
+    state.glb.scene?.remove?.(reference.root);
+    const geometries = new Set(), materials = new Set(), textures = new Set();
+    reference.root?.traverse?.((obj) => {
+      if (obj.geometry) geometries.add(obj.geometry);
+      const objectMaterials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const material of objectMaterials){
+        if (!material) continue;
+        materials.add(material);
+        for (const value of Object.values(material)) if (value?.isTexture) textures.add(value);
+      }
+    });
+    geometries.forEach(geometry => geometry.dispose?.());
+    materials.forEach(material => material.dispose?.());
+    textures.forEach(texture => texture.dispose?.());
+    state.referenceGlb = null;
+    state.gizmoDrag = null;
+    state.hoveredGizmoHandle = null;
+    updateItemGizmo();
+    requestRender();
+  }
+
+  function selectReferenceGlb(selected = true){
+    if (!state.referenceGlb) return;
+    state.referenceGlb.selected = !!selected;
+    setGlbInstanceSelected(state.referenceGlb.root, !!selected);
+    if (selected){
+      state.selectedId = null;
+      state.multiSelectedIds.clear();
+      state.selectedWaypointMarkerIds.clear();
+      updateWaypointMarkerCount(0);
+      renderList();
+    }
+    updateItemGizmo();
+    requestRender();
+  }
+
+  async function importReferenceGlb(file){
+    if (!file) return;
+    if (!/\.glb$/i.test(file.name || "")){
+      statusEl.textContent = "Select a binary .GLB file.";
+      return;
+    }
+    if (!await ensureGlbRendererReady()){
+      statusEl.textContent = "The 3D renderer could not be initialized.";
+      return;
+    }
+    try{
+      const data = await file.arrayBuffer();
+      const gltf = state.glb.loader.parseAsync
+        ? await state.glb.loader.parseAsync(data, "")
+        : await new Promise((resolve, reject) => state.glb.loader.parse(data, "", resolve, reject));
+      const source = gltf.scene || gltf.scenes?.[0];
+      if (!source) throw new Error("The GLB has no scene");
+      disposeReferenceGlb();
+      const root = new state.glb.THREE.Group();
+      root.name = `REFERENCE_GLB:${file.name}`;
+      root.userData.isReferenceGlb = true;
+      source.name = `${root.name}:MODEL`;
+      applyGlbModelCorrection(source, 1);
+      root.add(source);
+      const rect = cv.getBoundingClientRect();
+      const center = screenToTerrain(rect.width / 2, rect.height / 2) || { x: 0, y: 0, z: 0 };
+      root.position.set(center.x || 0, center.y || 0, center.z || 0);
+      state.glb.scene.add(root);
+      state.referenceGlb = {
+        fileName: file.name,
+        root,
+        selected: false,
+        item: { id: "__reference_glb__", x: worldToRaw(root.position.x, "x"), y: worldToRaw(root.position.y, "y"), z: worldToRaw(root.position.z, "z"), heading: 0, pitch: 0, kv: {} }
+      };
+      selectReferenceGlb(true);
+      statusEl.textContent = `Reference GLB imported: ${file.name}. It will not be saved to MIS/TIL.`;
+      addLog(`[reference_glb] imported=${file.name} bytes=${data.byteLength}`);
+    } catch (err){
+      statusEl.textContent = "Failed to import reference GLB (see Logs).";
+      addLog(`[reference_glb] import error: ${err?.message || err}`);
+    } finally {
+      fileReferenceGlbEl.value = "";
+    }
+  }
+
   function clearGlbItemInstances(){
     // Invalidates async sync work before replacing the current mission document.
     state.glb.documentGeneration += 1;
+    disposeReferenceGlb();
     for (const instance of state.glb.itemInstances.values()) removeGlbItemInstance(instance);
     state.glb.itemInstances.clear();
     clearItemArrows();
@@ -13436,6 +13540,24 @@ end group
     return null;
   }
 
+  function pickReferenceGlbAt(sx, sy){
+    const reference = state.referenceGlb;
+    if (!reference?.root || !state.glb.ready || !state.glb.camera) return false;
+    const rect = cv.getBoundingClientRect(), nx = (sx / rect.width) * 2 - 1, ny = 1 - (sy / rect.height) * 2;
+    const { P, V } = currentPV();
+    applyThreeCameraFromPV(P, V);
+    if (!state.glb.raycaster) state.glb.raycaster = new state.glb.THREE.Raycaster();
+    if (topViewLocked){
+      const ray = screenRay(sx, sy);
+      state.glb.raycaster.set(new state.glb.THREE.Vector3(ray.origin.x, ray.origin.y, ray.origin.z), new state.glb.THREE.Vector3(ray.dir.x, ray.dir.y, ray.dir.z));
+    } else {
+      if (!state.glb.pointerNdc) state.glb.pointerNdc = new state.glb.THREE.Vector2();
+      state.glb.pointerNdc.set(nx, ny);
+      state.glb.raycaster.setFromCamera(state.glb.pointerNdc, state.glb.camera);
+    }
+    return state.glb.raycaster.intersectObject(reference.root, true).length > 0;
+  }
+
   function pickItemAtCanvas(sx, sy){
     if(state.tileEditModeActive){
       const terrainPoint=screenToTerrain(sx,sy);
@@ -13491,11 +13613,12 @@ end group
     return { x:vec3Norm(x0), y:vec3Norm(rotateAroundAxis(y0,x0,pitch)), z:vec3Norm(rotateAroundAxis(z,x0,pitch)) };
   }
   function selectedTransformItems(){
+    if (state.referenceGlb?.selected) return [state.referenceGlb.item];
     const ids=state.multiSelectedIds.size?Array.from(state.multiSelectedIds):[state.selectedId];
     return ids.map(id=>getItemByIdFast(id)).filter(it=>it&&(!state.tileEditModeActive||isMapTileItem(it)));
   }
   function gizmoPivot(items=selectedTransformItems()){
-    const active=getSelected();
+    const active=state.referenceGlb?.selected ? state.referenceGlb.item : getSelected();
     if (!items.length || !active) return null;
     if (state.transformPivot === 'active' || state.transformPivot === 'individual') return getItemInteractionAnchor(active);
     let out=vec3(0,0,0);
@@ -13574,8 +13697,8 @@ end group
     if(gizmoCtx){gizmoCtx.setTransform(dpr,0,0,dpr,0,0);gizmoCtx.clearRect(0,0,rect.width,rect.height);}
     drawSelectedMapTileOutlines();
     if(!ensureThreeGizmo()){state.gizmoVisual=null;return;}
-    const group=state.glb.gizmoGroup,it=getSelected(),items=selectedTransformItems(),center=gizmoPivot(items);
-    if(!it||!center||state.modalOpen||!isItemVisibilityFilterMatch(it)){group.visible=false;state.gizmoVisual=null;return;}
+    const group=state.glb.gizmoGroup,it=state.referenceGlb?.selected ? state.referenceGlb.item : getSelected(),items=selectedTransformItems(),center=gizmoPivot(items);
+    if(!it||!center||state.modalOpen||(!state.referenceGlb?.selected&&!isItemVisibilityFilterMatch(it))){group.visible=false;state.gizmoVisual=null;return;}
     group.visible=true;group.position.set(center.x,center.y,center.z);
     const basis=state.gizmoDrag?.handle?.kind==='ring'?state.gizmoDrag.basis:itemTransformBasis(it),THREE=state.glb.THREE,m=new THREE.Matrix4().makeBasis(new THREE.Vector3(basis.x.x,basis.x.y,basis.x.z),new THREE.Vector3(basis.y.x,basis.y.y,basis.y.z),new THREE.Vector3(basis.z.x,basis.z.y,basis.z.z));group.quaternion.setFromRotationMatrix(m);
     const {tanHalfVerticalFov,orthographic,orthographicHalfHeight}=getCameraProjection();
@@ -14389,8 +14512,10 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
 
     if (!state.pastePlacementActive){
       const gizmoMode = pickGizmoModeAt(e.clientX, e.clientY);
-      if (gizmoMode && state.selectedId != null){
-        const dragItemIds = state.multiSelectedIds.size
+      if (gizmoMode && (state.selectedId != null || state.referenceGlb?.selected)){
+        const dragItemIds = state.referenceGlb?.selected
+          ? ["__reference_glb__"]
+          : state.multiSelectedIds.size
           ? Array.from(state.multiSelectedIds)
           : [state.selectedId];
         beginUndoTransaction();
@@ -14408,6 +14533,13 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       return;
     }
 
+    if (pickReferenceGlbAt(sx, sy)){
+      selectReferenceGlb(true);
+      state.lastMouse = { sx, sy };
+      e.preventDefault();
+      return;
+    }
+    if (state.referenceGlb?.selected) selectReferenceGlb(false);
     const picked = pickItemAtCanvas(sx,sy);
     const attachedPick = state.glb.lastAttachmentPick;
     if (attachedPick && picked?.id === attachedPick.parentItemId){
@@ -14440,6 +14572,13 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     if (state.cameraLookActive || (state.cameraLookPending && state.cameraLookButton === 2)) return;
     const rect = cv.getBoundingClientRect();
     const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    if (pickReferenceGlbAt(sx, sy)){
+      selectReferenceGlb(true);
+      showItemContextMenu(e.clientX, e.clientY, [
+        { label: "Delete Reference GLB", action: deleteSelectedItem }
+      ]);
+      return;
+    }
     const picked = pickItemAtCanvas(sx, sy);
     if (picked){
       if (!(picked.id === state.selectedId || state.multiSelectedIds.has(picked.id))) selectById(picked.id);
@@ -14657,9 +14796,18 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     if(Math.abs(delta.y)>1e-9)it.y=worldToRaw(snapValue(start.world.y+delta.y,gridStep),'y');else it.y=start.y;
     if(Math.abs(delta.z)>1e-9)it.z=worldToRaw(snapValue(start.world.z+delta.z,gridStep),'z');else it.z=start.z;
   }
+  function getGizmoTransformTarget(id){
+    return id === "__reference_glb__" ? state.referenceGlb?.item : getItemByIdFast(id);
+  }
+  function syncReferenceGlbTransform(){
+    const reference = state.referenceGlb;
+    if (!reference) return;
+    applyItemPoseTransform(reference.root, reference.item);
+    requestRender();
+  }
   function beginGizmoDrag(mode,clientX,clientY,itemIds){
     if(!isGizmoHandleInteractive(mode))return null;
-    const items=itemIds.map(id=>getItemByIdFast(id)).filter(Boolean),visual=state.gizmoVisual,h=visual?.handles?.[mode],pivot=visual?.center?.world;
+    const items=itemIds.map(id=>getGizmoTransformTarget(id)).filter(Boolean),visual=state.gizmoVisual,h=visual?.handles?.[mode],pivot=visual?.center?.world;
     if(items.some(isMapTileLocked)){statusEl.textContent="Locked tiles cannot be transformed.";return null;}
     if(!items.length||!h||!pivot)return null;
     const ray=screenRay(clientX-cv.getBoundingClientRect().left,clientY-cv.getBoundingClientRect().top),snapshots=items.map(it=>{const record=mapTileRecordForItem(it);return {id:it.id,x:it.x,y:it.y,z:it.z,heading:Number(it.heading)||0,pitch:Number(it.pitch)||0,tilRecordIndex:record?.recordIndex,tilFlags:record?.flags,world:vec3(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it))};});
@@ -14677,14 +14825,14 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
   window.addEventListener('mousemove',e=>{
     if(!state.gizmoDrag)return;
     const d=state.gizmoDrag,rect=cv.getBoundingClientRect(),ray=screenRay(e.clientX-rect.left,e.clientY-rect.top);
-    if(!isGizmoHandleInteractive(d.mode)||state.modalOpen||!d.snapshots.every(start=>getItemByIdFast(start.id))){state.gizmoDrag=null;state.hoveredGizmoHandle=null;clearMapTileDragPreview();endUndoTransaction();updateItemGizmo();return;}
+    if(!isGizmoHandleInteractive(d.mode)||state.modalOpen||!d.snapshots.every(start=>getGizmoTransformTarget(start.id))){state.gizmoDrag=null;state.hoveredGizmoHandle=null;clearMapTileDragPreview();endUndoTransaction();updateItemGizmo();return;}
     if(d.handle.kind==='axis'){
       const scalar=rayAxisParameter(ray,d.pivot,d.handle.axis)-d.startScalar,move=vec3Scale(d.handle.axis,scalar);
       d.label=`${vec3Dot(move,d.handle.axis).toFixed(2)}`;
-      for(const start of d.snapshots){const it=getItemByIdFast(start.id);if(!it)continue;applyTranslationDelta(it,start,move);}
+      for(const start of d.snapshots){const it=getGizmoTransformTarget(start.id);if(!it)continue;applyTranslationDelta(it,start,move);}
     }else if(d.handle.kind==='plane'){
       const hit=rayPlanePoint(ray,d.pivot,d.planeNormal);if(!hit||!d.startPoint)return;let delta=vec3Sub(hit,d.startPoint),da=vec3Dot(delta,d.handle.axisA),db=vec3Dot(delta,d.handle.axisB);delta=vec3Add(vec3Scale(d.handle.axisA,da),vec3Scale(d.handle.axisB,db));d.label=`${da.toFixed(2)}, ${db.toFixed(2)}`;
-      for(const start of d.snapshots){const it=getItemByIdFast(start.id);if(!it)continue;applyTranslationDelta(it,start,delta);}
+      for(const start of d.snapshots){const it=getGizmoTransformTarget(start.id);if(!it)continue;applyTranslationDelta(it,start,delta);}
     }else if(d.handle.kind==='ring'){
       const hit=rayPlanePoint(ray,d.pivot,d.handle.axis);if(!hit||!d.lastVector)return;const cur=vec3Norm(vec3Sub(hit,d.pivot)),deltaAngle=Math.atan2(vec3Dot(d.handle.axis,vec3Cross(d.lastVector,cur)),vec3Dot(d.lastVector,cur));d.accumulatedAngle+=deltaAngle;d.lastVector=cur;
       const rawDegrees=d.accumulatedAngle*180/Math.PI,reference=d.snapshots[0];
@@ -14692,9 +14840,10 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       let valueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);
       if(state.rotationSnapEnabled){if(state.rotationSnapMode==='absolute'){const initial=d.mode==='rotX'?reference.pitch:reference.heading;valueDegrees=snapValue(initial+valueDegrees,state.rotationSnap)-initial;}else valueDegrees=snapValue(valueDegrees,state.rotationSnap);}
       const geometryDegrees=gizmoRotationGeometryDegrees(d.mode,valueDegrees),angle=geometryDegrees*Math.PI/180;d.appliedAngle=angle;d.currentVector=vec3Norm(rotateAroundAxis(d.startVector,d.handle.axis,angle));d.label=`${valueDegrees.toFixed(1)}°`;
-      for(const start of d.snapshots){const it=getItemByIdFast(start.id);if(!it)continue;let itemDegrees=valueDegrees;if(state.rotationSnapEnabled&&state.rotationSnapMode==='absolute'&&state.transformPivot==='individual'){const initial=d.mode==='rotX'?start.pitch:start.heading,rawValueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);itemDegrees=snapValue(initial+rawValueDegrees,state.rotationSnap)-initial;}if(d.mode==='rotX')it.pitch=start.pitch+itemDegrees;else it.heading=start.heading+itemDegrees;if(state.transformPivot!=='individual'&&d.snapshots.length>1){const p=vec3Add(d.pivot,rotateAroundAxis(vec3Sub(start.world,d.pivot),d.handle.axis,angle));it.x=worldToRaw(p.x,'x');it.y=worldToRaw(p.y,'y');it.z=worldToRaw(p.z,'z');}}
+      for(const start of d.snapshots){const it=getGizmoTransformTarget(start.id);if(!it)continue;let itemDegrees=valueDegrees;if(state.rotationSnapEnabled&&state.rotationSnapMode==='absolute'&&state.transformPivot==='individual'){const initial=d.mode==='rotX'?start.pitch:start.heading,rawValueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);itemDegrees=snapValue(initial+rawValueDegrees,state.rotationSnap)-initial;}if(d.mode==='rotX')it.pitch=start.pitch+itemDegrees;else it.heading=start.heading+itemDegrees;if(state.transformPivot!=='individual'&&d.snapshots.length>1){const p=vec3Add(d.pivot,rotateAroundAxis(vec3Sub(start.world,d.pivot),d.handle.axis,angle));it.x=worldToRaw(p.x,'x');it.y=worldToRaw(p.y,'y');it.z=worldToRaw(p.z,'z');}}
     }
-    commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean));updateMapTileDragPreview();updateItemGizmo();
+    if (state.referenceGlb?.selected) syncReferenceGlbTransform();
+    else commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean));updateMapTileDragPreview();updateItemGizmo();
   });
   window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();clearMapTileDragPreview();persistMapTileEditorState();renderTileInstances();updateItemGizmo();});
 
