@@ -806,11 +806,11 @@
     #tileInstancesSearch{min-width:0;width:100%;}
     #tileInstancesList{display:grid;grid-auto-rows:max-content;align-content:start;gap:6px;overflow-x:hidden;overflow-y:auto;min-height:0;scrollbar-gutter:stable;padding-inline-end:2px;}
     .tileInstanceGroup{min-width:0;min-height:max-content;border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--surface);}
-    .tileInstanceHeader{display:grid;grid-template-columns:auto 38px minmax(0,1fr) 28px 28px;align-items:center;gap:5px;width:100%;padding:5px;box-sizing:border-box;border:0;border-radius:0;text-align:left;background:var(--surface-2);}
+    .tileInstanceHeader{display:grid;grid-template-columns:auto 38px minmax(0,1fr) 28px 28px;align-items:center;gap:5px;width:100%;padding:5px;box-sizing:border-box;border:0;border-bottom:1px solid var(--line-strong);border-radius:0;text-align:left;background:color-mix(in srgb,var(--surface-soft) 86%,var(--accent) 14%);}
     .tileInstanceHeader .disclosure{width:12px;text-align:center;}
     .tileInstanceThumb{width:36px;height:36px;display:block;border:1px solid var(--line-strong);background:var(--canvas);image-rendering:auto;}
     .tileInstanceName{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .tileInstanceRows{display:grid;grid-auto-rows:max-content;}
+    .tileInstanceRows{display:grid;grid-auto-rows:max-content;background:color-mix(in srgb,var(--surface) 97%,var(--accent) 3%);box-shadow:inset 3px 0 color-mix(in srgb,var(--accent) 24%,transparent);}
     .tileInstanceGroup.collapsed .tileInstanceRows{display:none;}
     .tileInstanceRow{display:grid;grid-template-columns:38px minmax(0,1fr) 28px 28px;align-items:center;gap:5px;padding:5px;border-top:1px solid var(--line-soft);cursor:pointer;}
     .tileInstanceRow:hover{background:var(--surface-subtle);}
