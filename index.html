@@ -59,6 +59,8 @@
       --highlight-text:var(--text-strong);
       --control-hover-bg:var(--surface-subtle);
       --control-active-bg:#ececec;
+      --scrollbar-thumb:color-mix(in srgb,var(--line-muted) 72%,transparent);
+      --scrollbar-thumb-hover:color-mix(in srgb,var(--line-strong) 88%,transparent);
     }
     body[data-theme="night"]{
       --bg:#11161f;
@@ -158,6 +160,22 @@
       --control-hover-bg:#edf5ea;
       --control-active-bg:#dcead7;
     }
+    *{
+      scrollbar-width:thin;
+      scrollbar-color:var(--scrollbar-thumb) transparent;
+    }
+    *::-webkit-scrollbar{width:10px;height:10px;}
+    *::-webkit-scrollbar-track{background:transparent;}
+    *::-webkit-scrollbar-thumb{
+      min-width:28px;
+      min-height:28px;
+      background:var(--scrollbar-thumb);
+      background-clip:padding-box;
+      border:2px solid transparent;
+      border-radius:var(--radius-pill);
+    }
+    *::-webkit-scrollbar-thumb:hover{background:var(--scrollbar-thumb-hover);background-clip:padding-box;}
+    *::-webkit-scrollbar-corner{background:transparent;}
     html,body{ height:100%; }
     body{
       font-family: system-ui, Arial;
