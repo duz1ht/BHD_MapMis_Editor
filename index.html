@@ -2707,6 +2707,7 @@ end group
     undoCaptureTimer: 0,
     undoRestoring: false,
     undoTransactionDepth: 0,
+    undoItemTransaction: null,
     terrainPerf: { draws: 0, culledFrustum: 0, culledBackface: 0 },
     renderBackend: 'three-only',
     renderLayers: {
@@ -6686,6 +6687,7 @@ end group
     state.undoCurrentTilRecords = structuredClone(state.mapTiles.records);
     state.undoRestoring = false;
     state.undoTransactionDepth = 0;
+    state.undoItemTransaction = null;
   }
 
   function captureUndoState(){
@@ -6717,8 +6719,31 @@ end group
     state.undoCaptureTimer = setTimeout(captureUndoState, 250);
   }
 
-  function beginUndoTransaction(){
+  function snapshotUndoItems(items){
+    return (items || []).filter(it=>it?.id != null).map(it=>structuredClone(it));
+  }
+
+  function snapshotUndoTileRecords(items){
+    const records = [];
+    const seen = new Set();
+    for (const item of items || []){
+      const record = mapTileRecordForItem(item);
+      if (!record || seen.has(record.recordIndex)) continue;
+      seen.add(record.recordIndex);
+      records.push({recordIndex:record.recordIndex,record:structuredClone(record)});
+    }
+    return records;
+  }
+
+  function beginUndoTransaction(items = null){
     if (state.undoTransactionDepth === 0) captureUndoState();
+    if (state.undoTransactionDepth === 0 && Array.isArray(items)){
+      state.undoItemTransaction = {
+        before: snapshotUndoItems(items),
+        itemIds: items.filter(it=>it?.id != null).map(it=>it.id),
+        beforeTilRecords: snapshotUndoTileRecords(items),
+      };
+    }
     state.undoTransactionDepth += 1;
   }
 
@@ -6726,9 +6751,61 @@ end group
     if (state.undoTransactionDepth === 0) return;
     state.undoTransactionDepth -= 1;
     if (state.undoTransactionDepth === 0){
-      captureUndoState();
+      const transaction = state.undoItemTransaction;
+      state.undoItemTransaction = null;
+      if (transaction){
+        const afterItems = transaction.itemIds.map(id=>getItemByIdFast(id)).filter(Boolean);
+        const after = snapshotUndoItems(afterItems);
+        const afterTilRecords = snapshotUndoTileRecords(afterItems);
+        if (JSON.stringify(transaction.before) !== JSON.stringify(after) || JSON.stringify(transaction.beforeTilRecords) !== JSON.stringify(afterTilRecords)){
+          state.undoStack.push({type:"items",before:transaction.before,after,beforeTilRecords:transaction.beforeTilRecords,afterTilRecords});
+          if (state.undoStack.length > UNDO_HISTORY_LIMIT) state.undoStack.shift();
+          state.redoStack = [];
+          state.undoCurrentText = getCurrentMisText();
+          state.undoCurrentTilFlags = state.mapTiles.records.map(record=>record.flags);
+          state.undoCurrentTilRecords = structuredClone(state.mapTiles.records);
+        }
+      } else captureUndoState();
       scheduleLiveMisRefresh();
     }
+  }
+
+  function restoreItemHistory(entry, direction){
+    const snapshots = direction === "undo" ? entry.before : entry.after;
+    const tilRecords = direction === "undo" ? entry.beforeTilRecords : entry.afterTilRecords;
+    state.undoRestoring = true;
+    for (const snapshot of snapshots || []){
+      const item = getItemByIdFast(snapshot.id);
+      if (!item) continue;
+      Object.keys(item).forEach(key=>delete item[key]);
+      Object.assign(item, structuredClone(snapshot));
+      const section = getItemSectionByStartFast(item.start);
+      if (section){
+        section.beginLine = item.beginLine;
+        section.lines = item.lines.slice();
+        section.kv = { ...item.kv };
+      }
+    }
+    if (Array.isArray(tilRecords) && tilRecords.length){
+      for (const saved of tilRecords){
+        if (!Number.isInteger(saved?.recordIndex) || !saved.record) continue;
+        state.mapTiles.records[saved.recordIndex] = structuredClone(saved.record);
+      }
+      state.mapTiles.byPosition = new Map(state.mapTiles.records.map(record=>[mapTilePositionKey(record.x,record.y),record]));
+      state.mapTiles.dirty = true;
+    }
+    state.undoCurrentText = getCurrentMisText();
+    state.undoCurrentTilFlags = state.mapTiles.records.map(record=>record.flags);
+    state.undoCurrentTilRecords = structuredClone(state.mapTiles.records);
+    // Item-window edits can also change the rendered subtype, while gizmo edits
+    // need the same indexes refreshed after an undo/redo operation.
+    markItemsChanged({structure:true});
+    markAllItemTransformsDirty();
+    buildMapTileOverlay();
+    renderList();
+    requestRender();
+    refreshLiveMisWindow(true, {force:true});
+    state.undoRestoring = false;
   }
 
   function restoreHistoryText(snapshot){
@@ -6777,8 +6854,13 @@ end group
       statusEl.textContent = "Nothing to undo.";
       return;
     }
-    state.redoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice(),tilRecords:structuredClone(state.undoCurrentTilRecords)});
-    restoreHistoryText(previousState);
+    if (previousState.type === "items"){
+      state.redoStack.push(previousState);
+      restoreItemHistory(previousState, "undo");
+    } else {
+      state.redoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice(),tilRecords:structuredClone(state.undoCurrentTilRecords)});
+      restoreHistoryText(previousState);
+    }
     statusEl.textContent = `Undo complete. ${state.undoStack.length} earlier change${state.undoStack.length === 1 ? "" : "s"} available.`;
   }
 
@@ -6789,9 +6871,14 @@ end group
       statusEl.textContent = "Nothing to redo.";
       return;
     }
-    state.undoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice(),tilRecords:structuredClone(state.undoCurrentTilRecords)});
+    if (nextState.type === "items"){
+      state.undoStack.push(nextState);
+      restoreItemHistory(nextState, "redo");
+    } else {
+      state.undoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice(),tilRecords:structuredClone(state.undoCurrentTilRecords)});
+      restoreHistoryText(nextState);
+    }
     if (state.undoStack.length > UNDO_HISTORY_LIMIT) state.undoStack.shift();
-    restoreHistoryText(nextState);
     statusEl.textContent = `Redo complete. ${state.redoStack.length} later change${state.redoStack.length === 1 ? "" : "s"} available.`;
   }
 
@@ -8623,7 +8710,13 @@ end group
   }
 
   function closeModalOk(){
-    commitFromWindow({ applyOrientation: true });
+    const editedItem = getSelected();
+    beginUndoTransaction(editedItem ? [editedItem] : []);
+    try {
+      commitFromWindow({ applyOrientation: true });
+    } finally {
+      endUndoTransaction();
+    }
     state.modalSnapshot = null;
     state.modalOpen = false;
 
@@ -9616,7 +9709,7 @@ end group
     const items=selectedTransformItems().filter(it=>kvHas(it,'position'));
     if(!items.length){statusEl.textContent=`${label}: no positioned items selected.`;return;}
     if(items.some(isMapTileLocked)){statusEl.textContent=`${label}: locked tiles cannot be changed.`;return;}
-    beginUndoTransaction();
+    beginUndoTransaction(items);
     let changed=0;
     try{
       changed=transform(items)||0;
@@ -14631,7 +14724,8 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
           : state.multiSelectedIds.size
           ? Array.from(state.multiSelectedIds)
           : [state.selectedId];
-        beginUndoTransaction();
+        const dragItems = dragItemIds.map(id=>getGizmoTransformTarget(id)).filter(Boolean);
+        beginUndoTransaction(dragItems);
         state.gizmoDrag = beginGizmoDrag(gizmoMode, e.clientX, e.clientY, dragItemIds);
         state.hoveredGizmoHandle = null;
         state.lastMouse = { sx, sy };
