@@ -8778,7 +8778,6 @@ end group
       copy.y = worldToRaw(worldPosition.y,'y');
     }
     if (copy.kv.position) copy.kv.position = `${copy.x} ${copy.y} ${copy.z}`;
-    state.items.push(copy);
     if (sourceSection){
       const newSec = structuredClone(sourceSection);
       newSec.id = state.sectionBlocks.reduce((m,x)=>Math.max(m,x.id),0)+1;
@@ -8787,8 +8786,11 @@ end group
       newSec.beginLine = copy.beginLine;
       newSec.kv = { ...copy.kv };
       newSec.lines = copy.lines.slice();
+      copy.start = newSec.start;
+      copy.end = newSec.end;
       state.sectionBlocks.push(newSec);
     }
+    state.items.push(copy);
     if (selectCreated) selectById(copy.id);
     if (refresh){
       renderItemWindow();
@@ -12969,6 +12971,7 @@ end group
 
   function selectReferenceGlb(selected = true){
     if (!state.referenceGlb) return;
+    if (selected && (showReferenceGlbEl?.checked === false || state.referenceGlb.root?.visible === false)) return;
     state.referenceGlb.selected = !!selected;
     setGlbInstanceSelected(state.referenceGlb.root, !!selected);
     if (selected){
@@ -13651,7 +13654,11 @@ end group
     const raycaster = configureGlbPickRay(sx, sy);
     if (!raycaster) return null;
     const roots = Array.from(state.glb.itemInstances.values());
-    if (includeReference && state.referenceGlb?.root) roots.push(state.referenceGlb.root);
+    const referencePickEnabled = includeReference
+      && !!state.referenceGlb?.root
+      && showReferenceGlbEl?.checked !== false
+      && state.referenceGlb.root.visible !== false;
+    if (referencePickEnabled) roots.push(state.referenceGlb.root);
     const hits = raycaster.intersectObjects(roots, true);
     state.glb.lastAttachmentPick = null;
 
@@ -13659,7 +13666,7 @@ end group
     // objects in this single hit list prevents the reference from stealing clicks
     // from a map item that is visibly in front of it.
     for (const hit of hits){
-      if (includeReference && isReferenceGlbObject3D(hit.object)){
+      if (referencePickEnabled && isReferenceGlbObject3D(hit.object)){
         return { kind: "reference", reference: state.referenceGlb, distance: hit.distance, hit };
       }
       if (state.attachmentCalibratorOpen){
