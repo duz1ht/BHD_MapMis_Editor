@@ -13949,9 +13949,15 @@ end group
     const renderer=state.glb.renderer;renderer.clearDepth();renderer.resetState();renderer.render(state.glb.gizmoScene,state.glb.camera);renderer.resetState();
   }
 
-  function commitGizmoUpdate(it){
+  function gizmoPositionChanged(it, snapshot){
+    return !!snapshot && (it.x !== snapshot.x || it.y !== snapshot.y || it.z !== snapshot.z);
+  }
+
+  function commitGizmoUpdate(it, options = {}){
     if (!it) return;
-    if (kvHas(it, "position")) it.kv.position = `${it.x} ${it.y} ${it.z}`;
+    if (kvHas(it, "position") || gizmoPositionChanged(it, options.positionSnapshot)){
+      it.kv.position = `${it.x} ${it.y} ${it.z}`;
+    }
     applyItemOrientationToKv(it);
     const sec = getItemSectionByStartFast(it.start);
     if (sec) sec.kv = { ...it.kv };
@@ -13962,11 +13968,14 @@ end group
     if(isMapTileItem(it))buildMapTileOverlay();
   }
 
-  function commitGizmoUpdates(items){
+  function commitGizmoUpdates(items, options = {}){
     const valid = (items || []).filter(Boolean);
     if (!valid.length) return;
+    const positionSnapshots = new Map((options.positionSnapshots || []).map(snapshot=>[snapshot.id,snapshot]));
     for (const it of valid){
-      if (kvHas(it, "position")) it.kv.position = `${it.x} ${it.y} ${it.z}`;
+      if (kvHas(it, "position") || gizmoPositionChanged(it, positionSnapshots.get(it.id))){
+        it.kv.position = `${it.x} ${it.y} ${it.z}`;
+      }
       applyItemOrientationToKv(it);
       const sec = getItemSectionByStartFast(it.start);
       if (sec) sec.kv = { ...it.kv };
@@ -15076,7 +15085,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       for(const start of d.snapshots){const it=getGizmoTransformTarget(start.id);if(!it)continue;let itemDegrees=valueDegrees;if(state.rotationSnapEnabled&&state.rotationSnapMode==='absolute'&&state.transformPivot==='individual'){const initial=d.mode==='rotX'?start.pitch:start.heading,rawValueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);itemDegrees=snapValue(initial+rawValueDegrees,state.rotationSnap)-initial;}if(d.mode==='rotX')it.pitch=start.pitch+itemDegrees;else it.heading=start.heading+itemDegrees;if(state.transformPivot!=='individual'&&d.snapshots.length>1){const p=vec3Add(d.pivot,rotateAroundAxis(vec3Sub(start.world,d.pivot),d.handle.axis,angle));it.x=worldToRaw(p.x,'x');it.y=worldToRaw(p.y,'y');it.z=worldToRaw(p.z,'z');}}
     }
     if (state.referenceGlb?.selected) syncReferenceGlbTransform();
-    else commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean));updateMapTileDragPreview();updateItemGizmo();
+    else commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean), {positionSnapshots:d.snapshots});updateMapTileDragPreview();updateItemGizmo();
   });
   window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();clearMapTileDragPreview();persistMapTileEditorState();renderTileInstances();updateItemGizmo();});
 
