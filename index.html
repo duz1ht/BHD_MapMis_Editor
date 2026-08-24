@@ -8778,7 +8778,6 @@ end group
       copy.y = worldToRaw(worldPosition.y,'y');
     }
     if (copy.kv.position) copy.kv.position = `${copy.x} ${copy.y} ${copy.z}`;
-    state.items.push(copy);
     if (sourceSection){
       const newSec = structuredClone(sourceSection);
       newSec.id = state.sectionBlocks.reduce((m,x)=>Math.max(m,x.id),0)+1;
@@ -8787,8 +8786,11 @@ end group
       newSec.beginLine = copy.beginLine;
       newSec.kv = { ...copy.kv };
       newSec.lines = copy.lines.slice();
+      copy.start = newSec.start;
+      copy.end = newSec.end;
       state.sectionBlocks.push(newSec);
     }
+    state.items.push(copy);
     if (selectCreated) selectById(copy.id);
     if (refresh){
       renderItemWindow();
