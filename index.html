@@ -1763,6 +1763,7 @@
         </div>
         <div id="canvasShowPanelList">
           <label><input type="checkbox" id="showCharTiles"> Char Tiles</label>
+          <label><input type="checkbox" id="showReferenceGlb" checked> Reference GLB</label>
           <label data-show-category="foliage"><input type="checkbox" id="showFoliage" checked> <span class="visibilityItemName">Foliage</span> <span class="visibilityItemCount">(0)</span></label>
           <label data-show-category="vehicle"><input type="checkbox" id="showVehicles" checked> <span class="visibilityItemName">Vehicles</span> <span class="visibilityItemCount">(0)</span></label>
           <label data-show-category="people"><input type="checkbox" id="showPeople" checked> <span class="visibilityItemName">People &amp; Person</span> <span class="visibilityItemCount">(0)</span></label>
@@ -2963,6 +2964,7 @@ end group
   const debugFogBtn = document.getElementById("debugFogBtn");
   const hideAllShowOptionsBtn = document.getElementById("hideAllShowOptionsBtn");
   const showAllShowOptionsBtn = document.getElementById("showAllShowOptionsBtn");
+  const showReferenceGlbEl = document.getElementById("showReferenceGlb");
   const hideAllLayersBtn = document.getElementById("hideAllLayersBtn");
   const showAllLayersBtn = document.getElementById("showAllLayersBtn");
   const hideAllGroupsBtn = document.getElementById("hideAllGroupsBtn");
@@ -9333,6 +9335,14 @@ end group
     requestRender();
   }
 
+  function syncReferenceGlbVisibility(){
+    if (!state.referenceGlb?.root) return;
+    const visible = showReferenceGlbEl?.checked !== false;
+    state.referenceGlb.root.visible = visible;
+    if (!visible && state.referenceGlb.selected) selectReferenceGlb(false);
+    requestRender();
+  }
+
   function isolateShowOption(selectedInput){
     const inputs = Array.from(canvasShowPanelEl?.querySelectorAll('input[type="checkbox"]') || []);
     const key = selectedInput.id;
@@ -9347,6 +9357,7 @@ end group
     }
     syncShowOnlyButtonState();
     state.glb.structureDirty = true;
+    syncReferenceGlbVisibility();
     requestRender();
     syncGlbItems();
   }
@@ -9401,6 +9412,10 @@ end group
     if (!(event.target instanceof HTMLInputElement)) return;
     visibilityOnlyState.show = null;
     syncShowOnlyButtonState();
+    if (event.target === showReferenceGlbEl){
+      syncReferenceGlbVisibility();
+      return;
+    }
     if (!event.target.closest("[data-show-category]")) return;
     state.glb.structureDirty = true;
     requestRender();
@@ -13088,6 +13103,7 @@ end group
         state.referenceGlbRestore = null;
       }
       selectReferenceGlb(true);
+      syncReferenceGlbVisibility();
       statusEl.textContent = `Reference GLB imported: ${file.name}. It will not be saved to MIS/TIL.`;
       addLog(`[reference_glb] imported=${file.name} bytes=${data.byteLength}`);
     } catch (err){
