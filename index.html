@@ -1762,6 +1762,7 @@
           <button id="showAllShowOptionsBtn" type="button">Show All</button>
         </div>
         <div id="canvasShowPanelList">
+          <label data-show-reference-glb><input type="checkbox" id="showReferenceGlb" checked> <span class="visibilityItemName">Reference GLB</span> <span class="visibilityItemCount">(0)</span></label>
           <label><input type="checkbox" id="showCharTiles"> Char Tiles</label>
           <label data-show-category="foliage"><input type="checkbox" id="showFoliage" checked> <span class="visibilityItemName">Foliage</span> <span class="visibilityItemCount">(0)</span></label>
           <label data-show-category="vehicle"><input type="checkbox" id="showVehicles" checked> <span class="visibilityItemName">Vehicles</span> <span class="visibilityItemCount">(0)</span></label>
@@ -2964,6 +2965,7 @@ end group
   const debugFogBtn = document.getElementById("debugFogBtn");
   const hideAllShowOptionsBtn = document.getElementById("hideAllShowOptionsBtn");
   const showAllShowOptionsBtn = document.getElementById("showAllShowOptionsBtn");
+  const showReferenceGlbEl = document.getElementById("showReferenceGlb");
   const hideAllLayersBtn = document.getElementById("hideAllLayersBtn");
   const showAllLayersBtn = document.getElementById("showAllLayersBtn");
   const hideAllGroupsBtn = document.getElementById("hideAllGroupsBtn");
@@ -4275,6 +4277,10 @@ end group
       if (count) count.textContent = `(${counts[category]})`;
       label?.classList.toggle("showCategoryEmpty", counts[category] === 0);
     }
+    const referenceLabel = canvasShowPanelEl?.querySelector("[data-show-reference-glb]");
+    const referenceCount = referenceLabel?.querySelector(".visibilityItemCount");
+    if (referenceCount) referenceCount.textContent = `(${state.referenceGlb ? 1 : 0})`;
+    referenceLabel?.classList.toggle("showCategoryEmpty", !state.referenceGlb);
   }
 
   function getItemGraphicScale(it){
@@ -9426,6 +9432,16 @@ end group
     requestRender();
   }
 
+  function syncReferenceGlbVisibility(){
+    const reference = state.referenceGlb;
+    if (!reference?.root) return;
+    const visible = showReferenceGlbEl?.checked !== false;
+    reference.root.visible = visible;
+    if (!visible && reference.selected) selectReferenceGlb(false);
+    updateItemGizmo();
+    requestRender();
+  }
+
   function isolateShowOption(selectedInput){
     const inputs = Array.from(canvasShowPanelEl?.querySelectorAll('input[type="checkbox"]') || []);
     const key = selectedInput.id;
@@ -9440,6 +9456,7 @@ end group
     }
     syncShowOnlyButtonState();
     state.glb.structureDirty = true;
+    syncReferenceGlbVisibility();
     requestRender();
     syncGlbItems();
   }
@@ -9494,6 +9511,10 @@ end group
     if (!(event.target instanceof HTMLInputElement)) return;
     visibilityOnlyState.show = null;
     syncShowOnlyButtonState();
+    if (event.target === showReferenceGlbEl){
+      syncReferenceGlbVisibility();
+      return;
+    }
     if (!event.target.closest("[data-show-category]")) return;
     state.glb.structureDirty = true;
     requestRender();
@@ -13041,6 +13062,7 @@ end group
     state.referenceGlb = null;
     state.gizmoDrag = null;
     state.hoveredGizmoHandle = null;
+    updateShowCategoryCounts();
     updateItemGizmo();
     requestRender();
   }
@@ -13167,6 +13189,8 @@ end group
         selected: false,
         item: { id: "__reference_glb__", x: worldToRaw(root.position.x, "x"), y: worldToRaw(root.position.y, "y"), z: worldToRaw(root.position.z, "z"), heading: 0, pitch: 0, kv: {} }
       };
+      syncReferenceGlbVisibility();
+      updateShowCategoryCounts();
       if (restoreRecord?.glb?.toLowerCase() === file.name.toLowerCase()){
         const transform = restoreRecord.transform || {};
         Object.assign(state.referenceGlb.item, {
@@ -13180,7 +13204,7 @@ end group
         syncReferenceGlbTransform();
         state.referenceGlbRestore = null;
       }
-      selectReferenceGlb(true);
+      selectReferenceGlb(showReferenceGlbEl?.checked !== false);
       statusEl.textContent = `Reference GLB imported: ${file.name}. It will not be saved to MIS/TIL.`;
       addLog(`[reference_glb] imported=${file.name} bytes=${data.byteLength}`);
     } catch (err){
@@ -13728,7 +13752,7 @@ end group
     const raycaster = configureGlbPickRay(sx, sy);
     if (!raycaster) return null;
     const roots = Array.from(state.glb.itemInstances.values());
-    if (includeReference && state.referenceGlb?.root) roots.push(state.referenceGlb.root);
+    if (includeReference && state.referenceGlb?.root?.visible) roots.push(state.referenceGlb.root);
     const hits = raycaster.intersectObjects(roots, true);
     state.glb.lastAttachmentPick = null;
 
