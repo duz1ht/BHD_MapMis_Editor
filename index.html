@@ -10676,7 +10676,8 @@ end group
 
   async function loadMapTilesForMission(){
     resetMapTiles();
-    const mapItems=state.items.filter(isMapTileItem);if(!mapItems.length)return;
+    const atlasName=generalTerrainTileName();if(!atlasName)return;
+    const mapItems=state.items.filter(isMapTileItem);
     const generation=state.mapTiles.generation,base=String(state.filename||"").replace(/\.mis$/i,""),tilName=`${base}.til`;
     try{
       let tilBuf=null;
@@ -10694,7 +10695,7 @@ end group
       state.undoCurrentTilRecords=structuredClone(parsed.records);
       const sizes=mapItems.map(it=>{const r=parsed.records[Math.trunc(Number(it.kv?.extra_val2))];return r?Math.max(Math.abs(it.x-r.x),Math.abs(it.y-r.y))*2/65536:0;}).filter(v=>Number.isFinite(v)&&v>0).sort((a,b)=>a-b);
       state.mapTiles.tileSize=sizes.length?sizes[Math.floor(sizes.length/2)]:16;
-      let atlasBase=generalTerrainTileName();if(!atlasBase)throw new Error("general_information has no Terrain_tile_tga");if(!/\.tga$/i.test(atlasBase))atlasBase+=".tga";
+      let atlasBase=atlasName;if(!/\.tga$/i.test(atlasBase))atlasBase+=".tga";
       const atlasFile=TERRAIN_TILE_FILE_INDEX.find(n=>n.toLowerCase()===atlasBase.toLowerCase());if(!atlasFile)throw new Error(`Tile atlas '${atlasBase}' is not available`);
       const atlasPath=`resources/BHD/terrain_tiles/${atlasFile}`,atlasBuf=await loadBinaryResource(atlasPath);if(!atlasBuf)throw new Error(`Unable to load tile atlas '${atlasPath}'`);
       if(generation!==state.mapTiles.generation)return;
