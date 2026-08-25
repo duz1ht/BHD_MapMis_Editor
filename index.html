@@ -10625,7 +10625,7 @@ end group
 
   async function saveTilCompanion(forcePicker=false,misHandle=state.currentMisFileHandle){
     const mapItems=state.items.filter(isMapTileItem);
-    if(!mapItems.length)return null;
+    if(!mapItems.length&&!state.mapTiles.records.length)return null;
     const name=String(state.filename||"edited.mis").replace(/\.mis$/i,"")+".til",data=serializeTil();
     try{
       validateTilCompanionRecords(mapItems);
@@ -10991,6 +10991,27 @@ end group
     return {left,right:left+size,bottom:top-size,top,size,centerX:left+size*.5,centerY:top-size*.5};
   }
 
+  function getTilRecordFootprint(record){
+    const size=Number(state.mapTiles.tileSize);
+    if(!record||!Number.isFinite(size)||size<=0)return null;
+    const left=rawToWorld(record.x,"x"),top=rawToWorld(record.y,"y");
+    return {left,right:left+size,bottom:top-size,top,size,centerX:left+size*.5,centerY:top-size*.5};
+  }
+
+  function mapTileRenderEntries(){
+    const entries=[],referencedRecords=new Set();
+    for(const item of state.items.filter(isMapTileItem)){
+      const record=mapTileRecordForItem(item),recordIndex=record?.recordIndex;
+      if(!record||!Number.isInteger(recordIndex))continue;
+      referencedRecords.add(recordIndex);
+      if(!isMapTileHidden(item))entries.push({item,record,footprint:getMapTileFootprint(item)});
+    }
+    for(const record of state.mapTiles.records){
+      if(!referencedRecords.has(record.recordIndex))entries.push({item:null,record,footprint:getTilRecordFootprint(record)});
+    }
+    return entries.filter(entry=>entry.footprint);
+  }
+
   function getItemInteractionAnchor(it){
     const footprint=getMapTileFootprint(it);
     if(footprint){
@@ -11017,24 +11038,24 @@ end group
     const THREE=state.glb.THREE,scene=state.glb.scene;
     if(!state.tileEditModeActive||!THREE||!scene)return;
     const positions=[],edgeKeys=new Set(),steps=16;
-    const addEdge=(x1,y1,x2,y2,it)=>{
+    const addEdge=(x1,y1,x2,y2,fallbackZ)=>{
       const endpoints=[`${x1},${y1}`,`${x2},${y2}`].sort(),edgeKey=endpoints.join('|');
       if(edgeKeys.has(edgeKey))return;
       edgeKeys.add(edgeKey);
       for(let step=0;step<steps;step++){
         const addPoint=t=>{
           const x=x1+(x2-x1)*t,y=y1+(y2-y1)*t,z=heightAtWorld(x,y,1.0);
-          positions.push(x,y,Number.isFinite(z)&&z>-1e8?z+.06:getItemInteractionAnchor(it).z);
+          positions.push(x,y,Number.isFinite(z)&&z>-1e8?z+.06:fallbackZ);
         };
         addPoint(step/steps);addPoint((step+1)/steps);
       }
     };
-    for(const it of state.items.filter(it=>isMapTileItem(it)&&!isMapTileHidden(it))){
-      const footprint=getMapTileFootprint(it);if(!footprint)continue;
-      addEdge(footprint.left,footprint.bottom,footprint.right,footprint.bottom,it);
-      addEdge(footprint.right,footprint.bottom,footprint.right,footprint.top,it);
-      addEdge(footprint.right,footprint.top,footprint.left,footprint.top,it);
-      addEdge(footprint.left,footprint.top,footprint.left,footprint.bottom,it);
+    for(const {item,footprint} of mapTileRenderEntries()){
+      const anchorZ=item?getItemInteractionAnchor(item).z:heightAtWorld(footprint.centerX,footprint.centerY,1.0),fallbackZ=Number.isFinite(anchorZ)&&anchorZ>-1e8?anchorZ+.06:0;
+      addEdge(footprint.left,footprint.bottom,footprint.right,footprint.bottom,fallbackZ);
+      addEdge(footprint.right,footprint.bottom,footprint.right,footprint.top,fallbackZ);
+      addEdge(footprint.right,footprint.top,footprint.left,footprint.top,fallbackZ);
+      addEdge(footprint.left,footprint.top,footprint.left,footprint.bottom,fallbackZ);
     }
     if(!positions.length)return;
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.computeBoundingSphere();
@@ -11057,15 +11078,15 @@ end group
     // prevents it from competing with area volumes and transparent item modes.
     const img=state.mapTiles.atlasImage,THREE=state.glb.THREE,scene=state.threeTerrain.scene;if(!img||!THREE||!scene||!state.mapTiles.records.length)return;
     const steps=16,positions=[],uvs=[],indices=[];let painted=0;
-    for(const it of state.items.filter(it=>isMapTileItem(it)&&!isMapTileHidden(it))){
-      if(state.mapTiles.dragPreviewIds.has(it.id))continue;
-      const record=mapTileRecordForItem(it),tileIndex=mapTileAtlasIndex(it);if(!record||tileIndex===null)continue;
-      const footprint=getMapTileFootprint(it);if(!footprint)continue;
+    for(const {item,record,footprint} of mapTileRenderEntries()){
+      if(item&&state.mapTiles.dragPreviewIds.has(item.id))continue;
+      const tileIndex=Number(record.tileIndex);if(!Number.isInteger(tileIndex)||tileIndex<0||tileIndex>255)continue;
       const col=tileIndex%8,row=Math.floor(tileIndex/8),cellW=img.w/8,cellH=img.h/8;
       const vertexBase=positions.length/3;
+      const anchorZ=item?getItemInteractionAnchor(item).z:heightAtWorld(footprint.centerX,footprint.centerY,1.0),fallbackZ=Number.isFinite(anchorZ)&&anchorZ>-1e8?anchorZ+.025:0;
       for(let y=0;y<=steps;y++)for(let x=0;x<=steps;x++){
         const wx=footprint.left+footprint.size*x/steps,wy=footprint.bottom+footprint.size*y/steps,terrainZ=heightAtWorld(wx,wy,1.0),uv=transformMapTileUv(x/steps,y/steps,record.flags);
-        positions.push(wx,wy,Number.isFinite(terrainZ)&&terrainZ>-1e8?terrainZ+.025:getItemInteractionAnchor(it).z);
+        positions.push(wx,wy,Number.isFinite(terrainZ)&&terrainZ>-1e8?terrainZ+.025:fallbackZ);
         // Sample inside the atlas cell so linear filtering cannot bleed an
         // adjacent tile across the cell boundary.
         uvs.push((col*cellW+.5+uv.u*(cellW-1))/img.w,(img.h-(row+1)*cellH+.5+uv.v*(cellH-1))/img.h);
