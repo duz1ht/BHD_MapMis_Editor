@@ -10417,6 +10417,7 @@ end group
     const documentGeneration = clearGlbItemInstances();
     state.filename = file.name;
     state.currentMisFileHandle = fileHandle;
+    state.currentTilFileHandle = null;
     state.currentReferenceSidecarHandle = null;
     await loadMissionGameStrings(file.name);
     if (documentGeneration !== state.glb.documentGeneration) return;
@@ -10653,15 +10654,40 @@ end group
     return String(section?.kv?.terrain_tile_tga||"").replace(/^"|"$/g,"").trim();
   }
 
+  async function promptForTilCompanion(tilName){
+    if(!window.showOpenFilePicker)return null;
+    try{
+      const [handle]=await window.showOpenFilePicker({
+        multiple:false,
+        ...(state.currentMisFileHandle?{startIn:state.currentMisFileHandle}:{}),
+        types:[{description:`Terrain Tile File (${tilName})`,accept:{"application/octet-stream":[".til"]}}]
+      });
+      if(!handle)return null;
+      const file=await handle.getFile();
+      state.currentTilFileHandle=handle;
+      if(file.name.toLowerCase()!==tilName.toLowerCase())addLog(`[map_tiles] selected '${file.name}' for expected companion '${tilName}'`);
+      return file.arrayBuffer();
+    }catch(err){
+      if(err?.name==='AbortError')addLog(`[map_tiles] TIL selection canceled; trying bundled companion '${tilName}'`);
+      else addLog(`[map_tiles] ERROR selecting companion TIL: ${err?.message||"unknown error"}`);
+      return null;
+    }
+  }
+
   async function loadMapTilesForMission(){
     resetMapTiles();
     const mapItems=state.items.filter(isMapTileItem);if(!mapItems.length)return;
     const generation=state.mapTiles.generation,base=String(state.filename||"").replace(/\.mis$/i,""),tilName=`${base}.til`;
     try{
       let tilBuf=null;
-      if(state.editorFolderHandle)tilBuf=await readArrayBufferFromEditorFolder(`resources/BHD/mis_examples/${tilName}`);
+      if(state.currentTilFileHandle){
+        try{tilBuf=await (await state.currentTilFileHandle.getFile()).arrayBuffer();}
+        catch(err){addLog(`[map_tiles] ERROR reading selected companion TIL: ${err?.message||"read failed"}`);state.currentTilFileHandle=null;}
+      }
+      if(!tilBuf)tilBuf=await promptForTilCompanion(tilName);
+      if(!tilBuf&&state.editorFolderHandle)tilBuf=await readArrayBufferFromEditorFolder(`resources/BHD/mis_examples/${tilName}`);
       if(!tilBuf&&!state.isLocalRuntime)tilBuf=await loadBinaryResource(`resources/BHD/mis_examples/${encodeURIComponent(tilName)}`);
-      if(!tilBuf)throw new Error(`Required companion file '${tilName}' was not found next to the MIS`);
+      if(!tilBuf)throw new Error(`Required companion file '${tilName}' was not selected or found in resources/BHD/mis_examples`);
       if(generation!==state.mapTiles.generation)return;
       const parsed=parseTil(tilBuf);state.mapTiles.filename=tilName;state.mapTiles.records=parsed.records;state.mapTiles.headerReserved=parsed.headerReserved;state.mapTiles.byPosition=parsed.byPosition;
       state.undoCurrentTilFlags=parsed.records.map(record=>record.flags);
