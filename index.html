@@ -331,6 +331,21 @@
       font-size:12px;
       pointer-events:none;
     }
+    #loadedMapFilesHint{
+      position:absolute;
+      left:10px;
+      bottom:10px;
+      z-index:5;
+      max-width:min(48%,420px);
+      padding:5px 7px;
+      border-radius:4px;
+      background:rgba(0,0,0,.48);
+      color:#dfe9ff;
+      font-size:12px;
+      line-height:1.35;
+      pointer-events:none;
+    }
+    #loadedMapFilesHint div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     #insertPreviewLabel{position:absolute;z-index:12;display:none;pointer-events:none;padding:3px 6px;border:1px solid rgba(44,230,255,.8);border-radius:4px;background:rgba(0,0,0,.72);color:#fff;font-size:12px;white-space:nowrap;}
     #boxSelection{
       position:absolute;
@@ -1738,6 +1753,7 @@
       <div id="boxSelection" aria-hidden="true"></div>
       <div id="insertPreviewLabel" aria-hidden="true"></div>
       <div id="camDebug"></div>
+      <div id="loadedMapFilesHint" aria-live="polite"><div>MIS: not loaded</div><div>TIL: —</div></div>
       <div id="sceneInfoHint">Show Scene Info (Home)</div>
       <canvas id="gizmoCanvas" aria-hidden="true"></canvas>
 
@@ -2760,6 +2776,7 @@ end group
     },
     mapTiles: {
       filename: "",
+      sourceFilename: "",
       atlasName: "",
       atlasImage: null,
       overlayTexture: null,
@@ -6743,6 +6760,7 @@ end group
     const parsed = parseMIS(text);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
+    updateLoadedMapFilesHint();
     disposeAreaTriggerVolumes();
     state.areaTriggerVolumes.signature = "";
     state.undoCurrentText = text;
@@ -9886,6 +9904,7 @@ end group
     state.currentMisFileHandle = null;
     state.currentTilFileHandle = null;
     state.currentReferenceSidecarHandle = null;
+    updateLoadedMapFilesHint();
     state.referenceGlbRestore = null;
     state.itemClipboard = null;
     state.itemClipboardSection = null;
@@ -9943,6 +9962,7 @@ end group
         await writable.close();
         state.currentMisFileHandle = handle;
         state.filename = handle.name || state.filename;
+        updateLoadedMapFilesHint();
         // A companion handle belongs to the previous mission name/location.  It
         // must never be reused after Save As, even when both missions use tiles.
         if(forcePicker||previousMisHandle!==handle){state.currentTilFileHandle=null;state.currentReferenceSidecarHandle=null;}
@@ -10481,6 +10501,7 @@ end group
     state.selectedWaypointMarkerIds.clear();
     updateWaypointMarkerCount(0);
 
+    updateLoadedMapFilesHint();
     state.referenceGlbRestore = loadRememberedReferenceGlbRecord(file.name);
 
 
@@ -10508,6 +10529,7 @@ end group
   const cv = document.getElementById("cv");
   const camDebugEl = document.getElementById("camDebug");
   const sceneInfoHintEl = document.getElementById("sceneInfoHint");
+  const loadedMapFilesHintEl = document.getElementById("loadedMapFilesHint");
   const fpsCounterEl = document.getElementById("fpsCounter");
   const kothZoneStatusEl = document.getElementById("kothZoneStatus");
   const gizmoCanvasEl = document.getElementById("gizmoCanvas");
@@ -10668,8 +10690,9 @@ end group
     const name=String(state.filename||"edited.mis").replace(/\.mis$/i,"")+".til",data=serializeTil();
     try{
       validateTilCompanionRecords(mapItems);
-      if(window.showSaveFilePicker){const handle=(!forcePicker&&state.currentTilFileHandle)?state.currentTilFileHandle:await window.showSaveFilePicker({suggestedName:name,...(misHandle?{startIn:misHandle}:{}),types:[{description:"Terrain Tile Files",accept:{"application/octet-stream":[".til"]}}]});const writable=await handle.createWritable();await writable.write(data);await writable.close();state.currentTilFileHandle=handle;}
-      else downloadBinary(name,data);
+      if(window.showSaveFilePicker){const handle=(!forcePicker&&state.currentTilFileHandle)?state.currentTilFileHandle:await window.showSaveFilePicker({suggestedName:name,...(misHandle?{startIn:misHandle}:{}),types:[{description:"Terrain Tile Files",accept:{"application/octet-stream":[".til"]}}]});const writable=await handle.createWritable();await writable.write(data);await writable.close();state.currentTilFileHandle=handle;state.mapTiles.sourceFilename=handle.name||name;}
+      else {downloadBinary(name,data);state.mapTiles.sourceFilename=name;}
+      updateLoadedMapFilesHint();
       state.mapTiles.dirty=false;state.undoCurrentTilFlags=state.mapTiles.records.map(record=>record.flags);state.undoCurrentTilRecords=structuredClone(state.mapTiles.records);return true;
     }catch(err){if(err?.name==='AbortError')addLog("TIL save canceled; MIS was saved but tile rotations remain unsaved.");else addLog(`ERROR saving .til: ${err?.message||"unknown error"}`);statusEl.textContent="MIS saved, but the companion TIL was not saved.";return false;}
   }
@@ -10681,17 +10704,35 @@ end group
     state.mapTiles.overlayTexture?.dispose?.();
     disposeMapTileRenderMesh();
     disposeMapTileBorders();
-    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,dirty:false});
+    Object.assign(state.mapTiles,{filename:"",sourceFilename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,dirty:false});
     state.tilOnlyItems=[];
     state.threeTerrain.dirty=true;
     state.collapsedTileGroups.clear();state.knownTileGroupIndices.clear();
     state.tilePaletteSelectedIndex=null;cancelTileInsertMode("");
     renderTilePalette();
+    updateLoadedMapFilesHint();
   }
 
   function generalTerrainTileName(){
     const section=state.sectionBlocks.find(sec=>sec.kind==="general_information");
     return String(section?.kv?.terrain_tile_tga||"").replace(/^"|"$/g,"").trim();
+  }
+
+  function updateLoadedMapFilesHint(){
+    if(!loadedMapFilesHintEl)return;
+    const misName=String(state.filename||"").trim(),tilName=String(state.mapTiles.sourceFilename||"").trim();
+    const misText=misName?`MIS: ${misName}`:"MIS: not loaded";
+    let tilText="TIL: —",tilTitle="No mission is loaded.";
+    if(misName){
+      if(!generalTerrainTileName()){tilText="TIL: none linked";tilTitle="This mission does not reference a terrain tile atlas.";}
+      else if(!tilName){tilText="TIL: not loaded";tilTitle="This mission uses terrain tiles, but its companion TIL was not loaded.";}
+      else {tilText=`TIL: ${tilName}`;tilTitle=`Loaded companion tile file: ${tilName}`;}
+    }
+    loadedMapFilesHintEl.replaceChildren();
+    const misLine=document.createElement("div"),tilLine=document.createElement("div");
+    misLine.textContent=misText;misLine.title=misName?`Loaded mission file: ${misName}`:"No mission is loaded.";
+    tilLine.textContent=tilText;tilLine.title=tilTitle;loadedMapFilesHintEl.append(misLine,tilLine);
+    loadedMapFilesHintEl.title=`${misText}\n${tilText}`;
   }
 
   function rebuildTilOnlyItems(){
@@ -10735,7 +10776,7 @@ end group
           addLog(`[map_tiles] using differently named companion '${file.name}' by user confirmation`);
         }
         state.currentTilFileHandle=handle;
-        return file.arrayBuffer();
+        return {buffer:await file.arrayBuffer(),filename:file.name};
       }
     }catch(err){
       if(err?.name==='AbortError')addLog(`[map_tiles] TIL selection canceled; trying bundled companion '${tilName}'`);
@@ -10749,18 +10790,19 @@ end group
     const atlasName=generalTerrainTileName();if(!atlasName)return;
     const mapItems=state.items.filter(isMapTileItem);
     const generation=state.mapTiles.generation,base=String(state.filename||"").replace(/\.mis$/i,""),tilName=`${base}.til`;
+    let tilParsed=false;
     try{
-      let tilBuf=null;
+      let tilBuf=null,tilSourceFilename="";
       if(state.currentTilFileHandle){
-        try{tilBuf=await (await state.currentTilFileHandle.getFile()).arrayBuffer();}
+        try{const file=await state.currentTilFileHandle.getFile();tilBuf=await file.arrayBuffer();tilSourceFilename=file.name;}
         catch(err){addLog(`[map_tiles] ERROR reading selected companion TIL: ${err?.message||"read failed"}`);state.currentTilFileHandle=null;}
       }
-      if(!tilBuf)tilBuf=await promptForTilCompanion(tilName);
-      if(!tilBuf&&state.editorFolderHandle)tilBuf=await readArrayBufferFromEditorFolder(`resources/BHD/mis_examples/${tilName}`);
-      if(!tilBuf&&!state.isLocalRuntime)tilBuf=await loadBinaryResource(`resources/BHD/mis_examples/${encodeURIComponent(tilName)}`);
+      if(!tilBuf){const selected=await promptForTilCompanion(tilName);if(selected){tilBuf=selected.buffer;tilSourceFilename=selected.filename;}}
+      if(!tilBuf&&state.editorFolderHandle){tilBuf=await readArrayBufferFromEditorFolder(`resources/BHD/mis_examples/${tilName}`);if(tilBuf)tilSourceFilename=tilName;}
+      if(!tilBuf&&!state.isLocalRuntime){tilBuf=await loadBinaryResource(`resources/BHD/mis_examples/${encodeURIComponent(tilName)}`);if(tilBuf)tilSourceFilename=tilName;}
       if(!tilBuf)throw new Error(`Required companion file '${tilName}' was not selected or found in resources/BHD/mis_examples`);
       if(generation!==state.mapTiles.generation)return;
-      const parsed=parseTil(tilBuf);state.mapTiles.filename=tilName;state.mapTiles.records=parsed.records;state.mapTiles.headerReserved=parsed.headerReserved;state.mapTiles.byPosition=parsed.byPosition;
+      const parsed=parseTil(tilBuf);tilParsed=true;state.mapTiles.filename=tilName;state.mapTiles.sourceFilename=tilSourceFilename||tilName;state.mapTiles.records=parsed.records;state.mapTiles.headerReserved=parsed.headerReserved;state.mapTiles.byPosition=parsed.byPosition;updateLoadedMapFilesHint();
       state.undoCurrentTilFlags=parsed.records.map(record=>record.flags);
       state.undoCurrentTilRecords=structuredClone(parsed.records);
       const sizes=mapItems.map(it=>{const r=parsed.records[Math.trunc(Number(it.kv?.extra_val2))];return r?Math.max(Math.abs(it.x-r.x),Math.abs(it.y-r.y))*2/65536:0;}).filter(v=>Number.isFinite(v)&&v>0).sort((a,b)=>a-b);
@@ -10775,7 +10817,7 @@ end group
       addLog(`[map_tiles] loaded ${tilName}: ${parsed.records.length} records, atlas=${atlasFile}`);
       buildMapTileOverlay();
       await syncGlbItems();requestRender();
-    }catch(err){state.mapTiles.error=err?.message||String(err);renderTilePalette();addLog(`[map_tiles] ERROR: ${state.mapTiles.error}`);statusEl.textContent=state.mapTiles.error;}
+    }catch(err){if(!tilParsed)state.mapTiles.sourceFilename="";state.mapTiles.error=err?.message||String(err);updateLoadedMapFilesHint();renderTilePalette();addLog(`[map_tiles] ERROR: ${state.mapTiles.error}`);statusEl.textContent=state.mapTiles.error;}
   }
 
   function mapTileRecordForItem(it){
