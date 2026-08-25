@@ -10717,16 +10717,26 @@ end group
   async function promptForTilCompanion(tilName){
     if(!window.showOpenFilePicker)return null;
     try{
-      const [handle]=await window.showOpenFilePicker({
-        multiple:false,
-        ...(state.currentMisFileHandle?{startIn:state.currentMisFileHandle}:{}),
-        types:[{description:`Terrain Tile File (${tilName})`,accept:{"application/octet-stream":[".til"]}}]
-      });
-      if(!handle)return null;
-      const file=await handle.getFile();
-      state.currentTilFileHandle=handle;
-      if(file.name.toLowerCase()!==tilName.toLowerCase())addLog(`[map_tiles] selected '${file.name}' for expected companion '${tilName}'`);
-      return file.arrayBuffer();
+      while(true){
+        statusEl.textContent=`Select companion TIL: ${tilName}`;
+        const [handle]=await window.showOpenFilePicker({
+          id:"mission-til-companion",
+          multiple:false,
+          excludeAcceptAllOption:true,
+          ...(state.currentMisFileHandle?{startIn:state.currentMisFileHandle}:{}),
+          types:[{description:`Expected file: ${tilName}`,accept:{"application/octet-stream":[".til"]}}]
+        });
+        if(!handle)return null;
+        const file=await handle.getFile(),matchesExpectedName=file.name.toLowerCase()===tilName.toLowerCase();
+        if(!matchesExpectedName){
+          addLog(`[map_tiles] selected '${file.name}' for expected companion '${tilName}'`);
+          const useAnyway=window.confirm(`The selected TIL is '${file.name}', but this mission expects '${tilName}'.\n\nUse '${file.name}' anyway?\n\nChoose Cancel to select another file.`);
+          if(!useAnyway)continue;
+          addLog(`[map_tiles] using differently named companion '${file.name}' by user confirmation`);
+        }
+        state.currentTilFileHandle=handle;
+        return file.arrayBuffer();
+      }
     }catch(err){
       if(err?.name==='AbortError')addLog(`[map_tiles] TIL selection canceled; trying bundled companion '${tilName}'`);
       else addLog(`[map_tiles] ERROR selecting companion TIL: ${err?.message||"unknown error"}`);
