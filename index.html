@@ -512,6 +512,8 @@
     #canvasShowPanelControls button{ min-height:22px; padding:2px 8px; font-size:11px; }
     #canvasShowPanelList{ display:grid; grid-template-columns:1fr; gap:4px; font-size:12px; }
     #canvasShowPanelList label{ display:flex; align-items:center; gap:6px; }
+    .showOptionGroup{ margin:2px 0; padding:5px 7px 6px; border:1px solid var(--line); border-radius:var(--radius-sm); display:grid; gap:4px; }
+    .showOptionGroup legend{ padding:0 4px; color:var(--text-muted); font-weight:700; }
     #canvasShowPanelList label.showCategoryEmpty,
     .visibilityItemEmpty{ opacity:.42; }
     .visibilityItemCount{
@@ -1783,11 +1785,17 @@
           <label data-show-category="building"><input type="checkbox" id="showBuildings" checked> <span class="visibilityItemName">Buildings</span> <span class="visibilityItemCount">(0)</span></label>
           <label data-show-category="object"><input type="checkbox" id="showObjects" checked> <span class="visibilityItemName">Objects</span> <span class="visibilityItemCount">(0)</span></label>
           <label data-show-category="decoration"><input type="checkbox" id="showDecorations" checked> <span class="visibilityItemName">Decorations</span> <span class="visibilityItemCount">(0)</span></label>
-          <label data-show-category="markerGameplay"><input type="checkbox" id="showMarkers" checked> <span class="visibilityItemName">Markers - Gameplay</span> <span class="visibilityItemCount">(0)</span></label>
-          <label data-show-category="markerWaypoint"><input type="checkbox" id="showWaypointMarkers" checked> <span class="visibilityItemName">Markers - Waypoints</span> <span class="visibilityItemCount">(0)</span></label>
-          <label data-show-category="markerAreaTrigger"><input type="checkbox" id="showAreaTriggerMarkers" checked> <span class="visibilityItemName">Markers - Area Triggers</span> <span class="visibilityItemCount">(0)</span></label>
-          <label><input type="checkbox" id="showAreaTriggers" checked> Markers - Area Trigger Volumes</label>
-          <label data-show-category="markerSound"><input type="checkbox" id="showSoundMarkers" checked> <span class="visibilityItemName">Markers - Sound</span> <span class="visibilityItemCount">(0)</span></label>
+          <fieldset class="showOptionGroup"><legend>Tiles</legend>
+            <label data-show-category="tileMis"><input type="checkbox" id="showMisMapTiles" checked> <span class="visibilityItemName">Tiles - .mis MapTile</span> <span class="visibilityItemCount">(0)</span></label>
+            <label data-show-category="tileTilOnly"><input type="checkbox" id="showTilOnlyMapTiles" checked> <span class="visibilityItemName">Tiles - Existing only in the .til</span> <span class="visibilityItemCount">(0)</span></label>
+          </fieldset>
+          <fieldset class="showOptionGroup"><legend>Markers</legend>
+            <label data-show-category="markerGameplay"><input type="checkbox" id="showMarkers" checked> <span class="visibilityItemName">Markers - Gameplay</span> <span class="visibilityItemCount">(0)</span></label>
+            <label data-show-category="markerWaypoint"><input type="checkbox" id="showWaypointMarkers" checked> <span class="visibilityItemName">Markers - Waypoints</span> <span class="visibilityItemCount">(0)</span></label>
+            <label data-show-category="markerAreaTrigger"><input type="checkbox" id="showAreaTriggerMarkers" checked> <span class="visibilityItemName">Markers - Area Triggers</span> <span class="visibilityItemCount">(0)</span></label>
+            <label data-show-count-source="markerAreaTrigger"><input type="checkbox" id="showAreaTriggers" checked> <span class="visibilityItemName">Markers - Area Trigger Volumes</span> <span class="visibilityItemCount">(0)</span></label>
+            <label data-show-category="markerSound"><input type="checkbox" id="showSoundMarkers" checked> <span class="visibilityItemName">Markers - Sound</span> <span class="visibilityItemCount">(0)</span></label>
+          </fieldset>
           <label data-show-category="powerup"><input type="checkbox" id="showPowerups" checked> <span class="visibilityItemName">Power-ups</span> <span class="visibilityItemCount">(0)</span></label>
           <label><input type="checkbox" id="showWpDistance"> WP Distance</label>
           <label><input type="checkbox" id="showFovCones"> FOV Cones</label>
@@ -4238,6 +4246,8 @@ end group
     markerWaypoint: { inputId: "showWaypointMarkers", label: "Markers - Waypoints" },
     markerAreaTrigger: { inputId: "showAreaTriggerMarkers", label: "Markers - Area Triggers" },
     markerSound: { inputId: "showSoundMarkers", label: "Markers - Sound" },
+    tileMis: { inputId: "showMisMapTiles", label: "Tiles - .mis MapTile" },
+    tileTilOnly: { inputId: "showTilOnlyMapTiles", label: "Tiles - Existing only in the .til" },
     object: { inputId: "showObjects", label: "Objects" },
     powerup: { inputId: "showPowerups", label: "Power-ups" },
     vehicle: { inputId: "showVehicles", label: "Vehicles" },
@@ -4250,6 +4260,8 @@ end group
   }
 
   function getItemShowCategory(it){
+    if (isTilOnlyMapTile(it)) return "tileTilOnly";
+    if (isMapTileItem(it)) return "tileMis";
     const def = getCatalogDefForItem(it);
     const type = String(def?.type || "").trim().toLowerCase();
     if (type === "person" || type === "people") return "people";
@@ -4274,6 +4286,10 @@ end group
 
   function isItemShowCategoryVisible(it){
     const category = getItemShowCategory(it);
+    return isShowCategoryVisible(category);
+  }
+
+  function isShowCategoryVisible(category){
     if (!category) return true;
     const input = document.getElementById(SHOW_ITEM_CATEGORIES[category].inputId);
     return !input || input.checked;
@@ -4281,7 +4297,7 @@ end group
 
   function updateShowCategoryCounts(){
     const counts = Object.fromEntries(Object.keys(SHOW_ITEM_CATEGORIES).map((key) => [key, 0]));
-    for (const it of state.items || []){
+    for (const it of [...(state.items || []),...(state.tilOnlyItems || [])]){
       const category = getItemShowCategory(it);
       if (category) counts[category] += 1;
     }
@@ -4292,7 +4308,16 @@ end group
       if (name) name.textContent = config.label;
       if (count) count.textContent = `(${counts[category]})`;
       label?.classList.toggle("showCategoryEmpty", counts[category] === 0);
+      const input=label?.querySelector('input[type="checkbox"]'),only=label?.querySelector('.visibilityOnlyBtn');
+      if(input)input.disabled=counts[category]===0;
+      if(only)only.disabled=counts[category]===0;
     }
+    canvasShowPanelEl?.querySelectorAll('[data-show-count-source]').forEach(label=>{
+      const count=counts[label.dataset.showCountSource]||0;
+      const countEl=label.querySelector('.visibilityItemCount'),input=label.querySelector('input'),only=label.querySelector('.visibilityOnlyBtn');
+      if(countEl)countEl.textContent=`(${count})`;label.classList.toggle('showCategoryEmpty',count===0);
+      if(input)input.disabled=count===0;if(only)only.disabled=count===0;
+    });
   }
 
   function getItemGraphicScale(it){
@@ -6032,6 +6057,15 @@ end group
     });
   }
 
+  function disableEmptyVisibilityOptions(listEl){
+    listEl?.querySelectorAll("label.visibilityItemEmpty").forEach((label) => {
+      const input = label.querySelector('input[type="checkbox"]');
+      const onlyButton = label.querySelector(".visibilityOnlyBtn");
+      if (input) input.disabled = true;
+      if (onlyButton) onlyButton.disabled = true;
+    });
+  }
+
   function clearActiveVisibilityOnlyButton(listEl){
     listEl?.querySelectorAll(".visibilityOnlyBtn.active").forEach((button) => {
       const optionLabel = button.dataset.onlyLabel || "this option";
@@ -6061,6 +6095,7 @@ end group
       rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-layer-vis="${n}" ${checked}/><span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`layer ${label}`, visibilityOnlyState.layer?.key === String(n))}</label>`);
     }
     layerVisibilityListEl.innerHTML = rows.join("");
+    disableEmptyVisibilityOptions(layerVisibilityListEl);
     layerVisibilityListEl.querySelectorAll('input[data-layer-vis]').forEach((el) => {
       el.addEventListener('change', (ev) => {
         const key = String(ev.target.dataset.layerVis || "");
@@ -6104,6 +6139,7 @@ end group
       rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-group-vis="${n}" ${checked}/><span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`group ${label}`, visibilityOnlyState.group?.key === String(n))}</label>`);
     }
     groupVisibilityListEl.innerHTML = rows.join("");
+    disableEmptyVisibilityOptions(groupVisibilityListEl);
     groupVisibilityListEl.querySelectorAll('input[data-group-vis]').forEach((el) => {
       el.addEventListener('change', (ev) => {
         const key = String(ev.target.dataset.groupVis || "");
@@ -6161,6 +6197,7 @@ end group
       rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-waypoint-vis="${n}" ${checked}/> ${swatch}<span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`waypoint ${label}`, visibilityOnlyState.waypoint?.key === String(n))}</label>`);
     }
     waypointVisibilityListEl.innerHTML = rows.join("");
+    disableEmptyVisibilityOptions(waypointVisibilityListEl);
     waypointVisibilityListEl.querySelectorAll('input[data-waypoint-vis]').forEach((el) => {
       el.addEventListener('change', (ev) => {
         const key = String(ev.target.dataset.waypointVis || "");
@@ -6210,6 +6247,7 @@ end group
       rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-area-trigger-vis="${n}" ${checked}/> ${swatch}<span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`area trigger ${label}`, visibilityOnlyState.areaTrigger?.key === String(n))}</label>`);
     }
     areaTriggerVisibilityListEl.innerHTML = rows.join("");
+    disableEmptyVisibilityOptions(areaTriggerVisibilityListEl);
     areaTriggerVisibilityListEl.querySelectorAll('input[data-area-trigger-vis]').forEach((el) => {
       el.addEventListener('change', (ev) => {
         const key = String(ev.target.dataset.areaTriggerVis || "");
@@ -9464,6 +9502,7 @@ end group
   function setAllShowOptions(visible){
     visibilityOnlyState.show = null;
     canvasShowPanelEl?.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+      if (input.disabled) return;
       input.checked = !!visible;
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
@@ -9485,12 +9524,12 @@ end group
     const key = selectedInput.id;
     const current = visibilityOnlyState.show;
     if (current?.key === key){
-      for (const input of inputs) input.checked = current.snapshot.get(input.id) ?? false;
+      for (const input of inputs) if (!input.disabled) input.checked = current.snapshot.get(input.id) ?? false;
       visibilityOnlyState.show = null;
     } else {
       const snapshot = current?.snapshot || new Map(inputs.map((input) => [input.id, input.checked]));
       visibilityOnlyState.show = { key, snapshot };
-      for (const input of inputs) input.checked = input === selectedInput;
+      for (const input of inputs) if (!input.disabled) input.checked = input === selectedInput;
     }
     syncShowOnlyButtonState();
     invalidateThreeItemGeometryCaches();
@@ -9557,6 +9596,7 @@ end group
     if (!event.target.closest("[data-show-category]")) return;
     invalidateThreeItemGeometryCaches();
     state.glb.structureDirty = true;
+    if (event.target.id === "showMisMapTiles" || event.target.id === "showTilOnlyMapTiles") scheduleMapTileOverlayRebuild();
     requestRender();
   });
   debugFogPanelEl?.addEventListener("click", (event) => {
@@ -11240,10 +11280,10 @@ end group
       const record=mapTileRecordForItem(item),recordIndex=record?.recordIndex;
       if(!record||!Number.isInteger(recordIndex))continue;
       referencedRecords.add(recordIndex);
-      if(!isMapTileHidden(item))entries.push({item,record,footprint:getMapTileFootprint(item)});
+      if(!isMapTileHidden(item)&&isItemShowCategoryVisible(item))entries.push({item,record,footprint:getMapTileFootprint(item)});
     }
     for(const record of state.mapTiles.records){
-      if(!referencedRecords.has(record.recordIndex))entries.push({item:null,record,footprint:getTilRecordFootprint(record)});
+      if(!referencedRecords.has(record.recordIndex)&&isShowCategoryVisible("tileTilOnly"))entries.push({item:null,record,footprint:getTilRecordFootprint(record)});
     }
     return entries.filter(entry=>entry.footprint);
   }
@@ -14307,7 +14347,7 @@ end group
     const tiles=allMapTileItems();
     for(let i=tiles.length-1;i>=0;i--){
       const it=tiles[i];
-      if(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)||(!isTilOnlyMapTile(it)&&(!allowed.has(it.id)||!isItemVisibilityFilterMatch(it))))continue;
+      if(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)||!isItemShowCategoryVisible(it)||(!isTilOnlyMapTile(it)&&(!allowed.has(it.id)||!isItemVisibilityFilterMatch(it))))continue;
       const f=getMapTileFootprint(it);
       if(f&&x>=f.left&&x<=f.right&&y>=f.bottom&&y<=f.top)return it;
     }
