@@ -24,6 +24,7 @@ begin "start, Blue Team"
 	graphic 1_person
 	tint #0066FF
 	arrow 1
+	editor_helper vertical_line
 end
 
 
@@ -33,6 +34,7 @@ begin "start, Red Team"
 	graphic 1_person
 	tint #FF2020
 	arrow 1
+	editor_helper vertical_line
 end
 
 
@@ -48,6 +50,7 @@ begin "start, player"
 	graphic 1_person
 	tint #39FF14
 	arrow 1
+	editor_helper vertical_line
 end  
 
 
@@ -57,6 +60,7 @@ begin "start, dmatch"
 	graphic 1_person
 	tint #FFFFFF
 	arrow 1
+	editor_helper vertical_line
 end  
 
 
@@ -66,6 +70,7 @@ begin "start, primary, player"
 	graphic 1_person
 	tint #CCFF00
 	arrow 1
+	editor_helper vertical_line
 end  
 
 
@@ -75,6 +80,7 @@ begin "start, primary, dmatch"
 	graphic 1_person
 	tint #B8C4D6
 	arrow 1
+	editor_helper vertical_line
 end  
 
 
@@ -84,6 +90,7 @@ begin "start, primary, Blue Team"
 	graphic 1_person
 	tint #00B7FF
 	arrow 1
+	editor_helper vertical_line
 end  
 
 
@@ -93,6 +100,7 @@ begin "start, primary, Red Team"
 	graphic 1_person
 	tint #FF00AA
 	arrow 1
+	editor_helper vertical_line
 end  
 
 
@@ -121,6 +129,8 @@ end
 begin "waypoint, mp, red base"
 	type_id 106027
 	graphic 1_waypoint
+	tint #FF00AA
+	editor_helper circle_volume
 end  
 
 
@@ -128,6 +138,8 @@ end
 begin "waypoint, mp, blue base"
 	type_id 106028
 	graphic 1_waypoint
+	tint #00B7FF
+	editor_helper circle_volume
 end  
 
 
