@@ -2823,6 +2823,7 @@ end group
       instanceBatches: new Map(),
       batchedItemLookup: new Map(),
       batchedItemRecords: new Map(),
+      batchMaterialCache: new Map(),
       batchStats: { batches: 0, meshes: 0, items: 0 },
       syncPromise: null,
       initPromise: null,
@@ -13093,6 +13094,12 @@ end group
     "wireframe", "transparent_wireframe", "category_colors",
   ];
   const GLB_VIEW_MODES = new Set(GLB_VIEW_MODE_ORDER);
+  const GLB_BATCHABLE_VIEW_MODES = new Set([
+    "default", "unlit", "solid", "clay", "white", "black", "wireframe", "category_colors",
+  ]);
+  function getEffectiveGlbViewMode(it){
+    return GLB_VIEW_MODE_ELIGIBLE_CATEGORIES.has(getItemShowCategory(it))?state.glb.viewMode:"default";
+  }
   const GLB_CATEGORY_COLORS = {
     building: 0x5b8ff9,
     foliage: 0x61dDAa,
@@ -13378,15 +13385,32 @@ end group
     state.glb.batchStats={batches:0,meshes:0,items:0};
   }
 
+  function clearGlbBatchMaterialCache(){
+    for(const material of state.glb.batchMaterialCache.values())material?.dispose?.();
+    state.glb.batchMaterialCache.clear();
+  }
+
   function glbInstanceBatchKey(it, graphic){
-    if (!it || !graphic || state.glb.viewMode !== "default" || getItemTint(it)) return "";
+    const mode=getEffectiveGlbViewMode(it);
+    if (!it || !graphic || !GLB_BATCHABLE_VIEW_MODES.has(mode) || getItemTint(it)) return "";
     if (isAreaTriggerItem(it) || getItemWaypointId(it) != null) return "";
     const typeId=toDefIdFromMisTypeId(String(it?.kv?.type_id||it?.typeId||""));
     if (getAttachedWeaponSignature(typeId)) return "";
-    return `${graphic}|scale:${getItemGraphicScale(it)}`;
+    const category=mode==="category_colors"?getItemShowCategory(it):"";
+    return `${graphic}|scale:${getItemGraphicScale(it)}|mode:${mode}|category:${category}`;
   }
 
-  function collectBatchableTemplateMeshes(template, graphicScale){
+  function getGlbBatchMaterial(baseMaterial,it){
+    const mode=getEffectiveGlbViewMode(it);
+    if(mode==="default")return baseMaterial;
+    const category=getItemShowCategory(it);
+    const colorOverride=mode==="category_colors"?GLB_CATEGORY_COLORS[category]:(mode==="wireframe"?GLB_WIREFRAME_COLOR:undefined);
+    const key=`${baseMaterial.uuid}|${mode}|${colorOverride??""}`;
+    if(!state.glb.batchMaterialCache.has(key))state.glb.batchMaterialCache.set(key,createViewModeMaterial(baseMaterial,mode,colorOverride));
+    return state.glb.batchMaterialCache.get(key);
+  }
+
+  function collectBatchableTemplateMeshes(template, graphicScale, representativeItem){
     const meshes=[];let invalid=false;const {THREE}=state.glb;
     template?.updateMatrixWorld?.(true);
     const correction=new THREE.Object3D();applyGlbModelCorrection(correction,graphicScale);correction.updateMatrix();
@@ -13394,7 +13418,7 @@ end group
       if(obj.isLOD||obj.isSkinnedMesh)invalid=true;
       if(!obj.isMesh)return;
       if(!obj.geometry||!obj.material||Array.isArray(obj.material)||obj.material.transparent||obj.morphTargetInfluences?.length){invalid=true;return;}
-      meshes.push({geometry:obj.geometry,material:obj.material,baseMatrix:new THREE.Matrix4().multiplyMatrices(correction.matrix,obj.matrixWorld),castShadow:obj.castShadow,receiveShadow:obj.receiveShadow});
+      meshes.push({geometry:obj.geometry,material:getGlbBatchMaterial(obj.material,representativeItem),baseMatrix:new THREE.Matrix4().multiplyMatrices(correction.matrix,obj.matrixWorld),castShadow:obj.castShadow,receiveShadow:obj.receiveShadow});
     });
     return invalid||!meshes.length?null:meshes;
   }
@@ -13424,7 +13448,7 @@ end group
       if(members.length<2)continue;
       const template=await loadGraphicTemplate(members[0].graphic);
       if(generation!==state.glb.documentGeneration)return handledIds;
-      const meshes=collectBatchableTemplateMeshes(template,getItemGraphicScale(members[0].it));
+      const meshes=collectBatchableTemplateMeshes(template,getItemGraphicScale(members[0].it),members[0].it);
       if(!meshes)continue;
       const group=new THREE.Group();group.name=`GLB_INSTANCE_BATCH:${key}`;
       const itemIds=members.map(({it})=>it.id);
@@ -13635,6 +13659,7 @@ end group
     state.glb.documentGeneration += 1;
     disposeReferenceGlb();
     clearGlbInstanceBatches({clearRecords:true});
+    clearGlbBatchMaterialCache();
     for (const instance of state.glb.itemInstances.values()) removeGlbItemInstance(instance);
     state.glb.itemInstances.clear();
     clearItemArrows();
