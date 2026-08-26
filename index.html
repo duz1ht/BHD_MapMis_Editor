@@ -11892,6 +11892,10 @@ end group
       g.setAttribute('position', posAttr);
     }
     if (positions.length) posAttr.array.set(positions, 0);
+    // Three.js computes bounds over the entire attribute, not only drawRange.
+    // Clear the spare capacity so stale values from a previous, larger update
+    // cannot keep producing a NaN bounding sphere.
+    if (positions.length < posAttr.array.length) posAttr.array.fill(0, positions.length);
     posAttr.needsUpdate = true;
 
     if (colors){
@@ -11904,6 +11908,7 @@ end group
         g.setAttribute('color', colAttr);
       }
       if (colors.length) colAttr.array.set(colors, 0);
+      if (colors.length < colAttr.array.length) colAttr.array.fill(0, colors.length);
       colAttr.needsUpdate = true;
     }
 
@@ -12264,8 +12269,11 @@ end group
     }
     if (srcLen > 0 && srcBuf){
       attr.array.set(srcBuf.subarray(0, srcLen), 0);
-      attr.needsUpdate = true;
     }
+    // BufferGeometry bounds include unused attribute capacity. Always clear it
+    // because a previously active invalid point may otherwise survive forever.
+    if (srcLen < attr.array.length) attr.array.fill(0, srcLen);
+    attr.needsUpdate = true;
     points.geometry.setDrawRange(0, Math.floor(srcLen / 3));
     points.visible = srcLen > 0;
     points.geometry.boundingBox = null;
@@ -14663,14 +14671,28 @@ end group
   scheduleResizeCanvas();
 
   let lastT=performance.now();
-  let fpsAccumTime=0;
-  let fpsAccumFrames=0;
+  let fpsSampleStarted=performance.now();
+  let fpsSampleFrames=0;
 
   let renderLoopRunning=false;
   let renderLoopRafId=0;
   let pendingSingleRenderRaf=0;
   let statsHudAccumTime=0;
   let lastStatsHudText='';
+
+  // Keep the FPS indicator measuring the browser's animation cadence even
+  // while expensive scene rendering is idle/on-demand.
+  function updateFpsCounter(now){
+    fpsSampleFrames += 1;
+    const elapsed = now - fpsSampleStarted;
+    if (fpsCounterEl && elapsed >= 250){
+      fpsCounterEl.textContent = `${Math.max(0, Math.round(fpsSampleFrames * 1000 / elapsed))} FPS`;
+      fpsSampleStarted = now;
+      fpsSampleFrames = 0;
+    }
+    requestAnimationFrame(updateFpsCounter);
+  }
+  requestAnimationFrame(updateFpsCounter);
 
   function scheduleNextFrame(){
     if (!renderLoopRunning) return;
@@ -14694,14 +14716,6 @@ end group
 
   function renderFrame(){
     const now=performance.now(), dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
-    fpsAccumTime += dt;
-    fpsAccumFrames += 1;
-    if(fpsCounterEl && fpsAccumTime >= 0.25){
-      const fps=Math.max(0, Math.round(fpsAccumFrames / fpsAccumTime));
-      fpsCounterEl.textContent = `${fps} FPS`;
-      fpsAccumTime = 0;
-      fpsAccumFrames = 0;
-    }
     const {forwardXY,right,forward}=cameraBasis(); const canMoveWithKeys=(document.pointerLockElement===cv && state.cameraLookActive); let dir=vec3(0,0,0); if(canMoveWithKeys&&move.w) dir=vec3Add(dir,forwardXY); if(canMoveWithKeys&&move.s) dir=vec3Sub(dir,forwardXY); if(canMoveWithKeys&&move.d) dir=vec3Add(dir,right); if(canMoveWithKeys&&move.a) dir=vec3Sub(dir,right); if(canMoveWithKeys&&move.e) dir=vec3Add(dir,vec3(0,0,1)); if(canMoveWithKeys&&move.q) dir=vec3Sub(dir,vec3(0,0,1)); const dlen=vec3Len(dir); const speedTable=[12.5,25,50,100,200,300,450,600]; const lvl=Math.max(1,Math.min(8,renderUiState.speedLevel|0)); const scalar=Math.max(0.1,renderUiState.speedScalar||1); const base=speedTable[lvl-1]*scalar; const spd=base; state.camera.speed=spd; const targetVel=dlen>0?vec3Scale(dir,spd/dlen):vec3(0,0,0); const smoothBoost=1.3; const accel=12.0/smoothBoost, decel=10.0/smoothBoost; const blend=Math.min(1, (dlen>0?accel:decel)*dt); camVel=vec3Add(camVel, vec3Scale(vec3Sub(targetVel,camVel), blend)); cam.pos=vec3Add(cam.pos,vec3Scale(camVel,dt));
     if(renderUiState.groundClamp && lastDepth){ const h=heightAtWorld(cam.pos.x,cam.pos.y,1.0); if(h>-1e8){ const clearance=renderUiState.clearance; if(cam.pos.z < h+clearance) cam.pos.z = h+clearance; } }
     updateKothZoneStatus();
