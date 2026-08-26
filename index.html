@@ -1701,8 +1701,7 @@
         <button id="showAreaTriggersBtn" type="button" class="modeBtn">Area Triggers</button>
       </div>
       <div id="canvasViewToolbar" class="canvasFloatingToolbar">
-        <button id="runTimeBtn" type="button" class="modeBtn topViewTool" hidden title="Run Time"><img class="toolbarIcon" src="resources/BHD/editor_icons/footsteps_icon.svg" alt="" /> Run Time</button>
-        <button id="measureDistanceBtn" type="button" class="modeBtn topViewTool" hidden aria-pressed="false" title="Measure Distance"><img class="toolbarIcon" src="resources/BHD/editor_icons/ruler_icon.svg" alt="" /> Measure Distance</button>
+        <button id="measureDistanceBtn" type="button" class="modeBtn topViewTool" hidden aria-pressed="false" aria-label="Measure Distance (disabled)" data-tool-mode="off" title="Measure Distance (disabled)"><img id="measureDistanceIcon" class="toolbarIcon" src="resources/BHD/editor_icons/ruler_icon.svg" alt="" /> <span id="measureDistanceLabel">Measure Distance</span></button>
         <button id="transformSpaceBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Transformation Mode: World" title="Transformation Mode: World (X)"><img class="toolbarIcon" src="resources/BHD/editor_icons/space_world.svg" alt="" /></button>
         <div class="toolbarSplit">
           <button id="rotationSnapToggleBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Rotation Snap" title="Enable or disable rotation snapping"><img class="toolbarIcon" src="resources/BHD/editor_icons/snap_to_angle.svg" alt="" /></button>
@@ -2542,7 +2541,7 @@ end group
     boxSelectAdditive: false,
     boxStart: null,
     boxCurrent: null,
-    measurement: { active: false, points: [], hover: null, middleDown: null },
+    measurement: { mode: "off", points: [], hover: null, middleDown: null },
     rightPanActive: false,
     rightPanStart: null,
     suppressContextMenu: false,
@@ -2910,6 +2909,8 @@ end group
   const showAreaTriggersBtn = document.getElementById("showAreaTriggersBtn");
   const transformSpaceBtn = document.getElementById("transformSpaceBtn");
   const measureDistanceBtn = document.getElementById("measureDistanceBtn");
+  const measureDistanceIcon = document.getElementById("measureDistanceIcon");
+  const measureDistanceLabel = document.getElementById("measureDistanceLabel");
   const measurementOverlayEl = document.getElementById("measurementOverlay");
   const gridSnapToggleBtn = document.getElementById("gridSnapToggleBtn");
   const rotationSnapToggleBtn = document.getElementById("rotationSnapToggleBtn");
@@ -9321,7 +9322,7 @@ end group
     event.stopPropagation();toggleTransformSpace();
   });
   measureDistanceBtn?.addEventListener('click',event=>{
-    event.stopPropagation();setMeasurementMode(!state.measurement.active);
+    event.stopPropagation();cycleMeasurementToolMode();
   });
   syncTransformSpaceButton();
   rotationSnapMenuBtn?.addEventListener('click',event=>{
@@ -11632,20 +11633,32 @@ end group
     state.measurement.middleDown=null;
     measurementOverlayEl?.replaceChildren();
   }
-  function setMeasurementMode(enabled){
-    state.measurement.active=!!enabled&&topViewLocked;
-    measureDistanceBtn?.classList.toggle('active',state.measurement.active);
-    measureDistanceBtn?.setAttribute('aria-pressed',state.measurement.active?'true':'false');
-    if(!state.measurement.active)clearMeasurement();
-    cv.style.cursor=state.measurement.active?'crosshair':'';
+  function setMeasurementToolMode(mode){
+    const nextMode=topViewLocked&&['measure','run'].includes(mode)?mode:'off';
+    const wasMeasuring=state.measurement.mode==='measure';
+    state.measurement.mode=nextMode;
+    const measuring=nextMode==='measure',running=nextMode==='run';
+    measureDistanceBtn?.classList.toggle('active',nextMode!=='off');
+    measureDistanceBtn?.setAttribute('aria-pressed',nextMode!=='off'?'true':'false');
+    measureDistanceBtn?.setAttribute('data-tool-mode',nextMode);
+    measureDistanceBtn?.setAttribute('aria-label',running?'Run Time':`Measure Distance${measuring?'':' (disabled)'}`);
+    if(measureDistanceBtn)measureDistanceBtn.title=running?'Run Time':'Measure Distance'+(measuring?'':' (disabled)');
+    if(measureDistanceIcon)measureDistanceIcon.src=running?'resources/BHD/editor_icons/footsteps_icon.svg':'resources/BHD/editor_icons/ruler_icon.svg';
+    if(measureDistanceLabel)measureDistanceLabel.textContent=running?'Run Time':'Measure Distance';
+    if(wasMeasuring&&!measuring)clearMeasurement();
+    cv.style.cursor=measuring?'crosshair':'';
     requestRender();
+  }
+  function cycleMeasurementToolMode(){
+    const next={off:'measure',measure:'run',run:'off'}[state.measurement.mode]||'off';
+    setMeasurementToolMode(next);
   }
   function updateMeasurementOverlay(){
     if(!measurementOverlayEl)return;
     const {width,height}=getViewportMetrics();
     measurementOverlayEl.setAttribute('viewBox',`0 0 ${width} ${height}`);
     measurementOverlayEl.replaceChildren();
-    if(!topViewLocked||!state.measurement.active||!state.measurement.points.length)return;
+    if(!topViewLocked||state.measurement.mode!=='measure'||!state.measurement.points.length)return;
     const worldPoints=[...state.measurement.points];
     if(state.measurement.hover)worldPoints.push(state.measurement.hover);
     const screenPoints=worldPoints.map(point=>worldToScreen(point.x,point.y,point.z));
@@ -15007,7 +15020,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       topViewRestore={pos,target,yaw:cam.yaw,pitch:cam.pitch,initialScale:topViewScale};
       cam.pos=vec3(target.x,target.y,Math.max(pos.z,target.z+1000));cam.yaw=0;cam.pitch=-Math.PI/2;
     } else {
-      setMeasurementMode(false);
+      setMeasurementToolMode('off');
       if(topViewRestore.pos&&topViewRestore.target){
         const zoomRatio=Math.max(.05,Math.min(20,topViewScale/Math.max(1,topViewRestore.initialScale)));
         const newTarget=vec3(cam.pos.x,cam.pos.y,topViewRestore.target.z);
@@ -15060,7 +15073,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     const rect = cv.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
-    if(e.button===1&&topViewLocked&&state.measurement.active){
+    if(e.button===1&&topViewLocked&&state.measurement.mode==='measure'){
       e.preventDefault();
       const point=measurementWorldPoint(sx,sy),wasEmpty=state.measurement.points.length===0;
       if(wasEmpty)state.measurement.points.push(point);
@@ -15187,7 +15200,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       { label: "Insert Item", action: toggleInsertMode }
     ]);
   });
-  cv.addEventListener('auxclick',e=>{if(e.button===1&&state.measurement.active)e.preventDefault();});
+  cv.addEventListener('auxclick',e=>{if(e.button===1&&state.measurement.mode==='measure')e.preventDefault();});
   cv.addEventListener("dblclick", (e) => { const rect=cv.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top,scenePick=pickNearestSceneObjectAt(sx,sy); const picked=scenePick?.kind==="item"?scenePick.item:(scenePick?null:pickItemAtCanvas(sx,sy)); if(picked){ selectById(picked.id); openModal(); } });
   cv.addEventListener("mouseleave",()=>{if(state.tileInsertIndex!==null)updateTileInsertCursorPreview(null);});
   cv.addEventListener("mousemove", (e) => {
@@ -15196,7 +15209,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
 
-    if(topViewLocked&&state.measurement.active){
+    if(topViewLocked&&state.measurement.mode==='measure'){
       state.measurement.hover=measurementWorldPoint(sx,sy);
       requestRender();
       if(e.buttons&4){e.preventDefault();return;}
@@ -15306,7 +15319,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
   }
   function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; boxSelectionEl.style.display='none'; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const {pickedId,additive}=state.pendingLeftClick; selectById(pickedId != null ? pickedId : null,{additive}); } state.pendingLeftClick=null; if(had){ const ids=boxSelectionIds(x0,y0,x1,y1); if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); renderTileInstances(); refreshLiveMisWindow(false, { force: true }); } flushTransformDragUi(); }
   cv.addEventListener('mouseup', e => {
-    if(e.button===1&&state.measurement.active&&state.measurement.middleDown){
+    if(e.button===1&&state.measurement.mode==='measure'&&state.measurement.middleDown){
       const rect=cv.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
       const gesture=state.measurement.middleDown,end=measurementWorldPoint(sx,sy);
       const moved=Math.hypot(sx-gesture.sx,sy-gesture.sy)>3;
@@ -15407,10 +15420,10 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     const next=pickGizmoModeAt(e.clientX,e.clientY);
     if(next===state.hoveredGizmoHandle)return;
     state.hoveredGizmoHandle=next;
-    cv.style.cursor=next?'pointer':(state.measurement.active?'crosshair':'');
+    cv.style.cursor=next?'pointer':(state.measurement.mode==='measure'?'crosshair':'');
     updateItemGizmo();
   });
-  cv.addEventListener('mouseleave',()=>{state.hoveredGizmoHandle=null;cv.style.cursor=state.measurement.active?'crosshair':'';updateItemGizmo();});
+  cv.addEventListener('mouseleave',()=>{state.hoveredGizmoHandle=null;cv.style.cursor=state.measurement.mode==='measure'?'crosshair':'';updateItemGizmo();});
   function rayPlanePoint(ray,point,normal){
     const den=vec3Dot(ray.dir,normal);if(Math.abs(den)<1e-6)return null;
     const t=vec3Dot(vec3Sub(point,ray.origin),normal)/den;return t>=0?vec3Add(ray.origin,vec3Scale(ray.dir,t)):null;
