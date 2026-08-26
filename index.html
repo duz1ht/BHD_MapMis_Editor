@@ -2824,7 +2824,8 @@ end group
       batchedItemLookup: new Map(),
       batchedItemRecords: new Map(),
       batchMaterialCache: new Map(),
-      batchStats: { batches: 0, meshes: 0, items: 0 },
+      batchStats: { batches: 0, transparentBatches: 0, meshes: 0, items: 0 },
+      transparentBatchCameraCell: "",
       syncPromise: null,
       initPromise: null,
       documentGeneration: 0,
@@ -13096,7 +13097,10 @@ end group
   const GLB_VIEW_MODES = new Set(GLB_VIEW_MODE_ORDER);
   const GLB_BATCHABLE_VIEW_MODES = new Set([
     "default", "unlit", "solid", "clay", "white", "black", "wireframe", "category_colors",
+    "xray", "ghosted", "transparent_wireframe",
   ]);
+  const GLB_TRANSPARENT_BATCH_MODES = new Set(["xray", "ghosted", "transparent_wireframe"]);
+  const GLB_TRANSPARENT_BATCH_DISTANCE = 512;
   function getEffectiveGlbViewMode(it){
     return GLB_VIEW_MODE_ELIGIBLE_CATEGORIES.has(getItemShowCategory(it))?state.glb.viewMode:"default";
   }
@@ -13188,6 +13192,7 @@ end group
     const next = GLB_VIEW_MODES.has(mode) ? mode : "default";
     if (state.glb.viewMode === next) return;
     state.glb.viewMode = next;
+    state.glb.transparentBatchCameraCell="";
     clearGlbInstanceBatches();
     for (const [itemId, instance] of state.glb.itemInstances){
       applyViewModeToGlbObject(instance, getItemByIdFast(itemId), true);
@@ -13382,7 +13387,7 @@ end group
     state.glb.instanceBatches.clear();
     state.glb.batchedItemLookup.clear();
     if(clearRecords)state.glb.batchedItemRecords.clear();
-    state.glb.batchStats={batches:0,meshes:0,items:0};
+    state.glb.batchStats={batches:0,transparentBatches:0,meshes:0,items:0};
   }
 
   function clearGlbBatchMaterialCache(){
@@ -13397,7 +13402,10 @@ end group
     const typeId=toDefIdFromMisTypeId(String(it?.kv?.type_id||it?.typeId||""));
     if (getAttachedWeaponSignature(typeId)) return "";
     const category=mode==="category_colors"?getItemShowCategory(it):"";
-    return `${graphic}|scale:${getItemGraphicScale(it)}|mode:${mode}|category:${category}`;
+    const distanceBucket=GLB_TRANSPARENT_BATCH_MODES.has(mode)
+      ? Math.floor(Math.hypot(rawToWorld(it.x,'x')-cam.pos.x,rawToWorld(it.y,'y')-cam.pos.y,getItemWorldZ(it)-cam.pos.z)/GLB_TRANSPARENT_BATCH_DISTANCE)
+      : -1;
+    return `${graphic}|scale:${getItemGraphicScale(it)}|mode:${mode}|category:${category}|distance:${distanceBucket}`;
   }
 
   function getGlbBatchMaterial(baseMaterial,it){
@@ -13451,11 +13459,20 @@ end group
       const meshes=collectBatchableTemplateMeshes(template,getItemGraphicScale(members[0].it),members[0].it);
       if(!meshes)continue;
       const group=new THREE.Group();group.name=`GLB_INSTANCE_BATCH:${key}`;
+      const transparentMode=getEffectiveGlbViewMode(members[0].it);
+      let batchRenderOrder=0;
+      if(GLB_TRANSPARENT_BATCH_MODES.has(transparentMode)){
+        const match=key.match(/\|distance:(\d+)$/),distanceBucket=Number(match?.[1]||0);
+        // Far buckets render first. This is intentionally approximate: it keeps
+        // draw calls low without sorting every transparent instance every frame.
+        batchRenderOrder=transparentMode==="xray"?GLB_OVERLAY_RENDER_ORDER:-distanceBucket;
+      }
       const itemIds=members.map(({it})=>it.id);
       for(let meshIndex=0;meshIndex<meshes.length;meshIndex++){
         const source=meshes[meshIndex];
         const instanced=new THREE.InstancedMesh(source.geometry,source.material,members.length);
         instanced.name=`GLB_INSTANCE_BATCH_MESH:${meshIndex}`;
+        instanced.renderOrder=batchRenderOrder;
         instanced.userData.instanceItemIds=itemIds;
         instanced.castShadow=source.castShadow;instanced.receiveShadow=source.receiveShadow;
         for(let instanceIndex=0;instanceIndex<members.length;instanceIndex++)instanced.setMatrixAt(instanceIndex,composeGlbItemInstanceMatrix(members[instanceIndex].it,source.baseMatrix));
@@ -13470,9 +13487,21 @@ end group
         handledIds.add(it.id);
       }
       state.glb.instanceBatches.set(key,{group,itemIds});
-      state.glb.batchStats.batches+=1;state.glb.batchStats.meshes+=meshes.length;state.glb.batchStats.items+=members.length;
+      state.glb.batchStats.batches+=1;
+      if(GLB_TRANSPARENT_BATCH_MODES.has(transparentMode))state.glb.batchStats.transparentBatches+=1;
+      state.glb.batchStats.meshes+=meshes.length;state.glb.batchStats.items+=members.length;
     }
     return handledIds;
+  }
+
+  function maybeRefreshTransparentGlbBatches(){
+    if(!GLB_TRANSPARENT_BATCH_MODES.has(state.glb.viewMode))return;
+    const cellSize=GLB_TRANSPARENT_BATCH_DISTANCE*0.5;
+    const cell=`${Math.floor(cam.pos.x/cellSize)}:${Math.floor(cam.pos.y/cellSize)}:${Math.floor(cam.pos.z/cellSize)}`;
+    if(!state.glb.transparentBatchCameraCell){state.glb.transparentBatchCameraCell=cell;return;}
+    if(cell===state.glb.transparentBatchCameraCell)return;
+    state.glb.transparentBatchCameraCell=cell;
+    state.glb.structureDirty=true;
   }
 
   function disposeReferenceGlb(){
@@ -14021,6 +14050,7 @@ end group
       });
       return;
     }
+    maybeRefreshTransparentGlbBatches();
     const samples={},measure=(name,callback)=>{const started=performance.now();callback();samples[name]=performance.now()-started;};
     measure('transforms',updateGlbTransformsFromState);
     measure('arrows',syncItemArrows);
@@ -15030,7 +15060,7 @@ Draw calls: ${drawCalls}
 Terrain cull (frustum/back): ${state.terrainPerf?.culledFrustum ?? '-'} / ${state.terrainPerf?.culledBackface ?? '-'}
 MapTile paint: ${state.mapTiles.paintedTiles} tiles, ${state.mapTiles.overlayResolution || '-'}px (${state.mapTiles.lastBuildMs.toFixed(2)} ms)
 GLB instances: ${state.glb.itemInstances.size}
-GLB batches/items/meshes: ${state.glb.batchStats.batches} / ${state.glb.batchStats.items} / ${state.glb.batchStats.meshes}
+GLB batches/transparent/items/meshes: ${state.glb.batchStats.batches} / ${state.glb.batchStats.transparentBatches} / ${state.glb.batchStats.items} / ${state.glb.batchStats.meshes}
 GLB CPU: transforms=${(state.renderDiagnostics.glbMs.transforms||0).toFixed(2)} arrows=${(state.renderDiagnostics.glbMs.arrows||0).toFixed(2)} circles=${(state.renderDiagnostics.glbMs.circles||0).toFixed(2)} areas=${(state.renderDiagnostics.glbMs.areas||0).toFixed(2)} selection=${(state.renderDiagnostics.glbMs.selection||0).toFixed(2)} submit=${(state.renderDiagnostics.glbMs.submit||0).toFixed(2)}
 GLB calls/triangles/lines: ${state.renderDiagnostics.glbRenderInfo.calls} / ${state.renderDiagnostics.glbRenderInfo.triangles} / ${state.renderDiagnostics.glbRenderInfo.lines}
 GLB sync: #${state.glb.syncCount} (${state.glb.lastSyncMs.toFixed(2)} ms)
