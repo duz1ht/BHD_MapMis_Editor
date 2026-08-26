@@ -10645,6 +10645,13 @@ end group
     for (let i=0; i<length; i++) if (!Number.isFinite(values[i])) return false;
     return true;
   }
+  function setAlwaysVisibleGeometryBounds(geometry){
+    if (!geometry || !state.glb.THREE) return;
+    if (!geometry.boundingSphere) geometry.boundingSphere = new state.glb.THREE.Sphere();
+    geometry.boundingSphere.center.set(0, 0, 0);
+    geometry.boundingSphere.radius = Infinity;
+    geometry.boundingBox = null;
+  }
   function worldToRaw(v, axis='z'){
     const n=Number(v)||0;
     return Math.round(n*MIS_POS_SCALE);
@@ -11879,8 +11886,7 @@ end group
       warnInvalidGeometryOnce(source);
       g.setDrawRange(0, 0);
       lineSegments.visible = false;
-      g.boundingBox = null;
-      g.boundingSphere = null;
+      setAlwaysVisibleGeometryBounds(g);
       return;
     }
     let posAttr = g.getAttribute('position');
@@ -11914,8 +11920,10 @@ end group
 
     g.setDrawRange(0, Math.floor(positions.length / 3));
     lineSegments.visible = positions.length > 0;
-    g.boundingBox = null;
-    g.boundingSphere = null;
+    // These transient editor overlays opt out of frustum culling. Give them an
+    // explicit unbounded sphere too, so neither Three.js nor picking code ever
+    // asks BufferGeometry to derive bounds from a dynamic backing array.
+    setAlwaysVisibleGeometryBounds(g);
   }
 
   function appendRectLineData(posArr, colorArr, offsetX, offsetY, scaleX, scaleY, z, color){
@@ -12252,8 +12260,7 @@ end group
     if (!hasFinitePositionData(srcBuf, srcLen)){
       warnInvalidGeometryOnce('item points', group);
       points.geometry.setDrawRange(0, 0);
-      points.geometry.boundingBox = null;
-      points.geometry.boundingSphere = null;
+      setAlwaysVisibleGeometryBounds(points.geometry);
       points.visible = false;
       state.threeItems.drawCountByGroup.set(group, 0);
       return;
@@ -12276,8 +12283,7 @@ end group
     attr.needsUpdate = true;
     points.geometry.setDrawRange(0, Math.floor(srcLen / 3));
     points.visible = srcLen > 0;
-    points.geometry.boundingBox = null;
-    points.geometry.boundingSphere = null;
+    setAlwaysVisibleGeometryBounds(points.geometry);
     state.threeItems.drawCountByGroup.set(group, Math.floor(srcLen / 3));
   }
 
