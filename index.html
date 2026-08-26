@@ -512,6 +512,9 @@
     #canvasShowPanelControls button{ min-height:22px; padding:2px 8px; font-size:11px; }
     #canvasShowPanelList{ display:grid; grid-template-columns:1fr; gap:4px; font-size:12px; }
     #canvasShowPanelList label{ display:flex; align-items:center; gap:6px; }
+    .showOptionGroup{ margin:2px 0; padding:5px 7px 6px; border:1px solid var(--line); border-radius:var(--radius-sm); display:grid; gap:4px; }
+    .showOptionGroup legend{ width:calc(100% - 8px); padding:0 4px; color:var(--text-muted); font-weight:700; }
+    .showOptionGroup legend label{ width:100%; }
     #canvasShowPanelList label.showCategoryEmpty,
     .visibilityItemEmpty{ opacity:.42; }
     .visibilityItemCount{
@@ -1783,11 +1786,17 @@
           <label data-show-category="building"><input type="checkbox" id="showBuildings" checked> <span class="visibilityItemName">Buildings</span> <span class="visibilityItemCount">(0)</span></label>
           <label data-show-category="object"><input type="checkbox" id="showObjects" checked> <span class="visibilityItemName">Objects</span> <span class="visibilityItemCount">(0)</span></label>
           <label data-show-category="decoration"><input type="checkbox" id="showDecorations" checked> <span class="visibilityItemName">Decorations</span> <span class="visibilityItemCount">(0)</span></label>
-          <label data-show-category="markerGameplay"><input type="checkbox" id="showMarkers" checked> <span class="visibilityItemName">Markers - Gameplay</span> <span class="visibilityItemCount">(0)</span></label>
-          <label data-show-category="markerWaypoint"><input type="checkbox" id="showWaypointMarkers" checked> <span class="visibilityItemName">Markers - Waypoints</span> <span class="visibilityItemCount">(0)</span></label>
-          <label data-show-category="markerAreaTrigger"><input type="checkbox" id="showAreaTriggerMarkers" checked> <span class="visibilityItemName">Markers - Area Triggers</span> <span class="visibilityItemCount">(0)</span></label>
-          <label><input type="checkbox" id="showAreaTriggers" checked> Markers - Area Trigger Volumes</label>
-          <label data-show-category="markerSound"><input type="checkbox" id="showSoundMarkers" checked> <span class="visibilityItemName">Markers - Sound</span> <span class="visibilityItemCount">(0)</span></label>
+          <fieldset class="showOptionGroup" data-show-group="tiles"><legend><label><input type="checkbox" id="showTilesGroup" data-show-group-toggle="tiles" checked> <span class="visibilityItemName">Tiles</span> <span class="visibilityItemCount">(0)</span></label></legend>
+            <label data-show-category="tileMis"><input type="checkbox" id="showMisMapTiles" checked> <span class="visibilityItemName">Tiles - .mis MapTile</span> <span class="visibilityItemCount">(0)</span></label>
+            <label data-show-category="tileTilOnly"><input type="checkbox" id="showTilOnlyMapTiles" checked> <span class="visibilityItemName">Tiles - Existing only in the .til</span> <span class="visibilityItemCount">(0)</span></label>
+          </fieldset>
+          <fieldset class="showOptionGroup" data-show-group="markers"><legend><label><input type="checkbox" id="showMarkersGroup" data-show-group-toggle="markers" checked> <span class="visibilityItemName">Markers</span> <span class="visibilityItemCount">(0)</span></label></legend>
+            <label data-show-category="markerGameplay"><input type="checkbox" id="showMarkers" checked> <span class="visibilityItemName">Markers - Gameplay</span> <span class="visibilityItemCount">(0)</span></label>
+            <label data-show-category="markerWaypoint"><input type="checkbox" id="showWaypointMarkers" checked> <span class="visibilityItemName">Markers - Waypoints</span> <span class="visibilityItemCount">(0)</span></label>
+            <label data-show-category="markerAreaTrigger"><input type="checkbox" id="showAreaTriggerMarkers" checked> <span class="visibilityItemName">Markers - Area Triggers</span> <span class="visibilityItemCount">(0)</span></label>
+            <label data-show-count-source="markerAreaTrigger"><input type="checkbox" id="showAreaTriggers" checked> <span class="visibilityItemName">Markers - Area Trigger Volumes</span> <span class="visibilityItemCount">(0)</span></label>
+            <label data-show-category="markerSound"><input type="checkbox" id="showSoundMarkers" checked> <span class="visibilityItemName">Markers - Sound</span> <span class="visibilityItemCount">(0)</span></label>
+          </fieldset>
           <label data-show-category="powerup"><input type="checkbox" id="showPowerups" checked> <span class="visibilityItemName">Power-ups</span> <span class="visibilityItemCount">(0)</span></label>
           <label><input type="checkbox" id="showWpDistance"> WP Distance</label>
           <label><input type="checkbox" id="showFovCones"> FOV Cones</label>
@@ -2691,6 +2700,7 @@ end group
     glbChecksActive: 0,
 
     itemsVersion: 0,
+    itemGeometryRevision: 0,
     filteredItemsCache: null,
     filteredItemsKey: "",
     liveMisDirty: false,
@@ -2721,6 +2731,10 @@ end group
     renderDiagnostics: {
       lastBackendLogged: null,
       lastTickMs: 0,
+      layerMs: {},
+      frameMs: 0,
+      glbMs: {},
+      glbRenderInfo: { calls: 0, triangles: 0, lines: 0, points: 0 },
     },
     threeTerrain: {
       scene: null,
@@ -2740,6 +2754,8 @@ end group
       drawCountByGroup: new Map(),
       waypointLineScene: null,
       waypointLines: null,
+      pointDataSignature: "",
+      waypointDataSignature: "",
       ready: false,
     },
     areaTriggerVolumes: {
@@ -2813,6 +2829,12 @@ end group
       dimensionsByGraphic: new Map(),
       missingGraphics: new Set(),
       itemInstances: new Map(),
+      instanceBatches: new Map(),
+      batchedItemLookup: new Map(),
+      batchedItemRecords: new Map(),
+      batchMaterialCache: new Map(),
+      batchStats: { batches: 0, transparentBatches: 0, meshes: 0, items: 0 },
+      transparentBatchCameraCell: "",
       syncPromise: null,
       initPromise: null,
       documentGeneration: 0,
@@ -2891,14 +2913,21 @@ end group
 
   function renderLayersByBackend(P, V, PV, forward){
     const result = { drawCalls: 0 };
+    const layerMs = {};
+    const measure = (name, callback) => {
+      const started = performance.now();
+      const value = callback();
+      layerMs[name] = performance.now() - started;
+      return value;
+    };
     if (!state.glb.ready) ensureGlbRendererReady();
-    result.drawCalls = drawTerrainThree(P, V, forward);
-    drawOverlaysThree(P, V, forward);
-    drawItemsThree(P, V);
-    drawGlbItems(P, V);
-    drawWaypointLinesThree(P, V);
-    updateItemGizmo();
-    drawThreeGizmo();
+    result.drawCalls = measure('terrain', () => drawTerrainThree(P, V, forward));
+    measure('overlays', () => drawOverlaysThree(P, V, forward));
+    measure('points', () => drawItemsThree(P, V));
+    measure('glb', () => drawGlbItems(P, V));
+    measure('waypoints', () => drawWaypointLinesThree(P, V));
+    measure('gizmo', () => { updateItemGizmo(); drawThreeGizmo(); });
+    state.renderDiagnostics.layerMs = layerMs;
     return result;
   }
 
@@ -3362,6 +3391,7 @@ end group
     const structureChanged = options.structure !== false;
     const invalidateFilter = options.invalidateFilter !== undefined ? !!options.invalidateFilter : structureChanged;
     state.liveMisDirty = true;
+    state.itemGeometryRevision += 1;
     if (invalidateFilter){
       state.itemsVersion += 1;
       invalidateFilteredItemsCache();
@@ -3374,13 +3404,15 @@ end group
       const validIds=new Set(state.items.filter(isMapTileItem).map(it=>it.id));
       state.lockedMapTileIds=new Set([...state.lockedMapTileIds].filter(id=>validIds.has(id)));
       state.hiddenMapTileIds=new Set([...state.hiddenMapTileIds].filter(id=>validIds.has(id)));
-      if(state.tilePaletteView==="instances")requestAnimationFrame(renderTileInstances);
+      if(state.tilePaletteView==="instances")scheduleRenderTileInstances();
     }
     updateShowCategoryCounts();
   }
 
   function markItemTransformDirty(itemId){
     if (itemId == null) return;
+    state.itemGeometryRevision += 1;
+    if(state.glb.batchedItemLookup.has(itemId))state.glb.structureDirty=true;
     state.glb.transformDirtyIds.add(itemId);
     if (state.spatialIndex.enabled){
       const it = getItemByIdFast(itemId);
@@ -4077,7 +4109,8 @@ end group
     if (!item || !state.glb.ready || !state.glb.THREE) return null;
 
     const instance = state.glb.itemInstances.get(item.id) || null;
-    const graphicKey = String(instance?.userData?.graphic || "").trim().toLowerCase();
+    const batchRecord=state.glb.batchedItemRecords.get(item.id);
+    const graphicKey = String(instance?.userData?.graphic || batchRecord?.graphic || "").trim().toLowerCase();
     if (!graphicKey) return null;
 
     const cached = state.glb.dimensionsByGraphic.get(graphicKey);
@@ -4214,9 +4247,15 @@ end group
     markerWaypoint: { inputId: "showWaypointMarkers", label: "Markers - Waypoints" },
     markerAreaTrigger: { inputId: "showAreaTriggerMarkers", label: "Markers - Area Triggers" },
     markerSound: { inputId: "showSoundMarkers", label: "Markers - Sound" },
+    tileMis: { inputId: "showMisMapTiles", label: "Tiles - .mis MapTile" },
+    tileTilOnly: { inputId: "showTilOnlyMapTiles", label: "Tiles - Existing only in the .til" },
     object: { inputId: "showObjects", label: "Objects" },
     powerup: { inputId: "showPowerups", label: "Power-ups" },
     vehicle: { inputId: "showVehicles", label: "Vehicles" },
+  };
+  const SHOW_OPTION_GROUPS = {
+    tiles: { categories: ["tileMis", "tileTilOnly"] },
+    markers: { categories: ["markerGameplay", "markerWaypoint", "markerAreaTrigger", "markerSound"] },
   };
 
   function getCatalogDefForItem(it){
@@ -4226,6 +4265,8 @@ end group
   }
 
   function getItemShowCategory(it){
+    if (isTilOnlyMapTile(it)) return "tileTilOnly";
+    if (isMapTileItem(it)) return "tileMis";
     const def = getCatalogDefForItem(it);
     const type = String(def?.type || "").trim().toLowerCase();
     if (type === "person" || type === "people") return "people";
@@ -4250,6 +4291,10 @@ end group
 
   function isItemShowCategoryVisible(it){
     const category = getItemShowCategory(it);
+    return isShowCategoryVisible(category);
+  }
+
+  function isShowCategoryVisible(category){
     if (!category) return true;
     const input = document.getElementById(SHOW_ITEM_CATEGORIES[category].inputId);
     return !input || input.checked;
@@ -4257,7 +4302,7 @@ end group
 
   function updateShowCategoryCounts(){
     const counts = Object.fromEntries(Object.keys(SHOW_ITEM_CATEGORIES).map((key) => [key, 0]));
-    for (const it of state.items || []){
+    for (const it of [...(state.items || []),...(state.tilOnlyItems || [])]){
       const category = getItemShowCategory(it);
       if (category) counts[category] += 1;
     }
@@ -4268,7 +4313,23 @@ end group
       if (name) name.textContent = config.label;
       if (count) count.textContent = `(${counts[category]})`;
       label?.classList.toggle("showCategoryEmpty", counts[category] === 0);
+      const input=label?.querySelector('input[type="checkbox"]'),only=label?.querySelector('.visibilityOnlyBtn');
+      if(input)input.disabled=counts[category]===0;
+      if(only)only.disabled=counts[category]===0;
     }
+    canvasShowPanelEl?.querySelectorAll('[data-show-count-source]').forEach(label=>{
+      const count=counts[label.dataset.showCountSource]||0;
+      const countEl=label.querySelector('.visibilityItemCount'),input=label.querySelector('input'),only=label.querySelector('.visibilityOnlyBtn');
+      if(countEl)countEl.textContent=`(${count})`;label.classList.toggle('showCategoryEmpty',count===0);
+      if(input)input.disabled=count===0;if(only)only.disabled=count===0;
+    });
+    for (const [group, config] of Object.entries(SHOW_OPTION_GROUPS)){
+      const fieldset = canvasShowPanelEl?.querySelector(`[data-show-group="${group}"]`);
+      const total = config.categories.reduce((sum, category) => sum + (counts[category] || 0), 0);
+      const count = fieldset?.querySelector("legend .visibilityItemCount");
+      if (count) count.textContent = `(${total})`;
+    }
+    syncShowGroupControls();
   }
 
   function getItemGraphicScale(it){
@@ -6008,6 +6069,15 @@ end group
     });
   }
 
+  function disableEmptyVisibilityOptions(listEl){
+    listEl?.querySelectorAll("label.visibilityItemEmpty").forEach((label) => {
+      const input = label.querySelector('input[type="checkbox"]');
+      const onlyButton = label.querySelector(".visibilityOnlyBtn");
+      if (input) input.disabled = true;
+      if (onlyButton) onlyButton.disabled = true;
+    });
+  }
+
   function clearActiveVisibilityOnlyButton(listEl){
     listEl?.querySelectorAll(".visibilityOnlyBtn.active").forEach((button) => {
       const optionLabel = button.dataset.onlyLabel || "this option";
@@ -6037,6 +6107,7 @@ end group
       rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-layer-vis="${n}" ${checked}/><span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`layer ${label}`, visibilityOnlyState.layer?.key === String(n))}</label>`);
     }
     layerVisibilityListEl.innerHTML = rows.join("");
+    disableEmptyVisibilityOptions(layerVisibilityListEl);
     layerVisibilityListEl.querySelectorAll('input[data-layer-vis]').forEach((el) => {
       el.addEventListener('change', (ev) => {
         const key = String(ev.target.dataset.layerVis || "");
@@ -6080,6 +6151,7 @@ end group
       rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-group-vis="${n}" ${checked}/><span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`group ${label}`, visibilityOnlyState.group?.key === String(n))}</label>`);
     }
     groupVisibilityListEl.innerHTML = rows.join("");
+    disableEmptyVisibilityOptions(groupVisibilityListEl);
     groupVisibilityListEl.querySelectorAll('input[data-group-vis]').forEach((el) => {
       el.addEventListener('change', (ev) => {
         const key = String(ev.target.dataset.groupVis || "");
@@ -6137,6 +6209,7 @@ end group
       rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-waypoint-vis="${n}" ${checked}/> ${swatch}<span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`waypoint ${label}`, visibilityOnlyState.waypoint?.key === String(n))}</label>`);
     }
     waypointVisibilityListEl.innerHTML = rows.join("");
+    disableEmptyVisibilityOptions(waypointVisibilityListEl);
     waypointVisibilityListEl.querySelectorAll('input[data-waypoint-vis]').forEach((el) => {
       el.addEventListener('change', (ev) => {
         const key = String(ev.target.dataset.waypointVis || "");
@@ -6186,6 +6259,7 @@ end group
       rows.push(`<label class="${count === 0 ? "visibilityItemEmpty" : ""}"><input type="checkbox" data-area-trigger-vis="${n}" ${checked}/> ${swatch}<span>${escapeHtml(label)}</span><span class="visibilityItemCount">(${count})</span>${visibilityOnlyButton(`area trigger ${label}`, visibilityOnlyState.areaTrigger?.key === String(n))}</label>`);
     }
     areaTriggerVisibilityListEl.innerHTML = rows.join("");
+    disableEmptyVisibilityOptions(areaTriggerVisibilityListEl);
     areaTriggerVisibilityListEl.querySelectorAll('input[data-area-trigger-vis]').forEach((el) => {
       el.addEventListener('change', (ev) => {
         const key = String(ev.target.dataset.areaTriggerVis || "");
@@ -9437,14 +9511,47 @@ end group
     setAllAreaTriggerVisibility(true);
   });
 
+  function getShowLeafInputs(){
+    return Array.from(canvasShowPanelEl?.querySelectorAll('input[type="checkbox"]:not([data-show-group-toggle])') || []);
+  }
+
+  function getShowGroupChildInputs(group){
+    return Array.from(canvasShowPanelEl?.querySelectorAll(`[data-show-group="${group}"] [data-show-category] input, [data-show-group="${group}"] [data-show-count-source] input`) || []);
+  }
+
+  function syncShowGroupControls(){
+    canvasShowPanelEl?.querySelectorAll('input[data-show-group-toggle]').forEach((groupInput) => {
+      const children = getShowGroupChildInputs(groupInput.dataset.showGroupToggle);
+      const enabledChildren = children.filter((input) => !input.disabled);
+      const checkedCount = enabledChildren.filter((input) => input.checked).length;
+      groupInput.disabled = enabledChildren.length === 0;
+      groupInput.checked = enabledChildren.length > 0 && checkedCount === enabledChildren.length;
+      groupInput.indeterminate = checkedCount > 0 && checkedCount < enabledChildren.length;
+      const label = groupInput.closest("label");
+      const onlyButton = label?.querySelector(".visibilityOnlyBtn");
+      label?.classList.toggle("showCategoryEmpty", groupInput.disabled);
+      if (onlyButton) onlyButton.disabled = groupInput.disabled;
+    });
+  }
+
+  function applyShowVisibilityChanges(tilesChanged = false){
+    syncShowGroupControls();
+    syncShowOnlyButtonState();
+    invalidateThreeItemGeometryCaches();
+    state.glb.structureDirty = true;
+    syncReferenceGlbVisibility();
+    if (tilesChanged) scheduleMapTileOverlayRebuild();
+    requestRender();
+    syncGlbItems();
+  }
+
   function setAllShowOptions(visible){
     visibilityOnlyState.show = null;
-    canvasShowPanelEl?.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+    getShowLeafInputs().forEach((input) => {
+      if (input.disabled) return;
       input.checked = !!visible;
-      input.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    syncShowOnlyButtonState();
-    requestRender();
+    applyShowVisibilityChanges(true);
   }
 
   function syncReferenceGlbVisibility(){
@@ -9456,22 +9563,23 @@ end group
   }
 
   function isolateShowOption(selectedInput){
-    const inputs = Array.from(canvasShowPanelEl?.querySelectorAll('input[type="checkbox"]') || []);
+    const inputs = getShowLeafInputs();
     const key = selectedInput.id;
+    const selectedGroup = selectedInput.dataset.showGroupToggle || "";
+    const selectedGroupInputs = new Set(selectedGroup ? getShowGroupChildInputs(selectedGroup) : []);
     const current = visibilityOnlyState.show;
     if (current?.key === key){
-      for (const input of inputs) input.checked = current.snapshot.get(input.id) ?? false;
+      for (const input of inputs) if (!input.disabled) input.checked = current.snapshot.get(input.id) ?? false;
       visibilityOnlyState.show = null;
     } else {
       const snapshot = current?.snapshot || new Map(inputs.map((input) => [input.id, input.checked]));
       visibilityOnlyState.show = { key, snapshot };
-      for (const input of inputs) input.checked = input === selectedInput;
+      for (const input of inputs){
+        if (input.disabled) continue;
+        input.checked = selectedGroup ? selectedGroupInputs.has(input) : input === selectedInput;
+      }
     }
-    syncShowOnlyButtonState();
-    state.glb.structureDirty = true;
-    syncReferenceGlbVisibility();
-    requestRender();
-    syncGlbItems();
+    applyShowVisibilityChanges(true);
   }
 
   function syncShowOnlyButtonState(){
@@ -9503,6 +9611,7 @@ end group
       label.insertAdjacentHTML("beforeend", visibilityOnlyButton(labelText));
     });
     bindVisibilityOnlyActions(list, 'input[type="checkbox"]', isolateShowOption);
+    syncShowGroupControls();
   }
 
   initializeShowOnlyActions();
@@ -9523,14 +9632,20 @@ end group
   canvasShowPanelEl?.addEventListener("change", (event) => {
     if (!(event.target instanceof HTMLInputElement)) return;
     visibilityOnlyState.show = null;
-    syncShowOnlyButtonState();
+    const group = event.target.dataset.showGroupToggle;
+    if (group){
+      for (const input of getShowGroupChildInputs(group)) if (!input.disabled) input.checked = event.target.checked;
+      applyShowVisibilityChanges(group === "tiles");
+      return;
+    }
     if (event.target === showReferenceGlbEl){
+      syncShowGroupControls();
+      syncShowOnlyButtonState();
       syncReferenceGlbVisibility();
       return;
     }
-    if (!event.target.closest("[data-show-category]")) return;
-    state.glb.structureDirty = true;
-    requestRender();
+    if (!event.target.closest("[data-show-category], [data-show-count-source]")) return;
+    applyShowVisibilityChanges(event.target.id === "showMisMapTiles" || event.target.id === "showTilOnlyMapTiles");
   });
   debugFogPanelEl?.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -10629,6 +10744,29 @@ end group
     const n=(Number(v)||0)/MIS_POS_SCALE;
     return n;
   }
+  const invalidGeometryWarnings = new Set();
+  function warnInvalidGeometryOnce(source, detail=''){
+    const key = `${source}:${detail}`;
+    if (invalidGeometryWarnings.has(key)) return;
+    invalidGeometryWarnings.add(key);
+    console.warn(`[geometry] Ignoring non-finite position data from ${source}${detail ? ` (${detail})` : ''}.`);
+  }
+  function isFinitePosition(x, y, z){
+    return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z);
+  }
+  function hasFinitePositionData(values, length=values?.length || 0){
+    if (length === 0) return true;
+    if (!values || length < 0 || length > values.length || length % 3 !== 0) return false;
+    for (let i=0; i<length; i++) if (!Number.isFinite(values[i])) return false;
+    return true;
+  }
+  function setAlwaysVisibleGeometryBounds(geometry){
+    if (!geometry || !state.glb.THREE) return;
+    if (!geometry.boundingSphere) geometry.boundingSphere = new state.glb.THREE.Sphere();
+    geometry.boundingSphere.center.set(0, 0, 0);
+    geometry.boundingSphere.radius = Infinity;
+    geometry.boundingBox = null;
+  }
   function worldToRaw(v, axis='z'){
     const n=Number(v)||0;
     return Math.round(n*MIS_POS_SCALE);
@@ -10924,15 +11062,29 @@ end group
     if(instances)renderTileInstances();else layoutTilePaletteGrid();
     try{localStorage.setItem("dz.tilePaletteView",state.tilePaletteView);}catch(_){ }
   }
+  let tileThumbnailAtlasSource=null,tileThumbnailAtlasCanvas=null,pendingTileInstancesRaf=0;
+  function mapTileThumbnailAtlasCanvas(){
+    const img=state.mapTiles.atlasImage;if(!img)return null;
+    if(tileThumbnailAtlasSource===img&&tileThumbnailAtlasCanvas)return tileThumbnailAtlasCanvas;
+    const atlas=document.createElement("canvas");atlas.width=img.w;atlas.height=img.h;
+    const ctx=atlas.getContext("2d"),data=ctx?.createImageData(img.w,img.h);
+    if(!ctx||!data)return null;
+    data.data.set(img.pixels);ctx.putImageData(data,0,0);
+    tileThumbnailAtlasSource=img;tileThumbnailAtlasCanvas=atlas;return atlas;
+  }
   function drawMapTileThumbnail(canvas,tileIndex){
-    const img=state.mapTiles.atlasImage,ctx=canvas?.getContext?.("2d");if(!img||!ctx||tileIndex===null)return;
-    const cellW=Math.floor(img.w/8),cellH=Math.floor(img.h/8),col=tileIndex%8,row=Math.floor(tileIndex/8),data=ctx.createImageData(cellW,cellH);
-    canvas.width=cellW;canvas.height=cellH;
-    for(let y=0;y<cellH;y++)for(let x=0;x<cellW;x++){const src=((row*cellH+y)*img.w+col*cellW+x)*4,dst=(y*cellW+x)*4;data.data[dst]=img.pixels[src];data.data[dst+1]=img.pixels[src+1];data.data[dst+2]=img.pixels[src+2];data.data[dst+3]=img.pixels[src+3];}ctx.putImageData(data,0,0);
+    const img=state.mapTiles.atlasImage,atlas=mapTileThumbnailAtlasCanvas(),ctx=canvas?.getContext?.("2d");if(!img||!atlas||!ctx||tileIndex===null)return;
+    const cellW=Math.floor(img.w/8),cellH=Math.floor(img.h/8),col=tileIndex%8,row=Math.floor(tileIndex/8);
+    canvas.width=cellW;canvas.height=cellH;ctx.drawImage(atlas,col*cellW,row*cellH,cellW,cellH,0,0,cellW,cellH);
   }
   function mapTileOverlapKey(it){const f=getMapTileFootprint(it);return f?`${f.centerX.toFixed(4)},${f.centerY.toFixed(4)}`:`${it.x},${it.y}`;}
   function mapTileDisplayNumber(it){if(isTilOnlyMapTile(it))return `TIL ${Number(it.kv?.extra_val2)+1}`;const match=String(it.beginLine||"").match(/^begin\s+item\s+(.+)$/i);return match?.[1]?.trim()||it.id;}
-  function renderTileInstances(){
+  function scheduleRenderTileInstances(){
+    if(pendingTileInstancesRaf)return;
+    pendingTileInstancesRaf=requestAnimationFrame(()=>{pendingTileInstancesRaf=0;renderTileInstancesNow();});
+  }
+  function renderTileInstances(){scheduleRenderTileInstances();}
+  function renderTileInstancesNow(){
     if(!tileInstancesListEl)return;tileInstancesListEl.replaceChildren();
     const all=allMapTileItems(),overlapCounts=new Map();for(const it of all){const key=mapTileOverlapKey(it);overlapCounts.set(key,(overlapCounts.get(key)||0)+1);}
     const term=state.tileInstancesSearch.trim().toLowerCase(),selected=state.multiSelectedIds.size?state.multiSelectedIds:new Set(state.selectedId==null?[]:[state.selectedId]);
@@ -10940,6 +11092,7 @@ end group
     const groups=new Map();for(const it of all.filter(matches)){const index=mapTileAtlasIndex(it);if(index===null)continue;if(!groups.has(index))groups.set(index,[]);groups.get(index).push(it);}
     if(!groups.size){const empty=document.createElement("div");empty.className="tileInstancesEmpty";empty.textContent=all.length?"No map tiles match this filter.":"This mission has no map tiles.";tileInstancesListEl.append(empty);return;}
     for(const index of groups.keys())if(!state.knownTileGroupIndices.has(index)){state.knownTileGroupIndices.add(index);state.collapsedTileGroups.add(index);}
+    const fragment=document.createDocumentFragment();
     for(const [index,items] of [...groups].sort((a,b)=>a[0]-b[0])){
       items.sort((a,b)=>String(mapTileDisplayNumber(a)).localeCompare(String(mapTileDisplayNumber(b)),undefined,{numeric:true}));
       const collapsed=state.collapsedTileGroups.has(index),rowsId=`tileInstanceRows-${index}`;
@@ -10954,13 +11107,14 @@ end group
       const eye=document.createElement("button");eye.type="button";eye.className="tileIconButton";eye.textContent=allHidden?"◉":"👁";eye.title=`${allHidden?"Show":"Hide"} every Tile ${index}`;eye.setAttribute("aria-pressed",String(!allHidden));eye.onclick=()=>updateMapTileEditorState(items.map(it=>it.id),"hide",!allHidden);
       header.append(disclosure,thumb,name,lock,eye);group.append(header);
       const rows=document.createElement("div");rows.className="tileInstanceRows";rows.id=rowsId;
-      for(const it of items){const row=document.createElement("div");row.className=`tileInstanceRow${selected.has(it.id)?" selected":""}${isMapTileLocked(it)?" locked":""}${isMapTileHidden(it)?" hiddenTile":""}`;row.dataset.itemId=String(it.id);row.tabIndex=0;row.setAttribute("role","button");
+      if(!collapsed)for(const it of items){const row=document.createElement("div");row.className=`tileInstanceRow${selected.has(it.id)?" selected":""}${isMapTileLocked(it)?" locked":""}${isMapTileHidden(it)?" hiddenTile":""}`;row.dataset.itemId=String(it.id);row.tabIndex=0;row.setAttribute("role","button");
         const mini=document.createElement("canvas");mini.className="tileInstanceThumb";drawMapTileThumbnail(mini,index);const meta=document.createElement("div");meta.className="tileInstanceMeta";const overlap=overlapCounts.get(mapTileOverlapKey(it))||0;meta.innerHTML=`<strong>Item #${escapeHtml(String(mapTileDisplayNumber(it)))}</strong><span>X ${escapeHtml(String(it.x))} · Y ${escapeHtml(String(it.y))}${overlap>1?` · ${overlap} overlapping`:""}</span>`;
         const itemLock=document.createElement("button");itemLock.type="button";itemLock.className="tileIconButton";itemLock.textContent=isMapTileLocked(it)?"🔒":"🔓";itemLock.title=`${isMapTileLocked(it)?"Unlock":"Lock"} item ${mapTileDisplayNumber(it)}`;itemLock.onclick=e=>{e.stopPropagation();updateMapTileEditorState([it.id],"lock",!isMapTileLocked(it));};
         const itemEye=document.createElement("button");itemEye.type="button";itemEye.className="tileIconButton";itemEye.textContent=isMapTileHidden(it)?"◉":"👁";itemEye.title=`${isMapTileHidden(it)?"Show":"Hide"} item ${mapTileDisplayNumber(it)}`;itemEye.onclick=e=>{e.stopPropagation();updateMapTileEditorState([it.id],"hide",!isMapTileHidden(it));};
         const choose=()=>{if(isMapTileHidden(it)){focusCameraNearItem(it);statusEl.textContent=`Tile item #${mapTileDisplayNumber(it)} is hidden. Use the eye button to show it before selecting.`;}else selectById(it.id);renderTileInstances();};row.onclick=choose;row.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();choose();}else if(e.key===" "){e.preventDefault();updateMapTileEditorState([it.id],"lock",!isMapTileLocked(it));}};row.append(mini,meta,itemLock,itemEye);rows.append(row);}
-      group.append(rows);tileInstancesListEl.append(group);
+      group.append(rows);fragment.append(group);
     }
+    tileInstancesListEl.append(fragment);
   }
 
   function selectedMapTileIndexCounts(){
@@ -11174,10 +11328,10 @@ end group
       const record=mapTileRecordForItem(item),recordIndex=record?.recordIndex;
       if(!record||!Number.isInteger(recordIndex))continue;
       referencedRecords.add(recordIndex);
-      if(!isMapTileHidden(item))entries.push({item,record,footprint:getMapTileFootprint(item)});
+      if(!isMapTileHidden(item)&&isItemShowCategoryVisible(item))entries.push({item,record,footprint:getMapTileFootprint(item)});
     }
     for(const record of state.mapTiles.records){
-      if(!referencedRecords.has(record.recordIndex))entries.push({item:null,record,footprint:getTilRecordFootprint(record)});
+      if(!referencedRecords.has(record.recordIndex)&&isShowCategoryVisible("tileTilOnly"))entries.push({item:null,record,footprint:getTilRecordFootprint(record)});
     }
     return entries.filter(entry=>entry.footprint);
   }
@@ -11858,6 +12012,14 @@ end group
   function updateThreeLineGeometry(lineSegments, positions, colors=null){
     if (!lineSegments?.geometry) return;
     const g = lineSegments.geometry;
+    const source = lineSegments.name || lineSegments.type || 'line geometry';
+    if (!hasFinitePositionData(positions)){
+      warnInvalidGeometryOnce(source);
+      g.setDrawRange(0, 0);
+      lineSegments.visible = false;
+      setAlwaysVisibleGeometryBounds(g);
+      return;
+    }
     let posAttr = g.getAttribute('position');
     if (!posAttr || posAttr.array.length < positions.length){
       let cap = Math.max(128, posAttr?.array?.length || 128);
@@ -11867,6 +12029,10 @@ end group
       g.setAttribute('position', posAttr);
     }
     if (positions.length) posAttr.array.set(positions, 0);
+    // Three.js computes bounds over the entire attribute, not only drawRange.
+    // Clear the spare capacity so stale values from a previous, larger update
+    // cannot keep producing a NaN bounding sphere.
+    if (positions.length < posAttr.array.length) posAttr.array.fill(0, positions.length);
     posAttr.needsUpdate = true;
 
     if (colors){
@@ -11879,11 +12045,16 @@ end group
         g.setAttribute('color', colAttr);
       }
       if (colors.length) colAttr.array.set(colors, 0);
+      if (colors.length < colAttr.array.length) colAttr.array.fill(0, colors.length);
       colAttr.needsUpdate = true;
     }
 
     g.setDrawRange(0, Math.floor(positions.length / 3));
     lineSegments.visible = positions.length > 0;
+    // These transient editor overlays opt out of frustum culling. Give them an
+    // explicit unbounded sphere too, so neither Three.js nor picking code ever
+    // asks BufferGeometry to derive bounds from a dynamic backing array.
+    setAlwaysVisibleGeometryBounds(g);
   }
 
   function appendRectLineData(posArr, colorArr, offsetX, offsetY, scaleX, scaleY, z, color){
@@ -12073,6 +12244,10 @@ end group
       const x = rawToWorld(it.x,'x');
       const y = rawToWorld(it.y,'y');
       const z = getItemWorldZ(it);
+      if (!isFinitePosition(x, y, z)){
+        warnInvalidGeometryOnce('item points', String(it.id));
+        continue;
+      }
       if (it.id===state.selectedId||state.multiSelectedIds.has(it.id)){
         selectedBuf[selectedLen++]=x; selectedBuf[selectedLen++]=y; selectedBuf[selectedLen++]=z;
       } else if (state.selectedWaypointMarkerIds.has(it.id)){
@@ -12088,9 +12263,12 @@ end group
       const maxPasteLen = state.itemClipboardItems.length * 3;
       pasteBuf = ensureScratchCapacity('paste', maxPasteLen);
       for(const entry of state.itemClipboardItems){
-        pasteBuf[pasteLen++]=state.pastePreviewWorld.x+entry.dx;
-        pasteBuf[pasteLen++]=state.pastePreviewWorld.y+entry.dy;
-        pasteBuf[pasteLen++]=state.pastePreviewWorld.z||0;
+        const x=state.pastePreviewWorld.x+entry.dx,y=state.pastePreviewWorld.y+entry.dy,z=state.pastePreviewWorld.z||0;
+        if (!isFinitePosition(x, y, z)){
+          warnInvalidGeometryOnce('paste preview');
+          continue;
+        }
+        pasteBuf[pasteLen++]=x; pasteBuf[pasteLen++]=y; pasteBuf[pasteLen++]=z;
       }
     }
 
@@ -12130,9 +12308,15 @@ end group
       for (let i = 1; i < entries.length; i++){
         const previous = entries[i - 1].it;
         const current = entries[i].it;
+        const previousPosition=[rawToWorld(previous.x, 'x'),rawToWorld(previous.y, 'y'),getItemWorldZ(previous)];
+        const currentPosition=[rawToWorld(current.x, 'x'),rawToWorld(current.y, 'y'),getItemWorldZ(current)];
+        if (!isFinitePosition(...previousPosition) || !isFinitePosition(...currentPosition)){
+          warnInvalidGeometryOnce('waypoint lines', `${previous.id}->${current.id}`);
+          continue;
+        }
         positions.push(
-          rawToWorld(previous.x, 'x'), rawToWorld(previous.y, 'y'), getItemWorldZ(previous),
-          rawToWorld(current.x, 'x'), rawToWorld(current.y, 'y'), getItemWorldZ(current),
+          ...previousPosition,
+          ...currentPosition,
         );
         colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
       }
@@ -12174,6 +12358,7 @@ end group
       geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
       geometry.setDrawRange(0, 0);
       const points = new THREE.Points(geometry, material);
+      points.frustumCulled = false;
       items.materials.set(group, material);
       items.pointsByGroup.set(group, points);
       items.drawCountByGroup.set(group, 0);
@@ -12203,6 +12388,14 @@ end group
   function updateThreeItemGroup(group, srcBuf, srcLen){
     const points = state.threeItems.pointsByGroup.get(group);
     if (!points) return;
+    if (!hasFinitePositionData(srcBuf, srcLen)){
+      warnInvalidGeometryOnce('item points', group);
+      points.geometry.setDrawRange(0, 0);
+      setAlwaysVisibleGeometryBounds(points.geometry);
+      points.visible = false;
+      state.threeItems.drawCountByGroup.set(group, 0);
+      return;
+    }
     const needed = srcLen;
     let attr = points.geometry.getAttribute('position');
     if (!attr || attr.array.length < needed){
@@ -12214,26 +12407,51 @@ end group
     }
     if (srcLen > 0 && srcBuf){
       attr.array.set(srcBuf.subarray(0, srcLen), 0);
-      attr.needsUpdate = true;
     }
+    // BufferGeometry bounds include unused attribute capacity. Always clear it
+    // because a previously active invalid point may otherwise survive forever.
+    if (srcLen < attr.array.length) attr.array.fill(0, srcLen);
+    attr.needsUpdate = true;
     points.geometry.setDrawRange(0, Math.floor(srcLen / 3));
     points.visible = srcLen > 0;
+    setAlwaysVisibleGeometryBounds(points.geometry);
     state.threeItems.drawCountByGroup.set(group, Math.floor(srcLen / 3));
+  }
+
+  function itemGeometryStateSignature(includeSelection=false){
+    const mapSignature = map => [...map.entries()].map(([key,value])=>`${key}:${value}`).sort().join(',');
+    const showSignature=Object.values(SHOW_ITEM_CATEGORIES).map(({inputId})=>`${inputId}:${document.getElementById(inputId)?.checked!==false?1:0}`).join(',');
+    const selection = includeSelection
+      ? `${state.selectedId ?? ''}|${[...state.multiSelectedIds].sort().join(',')}|${[...state.selectedWaypointMarkerIds].sort().join(',')}`
+      : '';
+    const paste = state.pastePlacementActive && state.pastePreviewWorld
+      ? `${state.pastePreviewWorld.x},${state.pastePreviewWorld.y},${state.pastePreviewWorld.z},${state.itemClipboardItems.length}`
+      : '';
+    return `${state.itemsVersion}|${state.itemGeometryRevision}|${searchEl?.value || ''}|${renderUiState.showAnchorPoints}|${showSignature}|${mapSignature(state.layerVisibility)}|${mapSignature(state.groupVisibility)}|${mapSignature(state.waypointVisibility)}|${mapSignature(state.areaTriggerVisibility)}|${selection}|${paste}`;
+  }
+
+  function invalidateThreeItemGeometryCaches(){
+    state.threeItems.pointDataSignature="";
+    state.threeItems.waypointDataSignature="";
   }
 
   function drawItemsThree(P, V){
     if (!ensureThreeItemsReady()) return;
-    const groups = collectItemPointGroups();
-    if (!groups.enabled) {
-      updateThreeItemGroup('normal', null, 0);
-      updateThreeItemGroup('waypoint', null, 0);
-      updateThreeItemGroup('selected', null, 0);
-      updateThreeItemGroup('paste', null, 0);
-    } else {
-      updateThreeItemGroup('normal', groups.normalBuf, groups.normalLen);
-      updateThreeItemGroup('waypoint', groups.waypointBuf, groups.waypointLen);
-      updateThreeItemGroup('selected', groups.selectedBuf, groups.selectedLen);
-      updateThreeItemGroup('paste', groups.pasteBuf, groups.pasteLen);
+    const signature=itemGeometryStateSignature(true);
+    if(signature!==state.threeItems.pointDataSignature){
+      const groups = collectItemPointGroups();
+      if (!groups.enabled) {
+        updateThreeItemGroup('normal', null, 0);
+        updateThreeItemGroup('waypoint', null, 0);
+        updateThreeItemGroup('selected', null, 0);
+        updateThreeItemGroup('paste', null, 0);
+      } else {
+        updateThreeItemGroup('normal', groups.normalBuf, groups.normalLen);
+        updateThreeItemGroup('waypoint', groups.waypointBuf, groups.waypointLen);
+        updateThreeItemGroup('selected', groups.selectedBuf, groups.selectedLen);
+        updateThreeItemGroup('paste', groups.pasteBuf, groups.pasteLen);
+      }
+      state.threeItems.pointDataSignature=signature;
     }
 
     applyThreeCameraFromPV(P, V);
@@ -12244,8 +12462,12 @@ end group
 
   function drawWaypointLinesThree(P, V){
     if (!ensureThreeItemsReady()) return;
-    const waypointLines = collectWaypointLineData();
-    updateThreeLineGeometry(state.threeItems.waypointLines, waypointLines.positions, waypointLines.colors);
+    const signature=itemGeometryStateSignature(false);
+    if(signature!==state.threeItems.waypointDataSignature){
+      const waypointLines = collectWaypointLineData();
+      updateThreeLineGeometry(state.threeItems.waypointLines, waypointLines.positions, waypointLines.colors);
+      state.threeItems.waypointDataSignature=signature;
+    }
 
     applyThreeCameraFromPV(P, V);
     state.glb.renderer.resetState();
@@ -12498,20 +12720,104 @@ end group
     return { entries: out, stats };
   }
 
+  function glbExternalResourceUris(buffer, label){
+    if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 20) return [];
+    const view = new DataView(buffer);
+    if (view.getUint32(0, true) !== 0x46546c67) return [];
+    let offset = 12, json = null;
+    while (offset + 8 <= buffer.byteLength){
+      const length = view.getUint32(offset, true), type = view.getUint32(offset + 4, true);
+      offset += 8;
+      if (offset + length > buffer.byteLength) throw new Error(`Invalid GLB chunk in ${label}`);
+      if (type === 0x4e4f534a){
+        const raw = new TextDecoder().decode(new Uint8Array(buffer, offset, length)).replace(/\0+$/g, "").trim();
+        json = JSON.parse(raw);
+        break;
+      }
+      offset += length;
+    }
+    if (!json) return [];
+    const uris = [];
+    for (const entry of [...(json.buffers || []), ...(json.images || [])]){
+      if (!Object.prototype.hasOwnProperty.call(entry || {}, "uri")) continue;
+      const uri = String(entry.uri ?? "").trim();
+      if (!uri) throw new Error(`Empty external resource URI in ${label}`);
+      if (/^(?:data:|blob:)/i.test(uri)) continue;
+      uris.push(uri);
+    }
+    return [...new Set(uris)];
+  }
+
+  function resolveSafeEditorResourcePath(basePath, uri, label){
+    let decoded;
+    try { decoded = decodeURIComponent(String(uri)); }
+    catch { throw new Error(`Invalid encoded resource URI in ${label}: ${uri}`); }
+    decoded = decoded.split(/[?#]/, 1)[0].replace(/\\/g, "/");
+    if (!decoded || /^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(decoded)){
+      throw new Error(`Blocked absolute resource URI in ${label}: ${uri}`);
+    }
+    const parts = String(basePath || "").replace(/\\/g, "/").split("/").filter(Boolean);
+    for (const part of decoded.split("/")){
+      if (!part || part === ".") continue;
+      if (part === ".."){
+        if (!parts.length) throw new Error(`Resource URI escapes the editor folder in ${label}: ${uri}`);
+        parts.pop();
+      } else parts.push(part);
+    }
+    if (!parts.length) throw new Error(`Invalid resource path in ${label}: ${uri}`);
+    return parts.join("/");
+  }
+
+  async function createLocalGlbLoader(glbData, basePath, label){
+    const uris = glbExternalResourceUris(glbData, label);
+    if (!uris.length) return { loader: state.glb.loader, revoke(){} };
+    if (!state.editorFolderHandle) throw new Error(`Set Editor Folder before loading external resources for ${label}`);
+    const objectUrls = new Map();
+    try {
+      for (const uri of uris){
+        if (/^https?:/i.test(uri)) throw new Error(`Blocked remote resource URI in local GLB ${label}: ${uri}`);
+        const logicalPath = resolveSafeEditorResourcePath(basePath, uri, label);
+        const file = await readFileFromEditorFolder(logicalPath, `GLB dependency for ${label}`);
+        if (!file) throw new Error(`Missing external GLB dependency: ${logicalPath}`);
+        objectUrls.set(uri, URL.createObjectURL(file));
+        addLog(`[3d_items] dependency resolved via editor folder: ${label} -> ${logicalPath}`);
+      }
+    } catch (err){
+      for (const objectUrl of objectUrls.values()) URL.revokeObjectURL(objectUrl);
+      throw err;
+    }
+    const manager = new state.glb.THREE.LoadingManager();
+    manager.setURLModifier((requestedUrl) => {
+      for (const [uri, objectUrl] of objectUrls){
+        if (requestedUrl === uri || requestedUrl.endsWith(`/${uri}`)) return objectUrl;
+      }
+      throw new Error(`GLB requested an undeclared local dependency in ${label}: ${requestedUrl || "<empty URI>"}`);
+    });
+    return {
+      loader: new state.glb.GLTFLoader(manager),
+      revoke(){ for (const objectUrl of objectUrls.values()) URL.revokeObjectURL(objectUrl); },
+    };
+  }
+
   async function loadGraphicTemplate(graphic){
     const key = String(graphic || "").trim();
     if (!key) return null;
     if (state.glb.templateByGraphic.has(key)) return state.glb.templateByGraphic.get(key);
 
     const path = `resources/BHD/3d_items/${key}.glb`;
+    let localLoader = null;
     try {
       const glbData = await loadBinaryResource(path);
       if (!glbData) throw new Error(`Failed to read GLB: ${path}`);
 
-      const gltf = state.glb.loader.parseAsync
-        ? await state.glb.loader.parseAsync(glbData, "")
+      const basePath = path.slice(0, path.lastIndexOf("/") + 1);
+      localLoader = state.isLocalRuntime ? await createLocalGlbLoader(glbData, basePath, `${key}.glb`) : null;
+      const loader = localLoader?.loader || state.glb.loader;
+      const parseBasePath = state.isLocalRuntime ? "" : basePath;
+      const gltf = loader.parseAsync
+        ? await loader.parseAsync(glbData, parseBasePath)
         : await new Promise((resolve, reject) => {
-            state.glb.loader.parse(glbData, "", resolve, reject);
+            loader.parse(glbData, parseBasePath, resolve, reject);
           });
       const root = gltf.scene || gltf.scenes?.[0] || null;
       if (!root) return null;
@@ -12543,7 +12849,6 @@ end group
             lightMapIntensity: Number.isFinite(m.lightMapIntensity) ? m.lightMapIntensity : 1,
             specularMap: m.specularMap || null,
             envMap: m.envMap || null,
-            envMapIntensity: Number.isFinite(m.envMapIntensity) ? m.envMapIntensity : 1,
             shininess: Number.isFinite(m.shininess) ? m.shininess : 24,
             transparent: !!m.transparent,
             opacity: Number.isFinite(m.opacity) ? m.opacity : 1,
@@ -12572,6 +12877,8 @@ end group
         addLog(`[3d_items] GLB missing or invalid: ${path}`);
       }
       return placeholder;
+    } finally {
+      localLoader?.revoke();
     }
   }
 
@@ -12885,6 +13192,15 @@ end group
     "wireframe", "transparent_wireframe", "category_colors",
   ];
   const GLB_VIEW_MODES = new Set(GLB_VIEW_MODE_ORDER);
+  const GLB_BATCHABLE_VIEW_MODES = new Set([
+    "default", "unlit", "solid", "clay", "white", "black", "wireframe", "category_colors",
+    "xray", "ghosted", "transparent_wireframe",
+  ]);
+  const GLB_TRANSPARENT_BATCH_MODES = new Set(["xray", "ghosted", "transparent_wireframe"]);
+  const GLB_TRANSPARENT_BATCH_DISTANCE = 512;
+  function getEffectiveGlbViewMode(it){
+    return GLB_VIEW_MODE_ELIGIBLE_CATEGORIES.has(getItemShowCategory(it))?state.glb.viewMode:"default";
+  }
   const GLB_CATEGORY_COLORS = {
     building: 0x5b8ff9,
     foliage: 0x61dDAa,
@@ -12973,12 +13289,16 @@ end group
     const next = GLB_VIEW_MODES.has(mode) ? mode : "default";
     if (state.glb.viewMode === next) return;
     state.glb.viewMode = next;
+    state.glb.transparentBatchCameraCell="";
+    clearGlbInstanceBatches();
     for (const [itemId, instance] of state.glb.itemInstances){
       applyViewModeToGlbObject(instance, getItemByIdFast(itemId), true);
     }
     if (state.glb.ready){
       state.glb.lastSelectedVisualIds.clear();
       updateSelectedGlbVisual();
+      state.glb.structureDirty=true;
+      syncGlbItems();
     }
     viewModeListEl?.querySelectorAll('input[name="glbViewMode"]').forEach((input) => {
       input.checked = input.value === next;
@@ -13157,6 +13477,130 @@ end group
     disposeGlbInstanceMaterials(instance);
   }
 
+  function clearGlbInstanceBatches({ clearRecords = false } = {}){
+    for (const batch of state.glb.instanceBatches.values()){
+      state.glb.scene?.remove?.(batch.group);
+    }
+    state.glb.instanceBatches.clear();
+    state.glb.batchedItemLookup.clear();
+    if(clearRecords)state.glb.batchedItemRecords.clear();
+    state.glb.batchStats={batches:0,transparentBatches:0,meshes:0,items:0};
+  }
+
+  function clearGlbBatchMaterialCache(){
+    for(const material of state.glb.batchMaterialCache.values())material?.dispose?.();
+    state.glb.batchMaterialCache.clear();
+  }
+
+  function glbInstanceBatchKey(it, graphic){
+    const mode=getEffectiveGlbViewMode(it);
+    if (!it || !graphic || !GLB_BATCHABLE_VIEW_MODES.has(mode) || getItemTint(it)) return "";
+    if (isAreaTriggerItem(it) || getItemWaypointId(it) != null) return "";
+    const typeId=toDefIdFromMisTypeId(String(it?.kv?.type_id||it?.typeId||""));
+    if (getAttachedWeaponSignature(typeId)) return "";
+    const category=mode==="category_colors"?getItemShowCategory(it):"";
+    const distanceBucket=GLB_TRANSPARENT_BATCH_MODES.has(mode)
+      ? Math.floor(Math.hypot(rawToWorld(it.x,'x')-cam.pos.x,rawToWorld(it.y,'y')-cam.pos.y,getItemWorldZ(it)-cam.pos.z)/GLB_TRANSPARENT_BATCH_DISTANCE)
+      : -1;
+    return `${graphic}|scale:${getItemGraphicScale(it)}|mode:${mode}|category:${category}|distance:${distanceBucket}`;
+  }
+
+  function getGlbBatchMaterial(baseMaterial,it){
+    const mode=getEffectiveGlbViewMode(it);
+    if(mode==="default")return baseMaterial;
+    const category=getItemShowCategory(it);
+    const colorOverride=mode==="category_colors"?GLB_CATEGORY_COLORS[category]:(mode==="wireframe"?GLB_WIREFRAME_COLOR:undefined);
+    const key=`${baseMaterial.uuid}|${mode}|${colorOverride??""}`;
+    if(!state.glb.batchMaterialCache.has(key))state.glb.batchMaterialCache.set(key,createViewModeMaterial(baseMaterial,mode,colorOverride));
+    return state.glb.batchMaterialCache.get(key);
+  }
+
+  function collectBatchableTemplateMeshes(template, graphicScale, representativeItem){
+    const meshes=[];let invalid=false;const {THREE}=state.glb;
+    template?.updateMatrixWorld?.(true);
+    const correction=new THREE.Object3D();applyGlbModelCorrection(correction,graphicScale);correction.updateMatrix();
+    template?.traverse?.(obj=>{
+      if(obj.isLOD||obj.isSkinnedMesh)invalid=true;
+      if(!obj.isMesh)return;
+      if(!obj.geometry||!obj.material||Array.isArray(obj.material)||obj.material.transparent||obj.morphTargetInfluences?.length){invalid=true;return;}
+      meshes.push({geometry:obj.geometry,material:getGlbBatchMaterial(obj.material,representativeItem),baseMatrix:new THREE.Matrix4().multiplyMatrices(correction.matrix,obj.matrixWorld),castShadow:obj.castShadow,receiveShadow:obj.receiveShadow});
+    });
+    return invalid||!meshes.length?null:meshes;
+  }
+
+  function composeGlbItemInstanceMatrix(it,baseMatrix){
+    const {THREE}=state.glb,pose=new THREE.Object3D();
+    applyItemPoseTransform(pose,it);pose.updateMatrix();
+    return new THREE.Matrix4().multiplyMatrices(pose.matrix,baseMatrix);
+  }
+
+  async function rebuildGlbInstanceBatches(entries,generation){
+    clearGlbInstanceBatches();
+    state.glb.batchedItemRecords.clear();
+    const handledIds=new Set();
+    if(!state.glb.ready||!state.glb.THREE)return handledIds;
+    const selectedIds=new Set(state.multiSelectedIds.size?[...state.multiSelectedIds]:(state.selectedId!=null?[state.selectedId]:[]));
+    const groups=new Map();
+    for(const {it,graphic} of entries){
+      if(selectedIds.has(it.id))continue;
+      const key=glbInstanceBatchKey(it,graphic);
+      if(!key)continue;
+      if(!groups.has(key))groups.set(key,[]);
+      groups.get(key).push({it,graphic});
+    }
+    const {THREE}=state.glb;
+    for(const [key,members] of groups){
+      if(members.length<2)continue;
+      const template=await loadGraphicTemplate(members[0].graphic);
+      if(generation!==state.glb.documentGeneration)return handledIds;
+      const meshes=collectBatchableTemplateMeshes(template,getItemGraphicScale(members[0].it),members[0].it);
+      if(!meshes)continue;
+      const group=new THREE.Group();group.name=`GLB_INSTANCE_BATCH:${key}`;
+      const transparentMode=getEffectiveGlbViewMode(members[0].it);
+      let batchRenderOrder=0;
+      if(GLB_TRANSPARENT_BATCH_MODES.has(transparentMode)){
+        const match=key.match(/\|distance:(\d+)$/),distanceBucket=Number(match?.[1]||0);
+        // Far buckets render first. This is intentionally approximate: it keeps
+        // draw calls low without sorting every transparent instance every frame.
+        batchRenderOrder=transparentMode==="xray"?GLB_OVERLAY_RENDER_ORDER:-distanceBucket;
+      }
+      const itemIds=members.map(({it})=>it.id);
+      for(let meshIndex=0;meshIndex<meshes.length;meshIndex++){
+        const source=meshes[meshIndex];
+        const instanced=new THREE.InstancedMesh(source.geometry,source.material,members.length);
+        instanced.name=`GLB_INSTANCE_BATCH_MESH:${meshIndex}`;
+        instanced.renderOrder=batchRenderOrder;
+        instanced.userData.instanceItemIds=itemIds;
+        instanced.castShadow=source.castShadow;instanced.receiveShadow=source.receiveShadow;
+        for(let instanceIndex=0;instanceIndex<members.length;instanceIndex++)instanced.setMatrixAt(instanceIndex,composeGlbItemInstanceMatrix(members[instanceIndex].it,source.baseMatrix));
+        instanced.instanceMatrix.needsUpdate=true;group.add(instanced);
+      }
+      state.glb.scene.add(group);
+      for(let index=0;index<members.length;index++){
+        const {it,graphic}=members[index],instance=state.glb.itemInstances.get(it.id);
+        if(instance){removeGlbItemInstance(instance);state.glb.itemInstances.delete(it.id);}
+        state.glb.batchedItemLookup.set(it.id,{batchKey:key,index,group});
+        state.glb.batchedItemRecords.set(it.id,{itemId:it.id,graphic,visualSignature:getGlbItemVisualSignature(it,graphic),batchKey:key,index});
+        handledIds.add(it.id);
+      }
+      state.glb.instanceBatches.set(key,{group,itemIds});
+      state.glb.batchStats.batches+=1;
+      if(GLB_TRANSPARENT_BATCH_MODES.has(transparentMode))state.glb.batchStats.transparentBatches+=1;
+      state.glb.batchStats.meshes+=meshes.length;state.glb.batchStats.items+=members.length;
+    }
+    return handledIds;
+  }
+
+  function maybeRefreshTransparentGlbBatches(){
+    if(!GLB_TRANSPARENT_BATCH_MODES.has(state.glb.viewMode))return;
+    const cellSize=GLB_TRANSPARENT_BATCH_DISTANCE*0.5;
+    const cell=`${Math.floor(cam.pos.x/cellSize)}:${Math.floor(cam.pos.y/cellSize)}:${Math.floor(cam.pos.z/cellSize)}`;
+    if(!state.glb.transparentBatchCameraCell){state.glb.transparentBatchCameraCell=cell;return;}
+    if(cell===state.glb.transparentBatchCameraCell)return;
+    state.glb.transparentBatchCameraCell=cell;
+    state.glb.structureDirty=true;
+  }
+
   function disposeReferenceGlb(){
     const reference = state.referenceGlb;
     if (!reference) return;
@@ -13282,6 +13726,12 @@ end group
     }
     try{
       const data = await file.arrayBuffer();
+      if (state.isLocalRuntime){
+        const externalUris = glbExternalResourceUris(data, file.name);
+        if (externalUris.length){
+          throw new Error(`Reference GLB has external resources (${externalUris.join(", ")}). Use a self-contained GLB when running from file://.`);
+        }
+      }
       const gltf = state.glb.loader.parseAsync
         ? await state.glb.loader.parseAsync(data, "")
         : await new Promise((resolve, reject) => state.glb.loader.parse(data, "", resolve, reject));
@@ -13334,6 +13784,8 @@ end group
     // Invalidates async sync work before replacing the current mission document.
     state.glb.documentGeneration += 1;
     disposeReferenceGlb();
+    clearGlbInstanceBatches({clearRecords:true});
+    clearGlbBatchMaterialCache();
     for (const instance of state.glb.itemInstances.values()) removeGlbItemInstance(instance);
     state.glb.itemInstances.clear();
     clearItemArrows();
@@ -13563,8 +14015,11 @@ end group
     state.glb.syncPromise = (async () => {
       const started = performance.now();
       if (generation !== state.glb.documentGeneration) return;
+      clearGlbInstanceBatches();
       const { entries, stats } = getRenderableGlbEntries();
-      const wantedIds = new Set(entries.map(x => x.it.id));
+      const batchedIds=await rebuildGlbInstanceBatches(entries,generation);
+      if(generation!==state.glb.documentGeneration)return;
+      const wantedIds = new Set(entries.filter(x=>!batchedIds.has(x.it.id)).map(x => x.it.id));
 
       for (const [itemId, obj] of state.glb.itemInstances.entries()){
         if (wantedIds.has(itemId)) continue;
@@ -13573,6 +14028,7 @@ end group
       }
 
       for (const { it, graphic } of entries){
+        if(batchedIds.has(it.id))continue;
         const visualSignature = getGlbItemVisualSignature(it, graphic);
         let instance = state.glb.itemInstances.get(it.id) || null;
         if (instance && instance.userData.visualSignature !== visualSignature){
@@ -13619,7 +14075,7 @@ end group
         .slice(0, 10)
         .map(([graphic, count]) => `${graphic}:${count}`);
       const nonRenderable = stats.totalItems - stats.renderableItems;
-      const finalInstances = state.glb.itemInstances.size;
+      const finalInstances = state.glb.itemInstances.size + state.glb.batchedItemRecords.size;
       const syncReport = {
         totalItems: stats.totalItems,
         renderableItems: stats.renderableItems,
@@ -13691,18 +14147,24 @@ end group
       });
       return;
     }
-    updateGlbTransformsFromState();
-    syncItemArrows();
-    syncItemCircles();
+    maybeRefreshTransparentGlbBatches();
+    const samples={},measure=(name,callback)=>{const started=performance.now();callback();samples[name]=performance.now()-started;};
+    measure('transforms',updateGlbTransformsFromState);
+    measure('arrows',syncItemArrows);
+    measure('circles',syncItemCircles);
 
     const { renderer, scene } = state.glb;
     applyThreeCameraFromPV(P, V);
-    updateAreaTriggerVolumes();
-    updateSelectedGlbVisual();
+    measure('areas',updateAreaTriggerVolumes);
+    measure('selection',updateSelectedGlbVisual);
 
     renderer.resetState();
-    renderer.render(scene, state.glb.camera);
+    measure('submit',()=>renderer.render(scene, state.glb.camera));
     renderer.resetState();
+    const previous=state.renderDiagnostics.glbMs||{};
+    state.renderDiagnostics.glbMs=Object.fromEntries(Object.entries(samples).map(([name,value])=>[name,previous[name]==null?value:previous[name]*0.9+value*0.1]));
+    const info=renderer.info?.render||{};
+    state.renderDiagnostics.glbRenderInfo={calls:info.calls||0,triangles:info.triangles||0,lines:info.lines||0,points:info.points||0};
   }
 
   function applyThreeCameraFromPV(P, V){
@@ -13797,6 +14259,10 @@ end group
       }
     }
     if (!changed) return;
+    // Selected instances leave their render batch so outlines and editing keep
+    // the exact existing behavior; deselected compatible instances rejoin it.
+    state.glb.structureDirty=true;
+    syncGlbItems();
 
     for (const prevId of prevIds){
       if (nextIds.has(prevId)) continue;
@@ -13866,7 +14332,8 @@ end group
   function pickNearestSceneObjectAt(sx, sy, { includeReference = true } = {}){
     const raycaster = configureGlbPickRay(sx, sy);
     if (!raycaster) return null;
-    const roots = Array.from(state.glb.itemInstances.values());
+    const roots = Array.from(state.glb.itemInstances.values()).filter(instance=>!!instance.parent);
+    for(const batch of state.glb.instanceBatches.values())roots.push(batch.group);
     const referencePickEnabled = includeReference
       && !!state.referenceGlb?.root
       && showReferenceGlbEl?.checked !== false
@@ -13892,7 +14359,10 @@ end group
           }
         }
       }
-      const itemId = getItemIdFromObject3D(hit.object);
+      const batchedIds=hit.object?.userData?.instanceItemIds;
+      const itemId = Array.isArray(batchedIds)&&Number.isInteger(hit.instanceId)
+        ? batchedIds[hit.instanceId]
+        : getItemIdFromObject3D(hit.object);
       if (itemId == null) continue;
       const item = getItemByIdFast(itemId);
       if (item && !(isMapTileItem(item) && (isMapTileLocked(item) || isMapTileHidden(item)))){
@@ -13925,7 +14395,7 @@ end group
     const tiles=allMapTileItems();
     for(let i=tiles.length-1;i>=0;i--){
       const it=tiles[i];
-      if(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)||(!isTilOnlyMapTile(it)&&(!allowed.has(it.id)||!isItemVisibilityFilterMatch(it))))continue;
+      if(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)||!isItemShowCategoryVisible(it)||(!isTilOnlyMapTile(it)&&(!allowed.has(it.id)||!isItemVisibilityFilterMatch(it))))continue;
       const f=getMapTileFootprint(it);
       if(f&&x>=f.left&&x<=f.right&&y>=f.bottom&&y<=f.top)return it;
     }
@@ -14612,8 +15082,8 @@ end group
   scheduleResizeCanvas();
 
   let lastT=performance.now();
-  let fpsAccumTime=0;
-  let fpsAccumFrames=0;
+  let renderedFpsStartedAt=performance.now();
+  let renderedFramesInSample=0;
 
   let renderLoopRunning=false;
   let renderLoopRafId=0;
@@ -14622,17 +15092,22 @@ end group
   let lastStatsHudText='';
 
   function scheduleNextFrame(){
-    if (!renderLoopRunning) return;
+    if (!renderLoopRunning || document.hidden) return;
     renderLoopRafId = requestAnimationFrame(renderFrame);
   }
 
   function startRenderLoop(){
-    if (renderLoopRunning) return;
+    if (renderLoopRunning || document.hidden) return;
+    if (pendingSingleRenderRaf){
+      cancelAnimationFrame(pendingSingleRenderRaf);
+      pendingSingleRenderRaf = 0;
+    }
     renderLoopRunning = true;
     scheduleNextFrame();
   }
 
   function requestRender(){
+    if (document.hidden) return;
     if (renderLoopRunning) return;
     if (pendingSingleRenderRaf) return;
     pendingSingleRenderRaf = requestAnimationFrame(() => {
@@ -14642,15 +15117,7 @@ end group
   }
 
   function renderFrame(){
-    const now=performance.now(), dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
-    fpsAccumTime += dt;
-    fpsAccumFrames += 1;
-    if(fpsCounterEl && fpsAccumTime >= 0.25){
-      const fps=Math.max(0, Math.round(fpsAccumFrames / fpsAccumTime));
-      fpsCounterEl.textContent = `${fps} FPS`;
-      fpsAccumTime = 0;
-      fpsAccumFrames = 0;
-    }
+    const frameStarted=performance.now(),now=frameStarted, dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
     const {forwardXY,right,forward}=cameraBasis(); const canMoveWithKeys=(document.pointerLockElement===cv && state.cameraLookActive); let dir=vec3(0,0,0); if(canMoveWithKeys&&move.w) dir=vec3Add(dir,forwardXY); if(canMoveWithKeys&&move.s) dir=vec3Sub(dir,forwardXY); if(canMoveWithKeys&&move.d) dir=vec3Add(dir,right); if(canMoveWithKeys&&move.a) dir=vec3Sub(dir,right); if(canMoveWithKeys&&move.e) dir=vec3Add(dir,vec3(0,0,1)); if(canMoveWithKeys&&move.q) dir=vec3Sub(dir,vec3(0,0,1)); const dlen=vec3Len(dir); const speedTable=[12.5,25,50,100,200,300,450,600]; const lvl=Math.max(1,Math.min(8,renderUiState.speedLevel|0)); const scalar=Math.max(0.1,renderUiState.speedScalar||1); const base=speedTable[lvl-1]*scalar; const spd=base; state.camera.speed=spd; const targetVel=dlen>0?vec3Scale(dir,spd/dlen):vec3(0,0,0); const smoothBoost=1.3; const accel=12.0/smoothBoost, decel=10.0/smoothBoost; const blend=Math.min(1, (dlen>0?accel:decel)*dt); camVel=vec3Add(camVel, vec3Scale(vec3Sub(targetVel,camVel), blend)); cam.pos=vec3Add(cam.pos,vec3Scale(camVel,dt));
     if(renderUiState.groundClamp && lastDepth){ const h=heightAtWorld(cam.pos.x,cam.pos.y,1.0); if(h>-1e8){ const clearance=renderUiState.clearance; if(cam.pos.z < h+clearance) cam.pos.z = h+clearance; } }
     updateKothZoneStatus();
@@ -14690,12 +15157,17 @@ Draw calls: ${drawCalls}
 Terrain cull (frustum/back): ${state.terrainPerf?.culledFrustum ?? '-'} / ${state.terrainPerf?.culledBackface ?? '-'}
 MapTile paint: ${state.mapTiles.paintedTiles} tiles, ${state.mapTiles.overlayResolution || '-'}px (${state.mapTiles.lastBuildMs.toFixed(2)} ms)
 GLB instances: ${state.glb.itemInstances.size}
+GLB batches/transparent/items/meshes: ${state.glb.batchStats.batches} / ${state.glb.batchStats.transparentBatches} / ${state.glb.batchStats.items} / ${state.glb.batchStats.meshes}
+GLB CPU: transforms=${(state.renderDiagnostics.glbMs.transforms||0).toFixed(2)} arrows=${(state.renderDiagnostics.glbMs.arrows||0).toFixed(2)} circles=${(state.renderDiagnostics.glbMs.circles||0).toFixed(2)} areas=${(state.renderDiagnostics.glbMs.areas||0).toFixed(2)} selection=${(state.renderDiagnostics.glbMs.selection||0).toFixed(2)} submit=${(state.renderDiagnostics.glbMs.submit||0).toFixed(2)}
+GLB calls/triangles/lines: ${state.renderDiagnostics.glbRenderInfo.calls} / ${state.renderDiagnostics.glbRenderInfo.triangles} / ${state.renderDiagnostics.glbRenderInfo.lines}
 GLB sync: #${state.glb.syncCount} (${state.glb.lastSyncMs.toFixed(2)} ms)
 GLB total/render: ${state.glb.lastStats?.totalItems ?? '-'} / ${state.glb.lastStats?.renderableItems ?? '-'}
 GLB missing graphic: ${state.glb.lastStats?.skippedMissingGraphic ?? '-'}
 GLB missing type_id: ${state.glb.lastStats?.skippedMissingTypeId ?? '-'}
 GLB missing def(type_id): ${state.glb.lastStats?.skippedDefNotFoundForTypeId ?? '-'}
 GLB missing instance post-sync: ${state.glb.lastStats?.missingInstancesAfterSync ?? '-'}
+Frame CPU: ${state.renderDiagnostics.frameMs.toFixed(2)} ms
+Layers CPU: terrain=${(state.renderDiagnostics.layerMs.terrain||0).toFixed(2)} overlay=${(state.renderDiagnostics.layerMs.overlays||0).toFixed(2)} points=${(state.renderDiagnostics.layerMs.points||0).toFixed(2)} glb=${(state.renderDiagnostics.layerMs.glb||0).toFixed(2)} waypoints=${(state.renderDiagnostics.layerMs.waypoints||0).toFixed(2)} gizmo=${(state.renderDiagnostics.layerMs.gizmo||0).toFixed(2)}
 Wrap: x=${wrapX} y=${wrapY}
 Sectors: ${sectorCount}x${sectorCount} origin=${terrainOrigin.x},${terrainOrigin.y}
 Terrain size: ${terrainSpanX()} x ${terrainSpanY()}
@@ -14708,9 +15180,28 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       }
       statsHudAccumTime = 0;
     }
+    state.renderDiagnostics.frameMs = performance.now() - frameStarted;
+    renderedFramesInSample += 1;
+    const fpsElapsed = performance.now() - renderedFpsStartedAt;
+    if (fpsCounterEl && fpsElapsed >= 500){
+      fpsCounterEl.textContent = `${Math.max(0, Math.round(renderedFramesInSample * 1000 / fpsElapsed))} FPS`;
+      renderedFpsStartedAt = performance.now();
+      renderedFramesInSample = 0;
+    }
     scheduleNextFrame();
   }
   startRenderLoop();
+
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){
+      if(renderLoopRafId)cancelAnimationFrame(renderLoopRafId);
+      if(pendingSingleRenderRaf)cancelAnimationFrame(pendingSingleRenderRaf);
+      renderLoopRafId=0;pendingSingleRenderRaf=0;renderLoopRunning=false;
+      return;
+    }
+    lastT=performance.now();renderedFpsStartedAt=lastT;renderedFramesInSample=0;
+    startRenderLoop();
+  });
 
   function hasTypingFocus(){
     const el = document.activeElement;
@@ -14778,7 +15269,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     camVel=vec3(0,0,0); requestRender();
   }
   function toggleTopView(){setTopView(!topViewLocked);}
-  addEventListener('keydown',e=>{ if(hasTypingFocus()||keyboardShortcutsOverlay.classList.contains('open')) return; const k=e.key.toLowerCase(); const lookActive=(document.pointerLockElement===cv&&state.cameraLookActive); if(k==='delete'){ e.preventDefault(); deleteSelectedItem(); return; } if(k==='c'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); setSidebarOpen(appLayoutEl?.classList.contains('sidebarClosed')); return; } if(k==='t'&&!e.repeat){ e.preventDefault(); toggleTopView(); } if(k==='g'&&!e.repeat){ e.preventDefault(); cycleGridMainAreaVisibility(); } if(k==='home'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleSceneInfo(); } if(k==='i'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleInsertMode(); } if(k==='h'&&!e.repeat){ toggleViewOption('showAnchorPoints'); } if(k==='f'){ e.preventDefault(); if(!e.repeat) cycleGlbViewMode(); } if(k==='x'&&!lookActive&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat){ toggleTransformSpace(); } if(k==='w'&&!lookActive){ state.transformMode='translate'; updateItemGizmo(); } if(k==='e'&&!lookActive){ state.transformMode='rotate'; updateItemGizmo(); } if(k==='w'&&lookActive) move.w=1; if(k==='a'&&lookActive) move.a=1; if(k==='s'&&lookActive) move.s=1; if(k==='d'&&lookActive) move.d=1; if(k==='q'&&lookActive) move.q=1; if(k==='e'&&lookActive) move.e=1; if(k==='r') setRenderMode(renderMode==='C'?'H':(renderMode==='H'?'D':'C')); state.keysDown.add(e.code); });
+  addEventListener('keydown',e=>{ if(hasTypingFocus()||keyboardShortcutsOverlay.classList.contains('open')) return; const k=e.key.toLowerCase(); const lookActive=(document.pointerLockElement===cv&&state.cameraLookActive); if(k==='delete'){ e.preventDefault(); deleteSelectedItem(); return; } if(k==='c'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); setSidebarOpen(appLayoutEl?.classList.contains('sidebarClosed')); return; } if(k==='t'&&!e.repeat){ e.preventDefault(); toggleTopView(); } if(k==='g'&&!e.repeat){ e.preventDefault(); cycleGridMainAreaVisibility(); } if(k==='home'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleSceneInfo(); } if(k==='i'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleInsertMode(); } if(k==='h'&&!e.repeat){ toggleViewOption('showAnchorPoints'); } if(k==='f'){ e.preventDefault(); if(!e.repeat) cycleGlbViewMode(); } if(k==='x'&&!lookActive&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat){ toggleTransformSpace(); } if(k==='w'&&!lookActive){ state.transformMode='translate'; updateItemGizmo(); } if(k==='e'&&!lookActive){ state.transformMode='rotate'; updateItemGizmo(); } if(k==='w'&&lookActive) move.w=1; if(k==='a'&&lookActive) move.a=1; if(k==='s'&&lookActive) move.s=1; if(k==='d'&&lookActive) move.d=1; if(k==='q'&&lookActive) move.q=1; if(k==='e'&&lookActive) move.e=1; if(lookActive&&['w','a','s','d','q','e'].includes(k)) startRenderLoop(); if(k==='r') setRenderMode(renderMode==='C'?'H':(renderMode==='H'?'D':'C')); state.keysDown.add(e.code); });
   addEventListener('keyup',e=>{ if(hasTypingFocus()) return; const k=e.key.toLowerCase(); if(k==='w') move.w=0; if(k==='a') move.a=0; if(k==='s') move.s=0; if(k==='d') move.d=0; if(k==='q') move.q=0; if(k==='e') move.e=0; state.keysDown.delete(e.code); });
   addEventListener('mousemove',e=>{
     if(document.pointerLockElement!==cv) return;
@@ -14795,6 +15286,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     cam.yaw=((cam.yaw+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
     cam.pitch -= movementY*0.002;
     cam.pitch=Math.max(-1.55,Math.min(1.55,cam.pitch));
+    requestRender();
   });
 
   document.getElementById('modeC')?.addEventListener('click',()=>setRenderMode('C'));
