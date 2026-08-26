@@ -9467,6 +9467,7 @@ end group
       input.checked = !!visible;
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
+    invalidateThreeItemGeometryCaches();
     syncShowOnlyButtonState();
     requestRender();
   }
@@ -9492,6 +9493,7 @@ end group
       for (const input of inputs) input.checked = input === selectedInput;
     }
     syncShowOnlyButtonState();
+    invalidateThreeItemGeometryCaches();
     state.glb.structureDirty = true;
     syncReferenceGlbVisibility();
     requestRender();
@@ -9553,6 +9555,7 @@ end group
       return;
     }
     if (!event.target.closest("[data-show-category]")) return;
+    invalidateThreeItemGeometryCaches();
     state.glb.structureDirty = true;
     requestRender();
   });
@@ -12329,13 +12332,19 @@ end group
 
   function itemGeometryStateSignature(includeSelection=false){
     const mapSignature = map => [...map.entries()].map(([key,value])=>`${key}:${value}`).sort().join(',');
+    const showSignature=Object.values(SHOW_ITEM_CATEGORIES).map(({inputId})=>`${inputId}:${document.getElementById(inputId)?.checked!==false?1:0}`).join(',');
     const selection = includeSelection
       ? `${state.selectedId ?? ''}|${[...state.multiSelectedIds].sort().join(',')}|${[...state.selectedWaypointMarkerIds].sort().join(',')}`
       : '';
     const paste = state.pastePlacementActive && state.pastePreviewWorld
       ? `${state.pastePreviewWorld.x},${state.pastePreviewWorld.y},${state.pastePreviewWorld.z},${state.itemClipboardItems.length}`
       : '';
-    return `${state.itemsVersion}|${state.itemGeometryRevision}|${searchEl?.value || ''}|${renderUiState.showAnchorPoints}|${mapSignature(state.layerVisibility)}|${mapSignature(state.groupVisibility)}|${mapSignature(state.waypointVisibility)}|${mapSignature(state.areaTriggerVisibility)}|${selection}|${paste}`;
+    return `${state.itemsVersion}|${state.itemGeometryRevision}|${searchEl?.value || ''}|${renderUiState.showAnchorPoints}|${showSignature}|${mapSignature(state.layerVisibility)}|${mapSignature(state.groupVisibility)}|${mapSignature(state.waypointVisibility)}|${mapSignature(state.areaTriggerVisibility)}|${selection}|${paste}`;
+  }
+
+  function invalidateThreeItemGeometryCaches(){
+    state.threeItems.pointDataSignature="";
+    state.threeItems.waypointDataSignature="";
   }
 
   function drawItemsThree(P, V){
