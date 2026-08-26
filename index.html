@@ -331,6 +331,18 @@
       font-size:12px;
       pointer-events:none;
     }
+    #loadedMapFilesHint{
+      position:absolute;
+      left:10px;
+      bottom:10px;
+      z-index:5;
+      max-width:min(48%,420px);
+      color:#dfe9ff;
+      font-size:12px;
+      line-height:1.35;
+      pointer-events:none;
+    }
+    #loadedMapFilesHint div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     #insertPreviewLabel{position:absolute;z-index:12;display:none;pointer-events:none;padding:3px 6px;border:1px solid rgba(44,230,255,.8);border-radius:4px;background:rgba(0,0,0,.72);color:#fff;font-size:12px;white-space:nowrap;}
     #boxSelection{
       position:absolute;
@@ -1738,6 +1750,7 @@
       <div id="boxSelection" aria-hidden="true"></div>
       <div id="insertPreviewLabel" aria-hidden="true"></div>
       <div id="camDebug"></div>
+      <div id="loadedMapFilesHint" aria-live="polite"><div>MIS: not loaded</div><div>TIL: —</div></div>
       <div id="sceneInfoHint">Show Scene Info (Home)</div>
       <canvas id="gizmoCanvas" aria-hidden="true"></canvas>
 
@@ -2679,6 +2692,7 @@ end group
     editorFolderHandle: null,
     currentMisFileHandle: null,
     currentTilFileHandle: null,
+    tilOnlyItems: [],
     generalTerrainNames: [],
     generalInfoLoadGeneration: 0,
     soundGraphicFromOtherItems: "",
@@ -2759,6 +2773,7 @@ end group
     },
     mapTiles: {
       filename: "",
+      sourceFilename: "",
       atlasName: "",
       atlasImage: null,
       overlayTexture: null,
@@ -3337,7 +3352,7 @@ end group
   }
 
   function rebuildLookupIndexes(){
-    state.itemsById = new Map((state.items || []).map((it) => [it.id, it]));
+    state.itemsById = new Map([...(state.items || []),...(state.tilOnlyItems || [])].map((it) => [it.id, it]));
     state.itemSectionByStart = new Map(
       (state.sectionBlocks || [])
         .filter((sec) => sec.kind === "item")
@@ -3346,7 +3361,7 @@ end group
   }
 
   function getItemByIdFast(itemId){
-    return state.itemsById.get(itemId) || state.items.find((x) => x.id === itemId) || null;
+    return state.itemsById.get(itemId) || state.items.find((x) => x.id === itemId) || state.tilOnlyItems.find((x) => x.id === itemId) || null;
   }
 
   function getItemSectionByStartFast(start){
@@ -4037,7 +4052,7 @@ end group
   }
 
   function getSelected(){
-    return state.items.find(x => x.id === state.selectedId) || null;
+    return getItemByIdFast(state.selectedId);
   }
 
   function getSelectedItems(){
@@ -4045,7 +4060,7 @@ end group
       ? Array.from(state.multiSelectedIds)
       : (state.selectedId != null ? [state.selectedId] : []);
     const selectedSet = new Set(ids);
-    const ordered = state.items.filter((it) => selectedSet.has(it.id));
+    const ordered = [...state.items,...state.tilOnlyItems].filter((it) => selectedSet.has(it.id));
     if (state.selectedId != null){
       const idx = ordered.findIndex((it) => it.id === state.selectedId);
       if (idx > 0){
@@ -6703,7 +6718,8 @@ end group
       state.undoCurrentTilRecords = currentTilRecords;
       return;
     }
-    if (currentText === state.undoCurrentText && currentTilFlags.length === state.undoCurrentTilFlags.length && currentTilFlags.every((flag,index)=>flag===state.undoCurrentTilFlags[index])) return;
+    const tilUnchanged=currentTilRecords.length===state.undoCurrentTilRecords.length&&currentTilRecords.every((record,index)=>{const previous=state.undoCurrentTilRecords[index];return previous&&record.x===previous.x&&record.y===previous.y&&record.tileIndex===previous.tileIndex&&record.flags===previous.flags&&record.reserved===previous.reserved;});
+    if (currentText === state.undoCurrentText && tilUnchanged) return;
     state.undoStack.push({text:state.undoCurrentText,tilFlags:state.undoCurrentTilFlags.slice(),tilRecords:structuredClone(state.undoCurrentTilRecords)});
     if (state.undoStack.length > UNDO_HISTORY_LIMIT) state.undoStack.shift();
     state.redoStack = [];
@@ -6741,6 +6757,7 @@ end group
     const parsed = parseMIS(text);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
+    updateLoadedMapFilesHint();
     disposeAreaTriggerVolumes();
     state.areaTriggerVolumes.signature = "";
     state.undoCurrentText = text;
@@ -6749,6 +6766,7 @@ end group
     else for(let i=0;i<tilFlags.length&&i<state.mapTiles.records.length;i++)state.mapTiles.records[i].flags=tilFlags[i];
     state.undoCurrentTilFlags=state.mapTiles.records.map(record=>record.flags);
     state.undoCurrentTilRecords=structuredClone(state.mapTiles.records);
+    rebuildTilOnlyItems();
     if(tilChanged)state.mapTiles.dirty=true;
     state.selectedId = null;
     state.multiSelectedIds.clear();
@@ -6760,7 +6778,7 @@ end group
       modalOverlay.setAttribute("aria-hidden", "true");
     }
     markItemsChanged({ structure: true });
-    if(hadMapTiles||state.items.some(isMapTileItem))scheduleMapTileOverlayRebuild();
+    if(hadMapTiles||state.items.some(isMapTileItem)||tilChanged)scheduleMapTileOverlayRebuild();
     buildLayerOptions();
     buildWaypointList();
     buildGroupOptions();
@@ -8835,6 +8853,7 @@ end group
     if (!copySelectedItem()) return false;
 
     if(state.itemClipboardItems.some(entry=>isMapTileLocked(entry.item.id))){statusEl.textContent="Locked tiles cannot be cut. Unlock the selection first.";return false;}
+    if(state.itemClipboardItems.every(entry=>isTilOnlyMapTile(entry.item))){deleteSelectedItem();statusEl.textContent=`Cut ${state.itemClipboardItems.length} TIL tile${state.itemClipboardItems.length===1?"":"s"}.`;return true;}
 
     const cutIds = new Set(state.itemClipboardItems.map(entry => entry.item.id));
     const cutMapTile = state.itemClipboardItems.some(entry => isMapTileItem(entry.item));
@@ -8845,7 +8864,7 @@ end group
     state.sectionBlocks = state.sectionBlocks.filter(sec => !(sec.kind === "item" && cutStarts.has(sec.start)));
     normalizeItemBeginLineSequence();
     markItemsChanged({ structure: true });
-    if(cutMapTile)scheduleMapTileOverlayRebuild();
+    if(cutMapTile){rebuildTilOnlyItems();scheduleMapTileOverlayRebuild();renderTileInstances();}
 
     state.selectedId = null;
     state.multiSelectedIds.clear();
@@ -8882,6 +8901,12 @@ end group
     if (!state.itemClipboardItems.length || !world) return;
     const pastedItems = [];
     for (const entry of state.itemClipboardItems){
+      if(isTilOnlyMapTile(entry.item)){
+        const source=state.mapTiles.records[Math.trunc(Number(entry.item.kv?.extra_val2))];if(!source)continue;
+        const half=(Number(state.mapTiles.tileSize)||16)*.5,record={...structuredClone(source),x:worldToRaw(world.x+entry.dx-half,"x"),y:worldToRaw(world.y+entry.dy+half,"y"),recordIndex:state.mapTiles.records.length};
+        state.mapTiles.records.push(record);state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);state.mapTiles.dirty=true;
+        pastedItems.push({_pendingTilRecordIndex:record.recordIndex});continue;
+      }
       const pasted = createPastedItemFrom(entry.item, entry.section, {
         offset: false,
         worldPosition: { x: world.x + entry.dx, y: world.y + entry.dy },
@@ -8889,6 +8914,10 @@ end group
         refresh: false
       });
       pastedItems.push(pasted);
+    }
+    if(pastedItems.some(it=>it._pendingTilRecordIndex!==undefined)){
+      rebuildTilOnlyItems();
+      for(let i=0;i<pastedItems.length;i++)if(pastedItems[i]._pendingTilRecordIndex!==undefined)pastedItems[i]=getItemByIdFast(`til-record:${pastedItems[i]._pendingTilRecordIndex}`);
     }
     markItemsChanged({ structure: true });
     if(pastedItems.some(isMapTileItem))scheduleMapTileOverlayRebuild();
@@ -8928,6 +8957,12 @@ end group
     if (!it) return;
     if(isMapTileLocked(it)){statusEl.textContent="Locked tiles cannot be duplicated.";return;}
     if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be duplicated.";return;}
+    if(isTilOnlyMapTile(it)){
+      const source=mapTileRecordForItem(it);if(!source)return;
+      const offset=worldToRaw(Number(state.mapTiles.tileSize)||16,"x"),record={...structuredClone(source),x:source.x+offset,recordIndex:state.mapTiles.records.length};
+      state.mapTiles.records.push(record);state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);state.mapTiles.dirty=true;rebuildTilOnlyItems();
+      selectById(`til-record:${record.recordIndex}`);scheduleUndoCapture();buildMapTileOverlay();renderTileInstances();statusEl.textContent=`Duplicated TIL record ${source.recordIndex+1}.`;return;
+    }
     const sec = getItemSectionByStartFast(it.start);
     const copy = createPastedItemFrom(it, sec || null, { offset: true });
     markItemsChanged({ structure: true });
@@ -8945,10 +8980,27 @@ end group
       addLog(`[reference_glb] removed=${fileName}`);
       return;
     }
-    const selectedItems = getSelectedItems();
+    let selectedItems = getSelectedItems();
     if (!selectedItems.length) return;
     if(selectedItems.some(isMapTileLocked)){statusEl.textContent="Locked tiles cannot be deleted. Unlock the selection first.";return;}
     if(state.tileEditModeActive&&selectedItems.some(it=>!isMapTileItem(it))){statusEl.textContent="Tile Edit Mode only allows MapTiles to be deleted.";return;}
+
+    const tilOnly=selectedItems.filter(isTilOnlyMapTile);
+    if(tilOnly.length){
+      const removedIndices=tilOnly.map(it=>Math.trunc(Number(it.kv?.extra_val2))).filter(Number.isInteger).sort((a,b)=>b-a);
+      for(const removedIndex of removedIndices){
+        state.mapTiles.records.splice(removedIndex,1);
+        for(const item of state.items.filter(isMapTileItem)){
+          const index=Math.trunc(Number(item.kv?.extra_val2));
+          if(index>removedIndex)setItemKvLine(item,"extra_val2",index-1);
+        }
+      }
+      state.mapTiles.records.forEach((record,index)=>record.recordIndex=index);
+      state.mapTiles.byPosition=new Map(state.mapTiles.records.map(record=>[mapTilePositionKey(record.x,record.y),record]));
+      state.mapTiles.dirty=true;rebuildTilOnlyItems();selectedItems=selectedItems.filter(it=>!isTilOnlyMapTile(it));
+      scheduleUndoCapture();buildMapTileOverlay();renderTileInstances();renderTilePaletteSelection();
+    }
+    if(!selectedItems.length){state.selectedId=null;state.multiSelectedIds.clear();updateItemGizmo();requestRender();statusEl.textContent=tilOnly.length===1?"TIL tile deleted.":`${tilOnly.length} TIL tiles deleted.`;return;}
 
     const selectedIds=new Set(selectedItems.map(it=>it.id));
     const selectedStarts=new Set(selectedItems.map(it=>it.start));
@@ -8959,7 +9011,7 @@ end group
     state.sectionBlocks = state.sectionBlocks.filter(s => !(s.kind === "item" && selectedStarts.has(s.start)));
     normalizeItemBeginLineSequence();
     markItemsChanged({ structure: true });
-    if(deletingMapTile)scheduleMapTileOverlayRebuild();
+    if(deletingMapTile){rebuildTilOnlyItems();scheduleMapTileOverlayRebuild();renderTileInstances();}
     state.selectedId = null;
     state.multiSelectedIds.clear();
     closeItemContextMenu();
@@ -9849,6 +9901,7 @@ end group
     state.currentMisFileHandle = null;
     state.currentTilFileHandle = null;
     state.currentReferenceSidecarHandle = null;
+    updateLoadedMapFilesHint();
     state.referenceGlbRestore = null;
     state.itemClipboard = null;
     state.itemClipboardSection = null;
@@ -9906,6 +9959,7 @@ end group
         await writable.close();
         state.currentMisFileHandle = handle;
         state.filename = handle.name || state.filename;
+        updateLoadedMapFilesHint();
         // A companion handle belongs to the previous mission name/location.  It
         // must never be reused after Save As, even when both missions use tiles.
         if(forcePicker||previousMisHandle!==handle){state.currentTilFileHandle=null;state.currentReferenceSidecarHandle=null;}
@@ -10417,6 +10471,7 @@ end group
     const documentGeneration = clearGlbItemInstances();
     state.filename = file.name;
     state.currentMisFileHandle = fileHandle;
+    state.currentTilFileHandle = null;
     state.currentReferenceSidecarHandle = null;
     await loadMissionGameStrings(file.name);
     if (documentGeneration !== state.glb.documentGeneration) return;
@@ -10443,6 +10498,7 @@ end group
     state.selectedWaypointMarkerIds.clear();
     updateWaypointMarkerCount(0);
 
+    updateLoadedMapFilesHint();
     state.referenceGlbRestore = loadRememberedReferenceGlbRecord(file.name);
 
 
@@ -10470,6 +10526,7 @@ end group
   const cv = document.getElementById("cv");
   const camDebugEl = document.getElementById("camDebug");
   const sceneInfoHintEl = document.getElementById("sceneInfoHint");
+  const loadedMapFilesHintEl = document.getElementById("loadedMapFilesHint");
   const fpsCounterEl = document.getElementById("fpsCounter");
   const kothZoneStatusEl = document.getElementById("kothZoneStatus");
   const gizmoCanvasEl = document.getElementById("gizmoCanvas");
@@ -10589,6 +10646,8 @@ end group
 
   const TERRAIN_TILE_FILE_INDEX=["trntile1.tga","trntile2.tga","trntile3.tga","Trntile4.tga","Trntile5.tga","Trntile6.tga","Trntile7.tga","Trntile8.tga","trntile9.tga","trntile10.tga","trntile11.tga","trntile12.tga","trntile13.TGA"];
   function isMapTileItem(it){return String(it?.kv?.name||"").trim().toLowerCase()==="maptile";}
+  function isTilOnlyMapTile(it){return Boolean(it?._tilOnly);}
+  function allMapTileItems(){return [...state.items.filter(isMapTileItem),...state.tilOnlyItems];}
   function mapTilePositionKey(x,y){return `${Math.trunc(Number(x))},${Math.trunc(Number(y))}`;}
   function parseTil(buf){
     if(!(buf instanceof ArrayBuffer)||buf.byteLength<16)throw new Error("TIL header is truncated");
@@ -10624,12 +10683,13 @@ end group
 
   async function saveTilCompanion(forcePicker=false,misHandle=state.currentMisFileHandle){
     const mapItems=state.items.filter(isMapTileItem);
-    if(!mapItems.length)return null;
+    if(!mapItems.length&&!state.mapTiles.records.length)return null;
     const name=String(state.filename||"edited.mis").replace(/\.mis$/i,"")+".til",data=serializeTil();
     try{
       validateTilCompanionRecords(mapItems);
-      if(window.showSaveFilePicker){const handle=(!forcePicker&&state.currentTilFileHandle)?state.currentTilFileHandle:await window.showSaveFilePicker({suggestedName:name,...(misHandle?{startIn:misHandle}:{}),types:[{description:"Terrain Tile Files",accept:{"application/octet-stream":[".til"]}}]});const writable=await handle.createWritable();await writable.write(data);await writable.close();state.currentTilFileHandle=handle;}
-      else downloadBinary(name,data);
+      if(window.showSaveFilePicker){const handle=(!forcePicker&&state.currentTilFileHandle)?state.currentTilFileHandle:await window.showSaveFilePicker({suggestedName:name,...(misHandle?{startIn:misHandle}:{}),types:[{description:"Terrain Tile Files",accept:{"application/octet-stream":[".til"]}}]});const writable=await handle.createWritable();await writable.write(data);await writable.close();state.currentTilFileHandle=handle;state.mapTiles.sourceFilename=handle.name||name;}
+      else {downloadBinary(name,data);state.mapTiles.sourceFilename=name;}
+      updateLoadedMapFilesHint();
       state.mapTiles.dirty=false;state.undoCurrentTilFlags=state.mapTiles.records.map(record=>record.flags);state.undoCurrentTilRecords=structuredClone(state.mapTiles.records);return true;
     }catch(err){if(err?.name==='AbortError')addLog("TIL save canceled; MIS was saved but tile rotations remain unsaved.");else addLog(`ERROR saving .til: ${err?.message||"unknown error"}`);statusEl.textContent="MIS saved, but the companion TIL was not saved.";return false;}
   }
@@ -10641,11 +10701,13 @@ end group
     state.mapTiles.overlayTexture?.dispose?.();
     disposeMapTileRenderMesh();
     disposeMapTileBorders();
-    Object.assign(state.mapTiles,{filename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,dirty:false});
+    Object.assign(state.mapTiles,{filename:"",sourceFilename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,dirty:false});
+    state.tilOnlyItems=[];
     state.threeTerrain.dirty=true;
     state.collapsedTileGroups.clear();state.knownTileGroupIndices.clear();
     state.tilePaletteSelectedIndex=null;cancelTileInsertMode("");
     renderTilePalette();
+    updateLoadedMapFilesHint();
   }
 
   function generalTerrainTileName(){
@@ -10653,22 +10715,97 @@ end group
     return String(section?.kv?.terrain_tile_tga||"").replace(/^"|"$/g,"").trim();
   }
 
+  function updateLoadedMapFilesHint(){
+    if(!loadedMapFilesHintEl)return;
+    const misName=String(state.filename||"").trim(),tilName=String(state.mapTiles.sourceFilename||"").trim();
+    const misText=misName?`MIS: ${misName}`:"MIS: not loaded";
+    let tilText="TIL: —",tilTitle="No mission is loaded.";
+    if(misName){
+      if(!generalTerrainTileName()){tilText="TIL: none linked";tilTitle="This mission does not reference a terrain tile atlas.";}
+      else if(!tilName){tilText="TIL: not loaded";tilTitle="This mission uses terrain tiles, but its companion TIL was not loaded.";}
+      else {tilText=`TIL: ${tilName}`;tilTitle=`Loaded companion tile file: ${tilName}`;}
+    }
+    loadedMapFilesHintEl.replaceChildren();
+    const misLine=document.createElement("div"),tilLine=document.createElement("div");
+    misLine.textContent=misText;misLine.title=misName?`Loaded mission file: ${misName}`:"No mission is loaded.";
+    tilLine.textContent=tilText;tilLine.title=tilTitle;loadedMapFilesHintEl.append(misLine,tilLine);
+    loadedMapFilesHintEl.title=`${misText}\n${tilText}`;
+  }
+
+  function rebuildTilOnlyItems(){
+    const referenced=new Set(state.items.filter(isMapTileItem).map(it=>Math.trunc(Number(it?.kv?.extra_val2))).filter(Number.isInteger));
+    const half=(Number(state.mapTiles.tileSize)||16)*.5;
+    state.tilOnlyItems=state.mapTiles.records.filter(record=>!referenced.has(record.recordIndex)).map(record=>({
+      id:`til-record:${record.recordIndex}`,_tilOnly:true,start:null,end:null,beginLine:`TIL record ${record.recordIndex}`,
+      x:worldToRaw(rawToWorld(record.x,"x")+half,"x"),y:worldToRaw(rawToWorld(record.y,"y")-half,"y"),z:0,heading:0,pitch:0,
+      kv:{name:"MapTile",extra_val2:String(record.recordIndex)},lines:[]
+    }));
+    rebuildLookupIndexes();
+  }
+
+  function syncTilOnlyItemRecord(item){
+    if(!isTilOnlyMapTile(item))return;
+    const record=mapTileRecordForItem(item),half=(Number(state.mapTiles.tileSize)||16)*.5;
+    if(!record)return;
+    record.x=worldToRaw(rawToWorld(item.x,"x")-half,"x");record.y=worldToRaw(rawToWorld(item.y,"y")+half,"y");
+    state.mapTiles.byPosition=new Map(state.mapTiles.records.map(entry=>[mapTilePositionKey(entry.x,entry.y),entry]));
+    state.mapTiles.dirty=true;
+  }
+
+  async function promptForTilCompanion(tilName){
+    if(!window.showOpenFilePicker)return null;
+    try{
+      while(true){
+        statusEl.textContent=`Select companion TIL: ${tilName}`;
+        const [handle]=await window.showOpenFilePicker({
+          id:"mission-til-companion",
+          multiple:false,
+          excludeAcceptAllOption:true,
+          ...(state.currentMisFileHandle?{startIn:state.currentMisFileHandle}:{}),
+          types:[{description:`Expected file: ${tilName}`,accept:{"application/octet-stream":[".til"]}}]
+        });
+        if(!handle)return null;
+        const file=await handle.getFile(),matchesExpectedName=file.name.toLowerCase()===tilName.toLowerCase();
+        if(!matchesExpectedName){
+          addLog(`[map_tiles] selected '${file.name}' for expected companion '${tilName}'`);
+          const useAnyway=window.confirm(`The selected TIL is '${file.name}', but this mission expects '${tilName}'.\n\nUse '${file.name}' anyway?\n\nChoose Cancel to select another file.`);
+          if(!useAnyway)continue;
+          addLog(`[map_tiles] using differently named companion '${file.name}' by user confirmation`);
+        }
+        state.currentTilFileHandle=handle;
+        return {buffer:await file.arrayBuffer(),filename:file.name};
+      }
+    }catch(err){
+      if(err?.name==='AbortError')addLog(`[map_tiles] TIL selection canceled; trying bundled companion '${tilName}'`);
+      else addLog(`[map_tiles] ERROR selecting companion TIL: ${err?.message||"unknown error"}`);
+      return null;
+    }
+  }
+
   async function loadMapTilesForMission(){
     resetMapTiles();
-    const mapItems=state.items.filter(isMapTileItem);if(!mapItems.length)return;
+    const atlasName=generalTerrainTileName();if(!atlasName)return;
+    const mapItems=state.items.filter(isMapTileItem);
     const generation=state.mapTiles.generation,base=String(state.filename||"").replace(/\.mis$/i,""),tilName=`${base}.til`;
+    let tilParsed=false;
     try{
-      let tilBuf=null;
-      if(state.editorFolderHandle)tilBuf=await readArrayBufferFromEditorFolder(`resources/BHD/mis_examples/${tilName}`);
-      if(!tilBuf&&!state.isLocalRuntime)tilBuf=await loadBinaryResource(`resources/BHD/mis_examples/${encodeURIComponent(tilName)}`);
-      if(!tilBuf)throw new Error(`Required companion file '${tilName}' was not found next to the MIS`);
+      let tilBuf=null,tilSourceFilename="";
+      if(state.currentTilFileHandle){
+        try{const file=await state.currentTilFileHandle.getFile();tilBuf=await file.arrayBuffer();tilSourceFilename=file.name;}
+        catch(err){addLog(`[map_tiles] ERROR reading selected companion TIL: ${err?.message||"read failed"}`);state.currentTilFileHandle=null;}
+      }
+      if(!tilBuf){const selected=await promptForTilCompanion(tilName);if(selected){tilBuf=selected.buffer;tilSourceFilename=selected.filename;}}
+      if(!tilBuf&&state.editorFolderHandle){tilBuf=await readArrayBufferFromEditorFolder(`resources/BHD/mis_examples/${tilName}`);if(tilBuf)tilSourceFilename=tilName;}
+      if(!tilBuf&&!state.isLocalRuntime){tilBuf=await loadBinaryResource(`resources/BHD/mis_examples/${encodeURIComponent(tilName)}`);if(tilBuf)tilSourceFilename=tilName;}
+      if(!tilBuf)throw new Error(`Required companion file '${tilName}' was not selected or found in resources/BHD/mis_examples`);
       if(generation!==state.mapTiles.generation)return;
-      const parsed=parseTil(tilBuf);state.mapTiles.filename=tilName;state.mapTiles.records=parsed.records;state.mapTiles.headerReserved=parsed.headerReserved;state.mapTiles.byPosition=parsed.byPosition;
+      const parsed=parseTil(tilBuf);tilParsed=true;state.mapTiles.filename=tilName;state.mapTiles.sourceFilename=tilSourceFilename||tilName;state.mapTiles.records=parsed.records;state.mapTiles.headerReserved=parsed.headerReserved;state.mapTiles.byPosition=parsed.byPosition;updateLoadedMapFilesHint();
       state.undoCurrentTilFlags=parsed.records.map(record=>record.flags);
       state.undoCurrentTilRecords=structuredClone(parsed.records);
       const sizes=mapItems.map(it=>{const r=parsed.records[Math.trunc(Number(it.kv?.extra_val2))];return r?Math.max(Math.abs(it.x-r.x),Math.abs(it.y-r.y))*2/65536:0;}).filter(v=>Number.isFinite(v)&&v>0).sort((a,b)=>a-b);
       state.mapTiles.tileSize=sizes.length?sizes[Math.floor(sizes.length/2)]:16;
-      let atlasBase=generalTerrainTileName();if(!atlasBase)throw new Error("general_information has no Terrain_tile_tga");if(!/\.tga$/i.test(atlasBase))atlasBase+=".tga";
+      rebuildTilOnlyItems();
+      let atlasBase=atlasName;if(!/\.tga$/i.test(atlasBase))atlasBase+=".tga";
       const atlasFile=TERRAIN_TILE_FILE_INDEX.find(n=>n.toLowerCase()===atlasBase.toLowerCase());if(!atlasFile)throw new Error(`Tile atlas '${atlasBase}' is not available`);
       const atlasPath=`resources/BHD/terrain_tiles/${atlasFile}`,atlasBuf=await loadBinaryResource(atlasPath);if(!atlasBuf)throw new Error(`Unable to load tile atlas '${atlasPath}'`);
       if(generation!==state.mapTiles.generation)return;
@@ -10677,7 +10814,7 @@ end group
       addLog(`[map_tiles] loaded ${tilName}: ${parsed.records.length} records, atlas=${atlasFile}`);
       buildMapTileOverlay();
       await syncGlbItems();requestRender();
-    }catch(err){state.mapTiles.error=err?.message||String(err);renderTilePalette();addLog(`[map_tiles] ERROR: ${state.mapTiles.error}`);statusEl.textContent=state.mapTiles.error;}
+    }catch(err){if(!tilParsed)state.mapTiles.sourceFilename="";state.mapTiles.error=err?.message||String(err);updateLoadedMapFilesHint();renderTilePalette();addLog(`[map_tiles] ERROR: ${state.mapTiles.error}`);statusEl.textContent=state.mapTiles.error;}
   }
 
   function mapTileRecordForItem(it){
@@ -10699,14 +10836,14 @@ end group
   function isMapTileHidden(itOrId){const id=typeof itOrId==="object"?itOrId?.id:itOrId;return state.hiddenMapTileIds.has(id);}
   function persistMapTileEditorState(){
     const locked=[],hidden=[];
-    for(const it of state.items.filter(isMapTileItem)){const key=mapTileEditorIdentity(it);if(isMapTileLocked(it))locked.push(key);if(isMapTileHidden(it))hidden.push(key);}
+    for(const it of allMapTileItems()){const key=mapTileEditorIdentity(it);if(isMapTileLocked(it))locked.push(key);if(isMapTileHidden(it))hidden.push(key);}
     try{localStorage.setItem(mapTileEditorStorageKey(),JSON.stringify({locked,hidden}));localStorage.setItem("dz.tilePaletteView",state.tilePaletteView);}catch(_){ }
   }
   function restoreMapTileEditorState(){
     state.lockedMapTileIds.clear();state.hiddenMapTileIds.clear();let saved=null;
     try{saved=JSON.parse(localStorage.getItem(mapTileEditorStorageKey())||"null");}catch(_){ }
     const locked=new Set(saved?.locked||[]),hidden=new Set(saved?.hidden||[]);
-    for(const it of state.items.filter(isMapTileItem)){const key=mapTileEditorIdentity(it);if(locked.has(key))state.lockedMapTileIds.add(it.id);if(hidden.has(key))state.hiddenMapTileIds.add(it.id);}
+    for(const it of allMapTileItems()){const key=mapTileEditorIdentity(it);if(locked.has(key))state.lockedMapTileIds.add(it.id);if(hidden.has(key))state.hiddenMapTileIds.add(it.id);}
   }
   function updateMapTileEditorState(ids,kind,value){
     const target=kind==="lock"?state.lockedMapTileIds:state.hiddenMapTileIds;
@@ -10735,10 +10872,10 @@ end group
     for(let y=0;y<cellH;y++)for(let x=0;x<cellW;x++){const src=((row*cellH+y)*img.w+col*cellW+x)*4,dst=(y*cellW+x)*4;data.data[dst]=img.pixels[src];data.data[dst+1]=img.pixels[src+1];data.data[dst+2]=img.pixels[src+2];data.data[dst+3]=img.pixels[src+3];}ctx.putImageData(data,0,0);
   }
   function mapTileOverlapKey(it){const f=getMapTileFootprint(it);return f?`${f.centerX.toFixed(4)},${f.centerY.toFixed(4)}`:`${it.x},${it.y}`;}
-  function mapTileDisplayNumber(it){const match=String(it.beginLine||"").match(/^begin\s+item\s+(.+)$/i);return match?.[1]?.trim()||it.id;}
+  function mapTileDisplayNumber(it){if(isTilOnlyMapTile(it))return `TIL ${Number(it.kv?.extra_val2)+1}`;const match=String(it.beginLine||"").match(/^begin\s+item\s+(.+)$/i);return match?.[1]?.trim()||it.id;}
   function renderTileInstances(){
     if(!tileInstancesListEl)return;tileInstancesListEl.replaceChildren();
-    const all=state.items.filter(isMapTileItem),overlapCounts=new Map();for(const it of all){const key=mapTileOverlapKey(it);overlapCounts.set(key,(overlapCounts.get(key)||0)+1);}
+    const all=allMapTileItems(),overlapCounts=new Map();for(const it of all){const key=mapTileOverlapKey(it);overlapCounts.set(key,(overlapCounts.get(key)||0)+1);}
     const term=state.tileInstancesSearch.trim().toLowerCase(),selected=state.multiSelectedIds.size?state.multiSelectedIds:new Set(state.selectedId==null?[]:[state.selectedId]);
     const matches=it=>{const locked=isMapTileLocked(it),hidden=isMapTileHidden(it),overlap=(overlapCounts.get(mapTileOverlapKey(it))||0)>1,f=state.tileInstancesFilter;if(f==="locked"&&!locked||f==="unlocked"&&locked||f==="hidden"&&!hidden||f==="visible"&&hidden||f==="selected"&&!selected.has(it.id)||f==="overlap"&&!overlap)return false;const index=mapTileAtlasIndex(it),hay=`${index} ${mapTileDisplayNumber(it)} ${it.id} ${it.x} ${it.y}`.toLowerCase();return !term||hay.includes(term);};
     const groups=new Map();for(const it of all.filter(matches)){const index=mapTileAtlasIndex(it);if(index===null)continue;if(!groups.has(index))groups.set(index,[]);groups.get(index).push(it);}
@@ -10814,7 +10951,7 @@ end group
       renderList();statusEl.textContent=`Tile ${tileIndex} ready to insert. Shift + mouse wheel rotates it; Esc cancels.`;return;
     }
     state.tilePaletteSelectedIndex=tileIndex;
-    const matching=state.items.filter(it=>isMapTileItem(it)&&mapTileAtlasIndex(it)===tileIndex);
+    const matching=allMapTileItems().filter(it=>mapTileAtlasIndex(it)===tileIndex);
     if(!additive)state.multiSelectedIds.clear();
     for(const it of matching)state.multiSelectedIds.add(it.id);
     state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null;
@@ -10835,12 +10972,13 @@ end group
   }
 
   function insertPaletteTileAt(world){
-    const tileIndex=state.tileInsertIndex,source=state.items.find(isMapTileItem);if(tileIndex===null||!source)return false;
+    const tileIndex=state.tileInsertIndex,source=allMapTileItems()[0];if(tileIndex===null||!source)return false;
     const position=tileInsertPosition(world),size=Number(state.mapTiles.tileSize)||16,centerX=position.x,centerY=position.y;
     const sourceSection=getItemSectionByStartFast(source.start);beginUndoTransaction();
     try{
       const recordIndex=state.mapTiles.records.length,record={x:worldToRaw(centerX-size*.5,"x"),y:worldToRaw(centerY+size*.5,"y"),tileIndex,flags:state.tileInsertFlags,reserved:0,recordIndex};
       state.mapTiles.records.push(record);state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);state.mapTiles.dirty=true;
+      if(isTilOnlyMapTile(source)){rebuildTilOnlyItems();buildMapTileOverlay();renderTileInstances();scheduleUndoCapture();requestRender();statusEl.textContent=`Tile ${tileIndex} inserted at ${tileInsertRotationDegrees()}°.`;return true;}
       const item=createPastedItemFrom(source,sourceSection,{offset:false,worldPosition:{x:centerX,y:centerY},selectCreated:false,refresh:false});
       const section=state.sectionBlocks.find(sec=>sec.kind==="item"&&sec.beginLine===item.beginLine);if(section){item.start=section.start;item.end=section.end;}
       setItemKvLine(item,"extra_val2",recordIndex);if(section){section.kv={...item.kv};section.lines=item.lines.slice();}
@@ -10964,6 +11102,27 @@ end group
     return {left,right:left+size,bottom:top-size,top,size,centerX:left+size*.5,centerY:top-size*.5};
   }
 
+  function getTilRecordFootprint(record){
+    const size=Number(state.mapTiles.tileSize);
+    if(!record||!Number.isFinite(size)||size<=0)return null;
+    const left=rawToWorld(record.x,"x"),top=rawToWorld(record.y,"y");
+    return {left,right:left+size,bottom:top-size,top,size,centerX:left+size*.5,centerY:top-size*.5};
+  }
+
+  function mapTileRenderEntries(){
+    const entries=[],referencedRecords=new Set();
+    for(const item of allMapTileItems()){
+      const record=mapTileRecordForItem(item),recordIndex=record?.recordIndex;
+      if(!record||!Number.isInteger(recordIndex))continue;
+      referencedRecords.add(recordIndex);
+      if(!isMapTileHidden(item))entries.push({item,record,footprint:getMapTileFootprint(item)});
+    }
+    for(const record of state.mapTiles.records){
+      if(!referencedRecords.has(record.recordIndex))entries.push({item:null,record,footprint:getTilRecordFootprint(record)});
+    }
+    return entries.filter(entry=>entry.footprint);
+  }
+
   function getItemInteractionAnchor(it){
     const footprint=getMapTileFootprint(it);
     if(footprint){
@@ -10990,24 +11149,24 @@ end group
     const THREE=state.glb.THREE,scene=state.glb.scene;
     if(!state.tileEditModeActive||!THREE||!scene)return;
     const positions=[],edgeKeys=new Set(),steps=16;
-    const addEdge=(x1,y1,x2,y2,it)=>{
+    const addEdge=(x1,y1,x2,y2,fallbackZ)=>{
       const endpoints=[`${x1},${y1}`,`${x2},${y2}`].sort(),edgeKey=endpoints.join('|');
       if(edgeKeys.has(edgeKey))return;
       edgeKeys.add(edgeKey);
       for(let step=0;step<steps;step++){
         const addPoint=t=>{
           const x=x1+(x2-x1)*t,y=y1+(y2-y1)*t,z=heightAtWorld(x,y,1.0);
-          positions.push(x,y,Number.isFinite(z)&&z>-1e8?z+.06:getItemInteractionAnchor(it).z);
+          positions.push(x,y,Number.isFinite(z)&&z>-1e8?z+.06:fallbackZ);
         };
         addPoint(step/steps);addPoint((step+1)/steps);
       }
     };
-    for(const it of state.items.filter(it=>isMapTileItem(it)&&!isMapTileHidden(it))){
-      const footprint=getMapTileFootprint(it);if(!footprint)continue;
-      addEdge(footprint.left,footprint.bottom,footprint.right,footprint.bottom,it);
-      addEdge(footprint.right,footprint.bottom,footprint.right,footprint.top,it);
-      addEdge(footprint.right,footprint.top,footprint.left,footprint.top,it);
-      addEdge(footprint.left,footprint.top,footprint.left,footprint.bottom,it);
+    for(const {item,footprint} of mapTileRenderEntries()){
+      const anchorZ=item?getItemInteractionAnchor(item).z:heightAtWorld(footprint.centerX,footprint.centerY,1.0),fallbackZ=Number.isFinite(anchorZ)&&anchorZ>-1e8?anchorZ+.06:0;
+      addEdge(footprint.left,footprint.bottom,footprint.right,footprint.bottom,fallbackZ);
+      addEdge(footprint.right,footprint.bottom,footprint.right,footprint.top,fallbackZ);
+      addEdge(footprint.right,footprint.top,footprint.left,footprint.top,fallbackZ);
+      addEdge(footprint.left,footprint.top,footprint.left,footprint.bottom,fallbackZ);
     }
     if(!positions.length)return;
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.computeBoundingSphere();
@@ -11030,15 +11189,15 @@ end group
     // prevents it from competing with area volumes and transparent item modes.
     const img=state.mapTiles.atlasImage,THREE=state.glb.THREE,scene=state.threeTerrain.scene;if(!img||!THREE||!scene||!state.mapTiles.records.length)return;
     const steps=16,positions=[],uvs=[],indices=[];let painted=0;
-    for(const it of state.items.filter(it=>isMapTileItem(it)&&!isMapTileHidden(it))){
-      if(state.mapTiles.dragPreviewIds.has(it.id))continue;
-      const record=mapTileRecordForItem(it),tileIndex=mapTileAtlasIndex(it);if(!record||tileIndex===null)continue;
-      const footprint=getMapTileFootprint(it);if(!footprint)continue;
+    for(const {item,record,footprint} of mapTileRenderEntries()){
+      if(item&&state.mapTiles.dragPreviewIds.has(item.id))continue;
+      const tileIndex=Number(record.tileIndex);if(!Number.isInteger(tileIndex)||tileIndex<0||tileIndex>255)continue;
       const col=tileIndex%8,row=Math.floor(tileIndex/8),cellW=img.w/8,cellH=img.h/8;
       const vertexBase=positions.length/3;
+      const anchorZ=item?getItemInteractionAnchor(item).z:heightAtWorld(footprint.centerX,footprint.centerY,1.0),fallbackZ=Number.isFinite(anchorZ)&&anchorZ>-1e8?anchorZ+.025:0;
       for(let y=0;y<=steps;y++)for(let x=0;x<=steps;x++){
         const wx=footprint.left+footprint.size*x/steps,wy=footprint.bottom+footprint.size*y/steps,terrainZ=heightAtWorld(wx,wy,1.0),uv=transformMapTileUv(x/steps,y/steps,record.flags);
-        positions.push(wx,wy,Number.isFinite(terrainZ)&&terrainZ>-1e8?terrainZ+.025:getItemInteractionAnchor(it).z);
+        positions.push(wx,wy,Number.isFinite(terrainZ)&&terrainZ>-1e8?terrainZ+.025:fallbackZ);
         // Sample inside the atlas cell so linear filtering cannot bleed an
         // adjacent tile across the cell boundary.
         uvs.push((col*cellW+.5+uv.u*(cellW-1))/img.w,(img.h-(row+1)*cellH+.5+uv.v*(cellH-1))/img.h);
@@ -13709,9 +13868,10 @@ end group
     const allowed=new Set(getFilteredItems().map(it=>it.id));
     // The overlay is painted in item order, so the last matching tile is the
     // visible/topmost one when footprints overlap.
-    for(let i=state.items.length-1;i>=0;i--){
-      const it=state.items[i];
-      if(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)||!allowed.has(it.id)||!isItemVisibilityFilterMatch(it))continue;
+    const tiles=allMapTileItems();
+    for(let i=tiles.length-1;i>=0;i--){
+      const it=tiles[i];
+      if(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)||(!isTilOnlyMapTile(it)&&(!allowed.has(it.id)||!isItemVisibilityFilterMatch(it))))continue;
       const f=getMapTileFootprint(it);
       if(f&&x>=f.left&&x<=f.right&&y>=f.bottom&&y<=f.top)return it;
     }
@@ -13834,7 +13994,7 @@ end group
     drawSelectedMapTileOutlines();
     if(!ensureThreeGizmo()){state.gizmoVisual=null;return;}
     const group=state.glb.gizmoGroup,it=state.referenceGlb?.selected ? state.referenceGlb.item : getSelected(),items=selectedTransformItems(),center=gizmoPivot(items);
-    if(!it||!center||state.modalOpen||(!state.referenceGlb?.selected&&!isItemVisibilityFilterMatch(it))){group.visible=false;state.gizmoVisual=null;return;}
+    if(!it||!center||state.modalOpen||(!state.referenceGlb?.selected&&!isTilOnlyMapTile(it)&&!isItemVisibilityFilterMatch(it))){group.visible=false;state.gizmoVisual=null;return;}
     group.visible=true;group.position.set(center.x,center.y,center.z);
     const basis=state.gizmoDrag?.handle?.kind==='ring'?state.gizmoDrag.basis:itemTransformBasis(it),THREE=state.glb.THREE,m=new THREE.Matrix4().makeBasis(new THREE.Vector3(basis.x.x,basis.x.y,basis.x.z),new THREE.Vector3(basis.y.x,basis.y.y,basis.y.z),new THREE.Vector3(basis.z.x,basis.z.y,basis.z.z));group.quaternion.setFromRotationMatrix(m);
     const {tanHalfVerticalFov,orthographic,orthographicHalfHeight}=getCameraProjection();
@@ -13857,6 +14017,7 @@ end group
 
   function commitGizmoUpdate(it){
     if (!it) return;
+    if(isTilOnlyMapTile(it))syncTilOnlyItemRecord(it);
     if (kvHas(it, "position")) it.kv.position = `${it.x} ${it.y} ${it.z}`;
     applyItemOrientationToKv(it);
     const sec = getItemSectionByStartFast(it.start);
@@ -13872,6 +14033,7 @@ end group
     const valid = (items || []).filter(Boolean);
     if (!valid.length) return;
     for (const it of valid){
+      if(isTilOnlyMapTile(it))syncTilOnlyItemRecord(it);
       if (kvHas(it, "position")) it.kv.position = `${it.x} ${it.y} ${it.z}`;
       applyItemOrientationToKv(it);
       const sec = getItemSectionByStartFast(it.start);
