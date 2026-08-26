@@ -1752,6 +1752,7 @@
         <div id="canvasShowPanelList">
           <label><input type="checkbox" id="showCharTiles"> Char Tiles</label>
           <label><input type="checkbox" id="showReferenceGlb" checked> Reference GLB</label>
+          <label><input type="checkbox" id="showEditorHelders" checked> Editor Helders</label>
           <label data-show-category="foliage"><input type="checkbox" id="showFoliage" checked> <span class="visibilityItemName">Foliage</span> <span class="visibilityItemCount">(0)</span></label>
           <label data-show-category="vehicle"><input type="checkbox" id="showVehicles" checked> <span class="visibilityItemName">Vehicles</span> <span class="visibilityItemCount">(0)</span></label>
           <label data-show-category="people"><input type="checkbox" id="showPeople" checked> <span class="visibilityItemName">People &amp; Person</span> <span class="visibilityItemCount">(0)</span></label>
@@ -2718,6 +2719,10 @@ end group
       group: null,
       instances: new Map(),
     },
+    editorHelpers: {
+      group: null,
+      instances: new Map(),
+    },
     terrainLoad: {
       phase: "idle",
       revision: 0,
@@ -3065,6 +3070,7 @@ end group
   const cancelBtn = document.getElementById("cancelBtn");
   const itemContextMenu = document.getElementById("itemContextMenu");
   const showAreaTriggersEl = document.getElementById("showAreaTriggers");
+  const showEditorHeldersEl = document.getElementById("showEditorHelders");
 
   const renderUiState = {
     speedLevel: 4,
@@ -4269,9 +4275,43 @@ end group
   }
 
   function getItemTint(it){
-    const tint = String(getDefForItem(it)?.tint || "").trim();
-    return /^#[0-9a-f]{6}$/i.test(tint) ? tint : "";
+    const def = getDefForItem(it);
+    const tint = String(def?.tint || "").trim();
+    const fallbackTint = /^#[0-9a-f]{6}$/i.test(tint) ? tint : "";
+    if (Number(def?.tintTeam) !== 1 || !kvHas(it, "team")) return fallbackTint;
+    return ITEM_TEAM_TINTS[String(it.kv.team).trim()] || fallbackTint;
   }
+
+  function getDefinitionTintOpacity(def){
+    const opacity = Number(def?.tintOpacity);
+    return Number.isFinite(opacity) ? Math.max(0, Math.min(100, opacity)) / 100 : 1;
+  }
+
+  function getItemTintOpacity(it){
+    return getDefinitionTintOpacity(getDefForItem(it));
+  }
+
+  function getItemEditorHelper(it){
+    return String(getDefForItem(it)?.editorHelper || "").trim().toLowerCase();
+  }
+
+  function getItemEditorHelperSize(it){
+    const size = Number(getDefForItem(it)?.editorHelperSize);
+    return Number.isFinite(size) && size > 0 ? size : 0;
+  }
+
+  function getItemEditorHelperOpacity(it){
+    const opacity = Number(getDefForItem(it)?.editorHelperOpacity);
+    return Number.isFinite(opacity) ? Math.max(0, Math.min(100, opacity)) / 100 : 1;
+  }
+
+  const ITEM_TEAM_TINTS = Object.freeze({
+    0: "#00FF00",
+    1: "#0066FF",
+    2: "#FF0000",
+    3: "#FFFF00",
+    4: "#8000FF",
+  });
 
   function getItemArrowSize(it){
     const arrow = Number(getDefForItem(it)?.arrow);
@@ -4353,6 +4393,11 @@ end group
           graphic: "",
           graphicScale: 1,
           tint: "",
+          tintOpacity: 100,
+          editorHelper: "",
+          editorHelperSize: 0,
+          editorHelperOpacity: 100,
+          tintTeam: 0,
           arrow: 0,
           drawCircle: 0,
           attrib: [],
@@ -4393,6 +4438,20 @@ end group
         if (k === "type") cur.type = v;
         if (k === "graphic") cur.graphic = v;
         if (k === "tint" && /^#[0-9a-f]{6}$/i.test(v)) cur.tint = v;
+        if (k === "tint_opacity"){
+          const numericTintOpacity = Number(v);
+          if (Number.isFinite(numericTintOpacity)) cur.tintOpacity = Math.max(0, Math.min(100, numericTintOpacity));
+        }
+        if (k === "editor_helper") cur.editorHelper = v.trim().toLowerCase();
+        if (k === "editor_helper_size"){
+          const numericSize = Number(v);
+          if (Number.isFinite(numericSize) && numericSize > 0) cur.editorHelperSize = numericSize;
+        }
+        if (k === "editor_helper_opacity"){
+          const numericOpacity = Number(v);
+          if (Number.isFinite(numericOpacity)) cur.editorHelperOpacity = Math.max(0, Math.min(100, numericOpacity));
+        }
+        if (k === "tintteam") cur.tintTeam = Number(v) === 1 ? 1 : 0;
         if (k === "arrow"){
           const numericArrow = Number(v);
           if (Number.isFinite(numericArrow) && numericArrow > 0) cur.arrow = numericArrow;
@@ -4447,6 +4506,11 @@ end group
         graphic: Object.prototype.hasOwnProperty.call(supplementKv, "graphic") ? supplement.graphic : base.graphic,
         graphicScale: Object.prototype.hasOwnProperty.call(supplementKv, "graphic_scale") ? supplement.graphicScale : base.graphicScale,
         tint: Object.prototype.hasOwnProperty.call(supplementKv, "tint") ? supplement.tint : base.tint,
+        tintOpacity: Object.prototype.hasOwnProperty.call(supplementKv, "tint_opacity") ? supplement.tintOpacity : base.tintOpacity,
+        editorHelper: Object.prototype.hasOwnProperty.call(supplementKv, "editor_helper") ? supplement.editorHelper : base.editorHelper,
+        editorHelperSize: Object.prototype.hasOwnProperty.call(supplementKv, "editor_helper_size") ? supplement.editorHelperSize : base.editorHelperSize,
+        editorHelperOpacity: Object.prototype.hasOwnProperty.call(supplementKv, "editor_helper_opacity") ? supplement.editorHelperOpacity : base.editorHelperOpacity,
+        tintTeam: Object.prototype.hasOwnProperty.call(supplementKv, "tintteam") ? supplement.tintTeam : base.tintTeam,
         arrow: Object.prototype.hasOwnProperty.call(supplementKv, "arrow") ? supplement.arrow : base.arrow,
         drawCircle: Object.prototype.hasOwnProperty.call(supplementKv, "draw_circle") ? supplement.drawCircle : base.drawCircle,
         attrib,
@@ -4793,7 +4857,7 @@ end group
     if (preview.object) preview.scene.remove(preview.object);
     preview.object = template.clone(true);
     cloneGlbMaterials(preview.object);
-    applySolidTintToGlbObject(preview.object, def.tint);
+    applySolidTintToGlbObject(preview.object, def.tint, getDefinitionTintOpacity(def));
     applyItemModelTransform(preview.object, 0, 0, def.graphicScale);
     preview.object.visible = true;
     preview.scene.add(preview.object);
@@ -9577,6 +9641,10 @@ end group
       syncReferenceGlbVisibility();
       return;
     }
+    if (event.target === showEditorHeldersEl){
+      applyShowVisibilityChanges();
+      return;
+    }
     if (!event.target.closest("[data-show-category], [data-show-count-source]")) return;
     applyShowVisibilityChanges(event.target.id === "showMisMapTiles" || event.target.id === "showTilOnlyMapTiles");
   });
@@ -12562,20 +12630,21 @@ end group
 
   // GLB color precedence, from lowest to highest: base material, DEF tint,
   // waypoint/area-trigger color, then temporary view/selection visuals.
-  function applySolidTintToGlbObject(root, tint){
+  function applySolidTintToGlbObject(root, tint, opacity = 1){
     const normalizedTint = String(tint || "").trim();
     if (!root || !/^#[0-9a-f]{6}$/i.test(normalizedTint) || !state.glb.THREE) return;
     const color = new state.glb.THREE.Color(normalizedTint);
+    const normalizedOpacity = Number.isFinite(Number(opacity)) ? Math.max(0, Math.min(1, Number(opacity))) : 1;
     root.traverse?.(obj => {
       if (!obj.isMesh) return;
       const originalMaterials = Array.isArray(obj.material) ? obj.material : [obj.material];
       const tintedMaterials = originalMaterials.map(material => new state.glb.THREE.MeshBasicMaterial({
         color,
         side: material?.side ?? state.glb.THREE.FrontSide,
-        transparent: false,
-        opacity: 1,
+        transparent: normalizedOpacity < 1,
+        opacity: normalizedOpacity,
         depthTest: material?.depthTest ?? true,
-        depthWrite: material?.depthWrite ?? true,
+        depthWrite: normalizedOpacity < 1 ? false : (material?.depthWrite ?? true),
         toneMapped: false,
       }));
       obj.material = Array.isArray(obj.material) ? tintedMaterials : tintedMaterials[0];
@@ -13421,7 +13490,7 @@ end group
       const visual = template.clone(true);
       visual.name = `ATTACHED_WEAPON_MODEL_${attachment.slot}_${attachment.itemId}`;
       cloneGlbMaterials(visual);
-      applySolidTintToGlbObject(visual, attachedDef.tint);
+      applySolidTintToGlbObject(visual, attachedDef.tint, getDefinitionTintOpacity(attachedDef));
       applyGlbModelCorrection(visual, attachedDef.graphicScale);
       visual.traverse((obj) => {
         obj.userData.isAttachedWeapon = true;
@@ -13436,7 +13505,7 @@ end group
   function getGlbItemVisualSignature(it, graphic){
     const rawTypeId = String(it?.kv?.type_id || it?.typeId || "");
     const typeId = toDefIdFromMisTypeId(rawTypeId);
-    return [String(graphic || "").trim(), typeId, getItemTint(it), getAttachedWeaponSignature(typeId)].join("|");
+    return [String(graphic || "").trim(), typeId, getItemTint(it), getItemTintOpacity(it), getAttachedWeaponSignature(typeId)].join("|");
   }
 
   function disposeGlbInstanceMaterials(instance){
@@ -13772,6 +13841,7 @@ end group
     state.glb.itemInstances.clear();
     clearItemArrows();
     clearItemCircles();
+    clearEditorHelpers();
     state.glb.lastSelectedVisualIds.clear();
     state.glb.transformDirtyIds.clear();
     state.glb.structureDirty = true;
@@ -13989,6 +14059,136 @@ end group
     }
   }
 
+  const EDITOR_HELPER_TYPES = new Set(["vertical_line", "circle_volume", "pyramid_volume"]);
+  const EDITOR_HELPER_FALLBACK_COLOR = 0xffffff;
+  const EDITOR_HELPER_SPHERE_SEGMENTS = 32;
+
+  function disposeEditorHelper(helper){
+    if (!helper) return;
+    helper.parent?.remove?.(helper);
+    helper.geometry?.dispose?.();
+    helper.material?.dispose?.();
+  }
+
+  function clearEditorHelpers(){
+    for (const helper of state.editorHelpers.instances.values()) disposeEditorHelper(helper);
+    state.editorHelpers.instances.clear();
+  }
+
+  function createEditorHelper(it, type){
+    if (!state.glb.THREE) return null;
+    const { THREE } = state.glb;
+    let helper = null;
+    if (type === "vertical_line"){
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 1], 3));
+      helper = new THREE.Line(geometry, new THREE.LineBasicMaterial({
+        color: EDITOR_HELPER_FALLBACK_COLOR,
+        transparent: true,
+        opacity: 1,
+        depthTest: true,
+        depthWrite: false,
+        toneMapped: false,
+      }));
+    } else if (type === "circle_volume"){
+      const geometry = new THREE.SphereGeometry(1, EDITOR_HELPER_SPHERE_SEGMENTS, Math.floor(EDITOR_HELPER_SPHERE_SEGMENTS / 2));
+      helper = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+        color: EDITOR_HELPER_FALLBACK_COLOR,
+        transparent: true,
+        opacity: 1,
+        depthTest: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      }));
+    } else if (type === "pyramid_volume"){
+      // The centroid of a solid pyramid is one quarter of its height above its
+      // base. These Z extents put that centroid at the item's anchor (Z = 0).
+      // Uniform scaling keeps editor_helper_size as both width and total height.
+      const baseZ = -0.25;
+      const apexZ = 0.75;
+      const positions = [
+        -0.5, -0.5, baseZ,  0.5,  0.5, baseZ,  0.5, -0.5, baseZ,
+        -0.5, -0.5, baseZ, -0.5,  0.5, baseZ,  0.5,  0.5, baseZ,
+        -0.5, -0.5, baseZ,  0.5, -0.5, baseZ,  0, 0, apexZ,
+         0.5, -0.5, baseZ,  0.5,  0.5, baseZ,  0, 0, apexZ,
+         0.5,  0.5, baseZ, -0.5,  0.5, baseZ,  0, 0, apexZ,
+        -0.5,  0.5, baseZ, -0.5, -0.5, baseZ,  0, 0, apexZ,
+      ];
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geometry.computeVertexNormals();
+      helper = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+        color: EDITOR_HELPER_FALLBACK_COLOR,
+        transparent: true,
+        opacity: 1,
+        depthTest: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      }));
+    }
+    if (!helper) return null;
+    helper.name = `EDITOR_HELPER_${type.toUpperCase()}_${it.id}`;
+    helper.userData.itemId = it.id;
+    helper.userData.editorHelperType = type;
+    helper.userData.isEditorHelper = true;
+    helper.renderOrder = 17;
+    helper.raycast = () => null;
+    return helper;
+  }
+
+  function updateEditorHelper(helper, it){
+    const type = getItemEditorHelper(it);
+    const size = getItemEditorHelperSize(it);
+    const tint = getItemTint(it);
+    const opacity = getItemEditorHelperOpacity(it);
+    helper.material.color.set(tint || EDITOR_HELPER_FALLBACK_COLOR);
+    helper.material.opacity = opacity;
+    helper.material.transparent = opacity < 1;
+    helper.position.set(rawToWorld(it.x, "x"), rawToWorld(it.y, "y"), getItemWorldZ(it));
+    helper.rotation.set(0, 0, 0);
+    helper.scale.set(size, size, size);
+    helper.visible = showEditorHeldersEl?.checked !== false
+      && EDITOR_HELPER_TYPES.has(type)
+      && size > 0
+      && opacity > 0
+      && isItemVisibilityFilterMatch(it);
+  }
+
+  function syncEditorHelpers(){
+    if (!state.glb.ready || !state.glb.THREE || !state.glb.scene) return;
+    if (!state.editorHelpers.group){
+      state.editorHelpers.group = new state.glb.THREE.Group();
+      state.editorHelpers.group.name = "EDITOR_HELPERS";
+      state.glb.scene.add(state.editorHelpers.group);
+    }
+    const wanted = new Set();
+    for (const it of state.items || []){
+      const type = getItemEditorHelper(it);
+      if (!EDITOR_HELPER_TYPES.has(type) || getItemEditorHelperSize(it) <= 0) continue;
+      wanted.add(it.id);
+      let helper = state.editorHelpers.instances.get(it.id);
+      if (helper?.userData.editorHelperType !== type){
+        disposeEditorHelper(helper);
+        state.editorHelpers.instances.delete(it.id);
+        helper = null;
+      }
+      if (!helper){
+        helper = createEditorHelper(it, type);
+        if (!helper) continue;
+        state.editorHelpers.group.add(helper);
+        state.editorHelpers.instances.set(it.id, helper);
+      }
+      updateEditorHelper(helper, it);
+    }
+    for (const [itemId, helper] of state.editorHelpers.instances){
+      if (wanted.has(itemId)) continue;
+      disposeEditorHelper(helper);
+      state.editorHelpers.instances.delete(itemId);
+    }
+  }
+
   async function syncGlbItems(){
     const ready = await ensureGlbRendererReady();
     if (!ready || state.glb.syncPromise) return;
@@ -14029,7 +14229,7 @@ end group
           parentVisual.name = `ITEM_MODEL_${it.id}`;
           parentVisual.userData.isPrimaryItemVisual = true;
           cloneGlbMaterials(parentVisual);
-          applySolidTintToGlbObject(parentVisual, getItemTint(it));
+          applySolidTintToGlbObject(parentVisual, getItemTint(it), getItemTintOpacity(it));
           applyGlbModelCorrection(parentVisual, getItemGraphicScale(it));
           instance.add(parentVisual);
           applyWaypointColorToGlbObject(parentVisual, it);
@@ -14140,6 +14340,7 @@ end group
     measure('transforms',updateGlbTransformsFromState);
     measure('arrows',syncItemArrows);
     measure('circles',syncItemCircles);
+    measure('helpers',syncEditorHelpers);
 
     const { renderer, scene } = state.glb;
     applyThreeCameraFromPV(P, V);
