@@ -337,6 +337,32 @@
       border:1px solid rgba(91,192,255,.95);
       background:rgba(45,145,220,.18);
     }
+    #measurementOverlay{
+      position:absolute;
+      inset:0;
+      z-index:13;
+      width:100%;
+      height:100%;
+      overflow:visible;
+      pointer-events:none;
+    }
+    #measurementOverlay .measureLine{
+      fill:none;
+      stroke:#fff;
+      stroke-width:2;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+      vector-effect:non-scaling-stroke;
+      filter:drop-shadow(0 1px 2px rgba(0,0,0,.9));
+    }
+    #measurementOverlay .measurePoint{ fill:#fff; stroke:#15191f; stroke-width:1.5; }
+    #measurementOverlay .measureLabel{
+      fill:#fff;
+      stroke:rgba(0,0,0,.9);
+      stroke-width:3px;
+      paint-order:stroke;
+      font:600 12px system-ui,sans-serif;
+    }
     .canvasFloatingToolbar{
       position:absolute;
       top:10px;
@@ -1675,6 +1701,8 @@
         <button id="showAreaTriggersBtn" type="button" class="modeBtn">Area Triggers</button>
       </div>
       <div id="canvasViewToolbar" class="canvasFloatingToolbar">
+        <button id="runTimeBtn" type="button" class="modeBtn topViewTool" hidden title="Run Time"><img class="toolbarIcon" src="resources/BHD/editor_icons/footsteps_icon.svg" alt="" /> Run Time</button>
+        <button id="measureDistanceBtn" type="button" class="modeBtn topViewTool" hidden aria-pressed="false" title="Measure Distance"><img class="toolbarIcon" src="resources/BHD/editor_icons/ruler_icon.svg" alt="" /> Measure Distance</button>
         <button id="transformSpaceBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Transformation Mode: World" title="Transformation Mode: World (X)"><img class="toolbarIcon" src="resources/BHD/editor_icons/space_world.svg" alt="" /></button>
         <div class="toolbarSplit">
           <button id="rotationSnapToggleBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Rotation Snap" title="Enable or disable rotation snapping"><img class="toolbarIcon" src="resources/BHD/editor_icons/snap_to_angle.svg" alt="" /></button>
@@ -1689,6 +1717,7 @@
         </div>
       </div>
       <canvas id="cv"></canvas>
+      <svg id="measurementOverlay" aria-hidden="true"></svg>
       <div id="boxSelection" aria-hidden="true"></div>
       <div id="insertPreviewLabel" aria-hidden="true"></div>
       <div id="camDebug"></div>
@@ -2513,6 +2542,7 @@ end group
     boxSelectAdditive: false,
     boxStart: null,
     boxCurrent: null,
+    measurement: { active: false, points: [], hover: null, middleDown: null },
     rightPanActive: false,
     rightPanStart: null,
     suppressContextMenu: false,
@@ -2879,6 +2909,8 @@ end group
   const showWaypointsBtn = document.getElementById("showWaypointsBtn");
   const showAreaTriggersBtn = document.getElementById("showAreaTriggersBtn");
   const transformSpaceBtn = document.getElementById("transformSpaceBtn");
+  const measureDistanceBtn = document.getElementById("measureDistanceBtn");
+  const measurementOverlayEl = document.getElementById("measurementOverlay");
   const gridSnapToggleBtn = document.getElementById("gridSnapToggleBtn");
   const rotationSnapToggleBtn = document.getElementById("rotationSnapToggleBtn");
   const rotationSnapMenuBtn = document.getElementById("rotationSnapMenuBtn");
@@ -9288,6 +9320,9 @@ end group
   transformSpaceBtn?.addEventListener('click',event=>{
     event.stopPropagation();toggleTransformSpace();
   });
+  measureDistanceBtn?.addEventListener('click',event=>{
+    event.stopPropagation();setMeasurementMode(!state.measurement.active);
+  });
   syncTransformSpaceButton();
   rotationSnapMenuBtn?.addEventListener('click',event=>{
     event.stopPropagation();const next=!rotationSnapPanelEl?.classList.contains('open');
@@ -11586,6 +11621,56 @@ end group
   function worldToScreen(x,y,z=0){ const {PV}=currentPV(); const px=PV[0]*x+PV[4]*y+PV[8]*z+PV[12], py=PV[1]*x+PV[5]*y+PV[9]*z+PV[13], pw=PV[3]*x+PV[7]*y+PV[11]*z+PV[15]; if(pw<=0) return {sx:-999,sy:-999,visible:false}; const nx=px/pw, ny=py/pw, r=cv.getBoundingClientRect(); return {sx:(nx*0.5+0.5)*r.width, sy:(1-(ny*0.5+0.5))*r.height, visible:true}; }
   function screenRay(sx,sy){ const {width,height,aspect,tanHalfVerticalFov,orthographic,orthographicHalfHeight}=getCameraProjection(), nx=(sx/width)*2-1, ny=1-(sy/height)*2; const {forward,right}=cameraBasis(); const up=vec3Norm(vec3Cross(right,forward)); if(orthographic){ const origin=vec3Add(cam.pos,vec3Add(vec3Scale(right,nx*orthographicHalfHeight*aspect),vec3Scale(up,ny*orthographicHalfHeight))); return {origin,dir:forward}; } const dir=vec3Norm(vec3Add(vec3Add(forward,vec3Scale(right,nx*tanHalfVerticalFov*aspect)),vec3Scale(up,ny*tanHalfVerticalFov))); return {origin:cam.pos,dir}; }
   function screenToWorld(sx,sy,zPlane=0){ const ray=screenRay(sx,sy), dz=ray.dir.z; if(Math.abs(dz)<1e-6) return {x:ray.origin.x,y:ray.origin.y,z:zPlane}; const t=(zPlane-ray.origin.z)/dz; return {x:ray.origin.x+ray.dir.x*Math.max(t,0), y:ray.origin.y+ray.dir.y*Math.max(t,0), z:zPlane}; }
+
+  function measurementWorldPoint(sx,sy){
+    return screenToTerrain(sx,sy)||screenToWorld(sx,sy,0);
+  }
+  function measurementDistance(a,b){ return Math.hypot(b.x-a.x,b.y-a.y); }
+  function clearMeasurement(){
+    state.measurement.points=[];
+    state.measurement.hover=null;
+    state.measurement.middleDown=null;
+    measurementOverlayEl?.replaceChildren();
+  }
+  function setMeasurementMode(enabled){
+    state.measurement.active=!!enabled&&topViewLocked;
+    measureDistanceBtn?.classList.toggle('active',state.measurement.active);
+    measureDistanceBtn?.setAttribute('aria-pressed',state.measurement.active?'true':'false');
+    if(!state.measurement.active)clearMeasurement();
+    cv.style.cursor=state.measurement.active?'crosshair':'';
+    requestRender();
+  }
+  function updateMeasurementOverlay(){
+    if(!measurementOverlayEl)return;
+    const {width,height}=getViewportMetrics();
+    measurementOverlayEl.setAttribute('viewBox',`0 0 ${width} ${height}`);
+    measurementOverlayEl.replaceChildren();
+    if(!topViewLocked||!state.measurement.active||!state.measurement.points.length)return;
+    const worldPoints=[...state.measurement.points];
+    if(state.measurement.hover)worldPoints.push(state.measurement.hover);
+    const screenPoints=worldPoints.map(point=>worldToScreen(point.x,point.y,point.z));
+    const ns='http://www.w3.org/2000/svg';
+    if(screenPoints.length>1){
+      const line=document.createElementNS(ns,'polyline');
+      line.setAttribute('class','measureLine');
+      line.setAttribute('points',screenPoints.map(point=>`${point.sx},${point.sy}`).join(' '));
+      measurementOverlayEl.appendChild(line);
+    }
+    let total=0;
+    screenPoints.forEach((point,index)=>{
+      const marker=document.createElementNS(ns,'circle');
+      marker.setAttribute('class','measurePoint');
+      marker.setAttribute('cx',point.sx);marker.setAttribute('cy',point.sy);marker.setAttribute('r','4');
+      measurementOverlayEl.appendChild(marker);
+      if(index===0)return;
+      total+=measurementDistance(worldPoints[index-1],worldPoints[index]);
+      const label=document.createElementNS(ns,'text');
+      label.setAttribute('class','measureLabel');
+      label.setAttribute('x',point.sx+9);label.setAttribute('y',point.sy-9);
+      label.textContent=`${total.toFixed(2)} m`;
+      measurementOverlayEl.appendChild(label);
+    });
+  }
 
   function screenToTerrain(sx, sy){
     if (!lastDepth || !sectors) return null;
@@ -14789,6 +14874,7 @@ end group
       state.glb.renderer.clear(true, true, true);
     }
     const {P,V,PV}=currentPV(); const renderStats=renderLayersByBackend(P, V, PV, forward); const drawCalls=renderStats.drawCalls;
+    updateMeasurementOverlay();
     logRenderDiagnostics(drawCalls);
     const waterRender = getRenderWaterHeightRaw();
     const waterHeightLabel = (waterRender.raw===0 || waterRender.raw) ? waterRender.raw : '-';
@@ -14909,6 +14995,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     perspectiveViewBtn?.setAttribute('aria-pressed',topViewLocked?'false':'true');
     topViewBtn?.classList.toggle('active',topViewLocked);
     topViewBtn?.setAttribute('aria-pressed',topViewLocked?'true':'false');
+    document.querySelectorAll('.topViewTool').forEach(button=>{button.hidden=!topViewLocked;});
   }
   function setTopView(enabled){
     if(topViewLocked===enabled){syncViewportViewButtons();return;}
@@ -14920,6 +15007,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       topViewRestore={pos,target,yaw:cam.yaw,pitch:cam.pitch,initialScale:topViewScale};
       cam.pos=vec3(target.x,target.y,Math.max(pos.z,target.z+1000));cam.yaw=0;cam.pitch=-Math.PI/2;
     } else {
+      setMeasurementMode(false);
       if(topViewRestore.pos&&topViewRestore.target){
         const zoomRatio=Math.max(.05,Math.min(20,topViewScale/Math.max(1,topViewRestore.initialScale)));
         const newTarget=vec3(cam.pos.x,cam.pos.y,topViewRestore.target.z);
@@ -14972,6 +15060,15 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     const rect = cv.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
+    if(e.button===1&&topViewLocked&&state.measurement.active){
+      e.preventDefault();
+      const point=measurementWorldPoint(sx,sy),wasEmpty=state.measurement.points.length===0;
+      if(wasEmpty)state.measurement.points.push(point);
+      state.measurement.middleDown={sx,sy,wasEmpty};
+      state.measurement.hover=point;
+      requestRender();
+      return;
+    }
     if (e.button !== 0 && e.button !== 2) return;
 
     state.cameraLookActive = false;
@@ -15090,6 +15187,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       { label: "Insert Item", action: toggleInsertMode }
     ]);
   });
+  cv.addEventListener('auxclick',e=>{if(e.button===1&&state.measurement.active)e.preventDefault();});
   cv.addEventListener("dblclick", (e) => { const rect=cv.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top,scenePick=pickNearestSceneObjectAt(sx,sy); const picked=scenePick?.kind==="item"?scenePick.item:(scenePick?null:pickItemAtCanvas(sx,sy)); if(picked){ selectById(picked.id); openModal(); } });
   cv.addEventListener("mouseleave",()=>{if(state.tileInsertIndex!==null)updateTileInsertCursorPreview(null);});
   cv.addEventListener("mousemove", (e) => {
@@ -15097,6 +15195,12 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     const rect = cv.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
+
+    if(topViewLocked&&state.measurement.active){
+      state.measurement.hover=measurementWorldPoint(sx,sy);
+      requestRender();
+      if(e.buttons&4){e.preventDefault();return;}
+    }
 
     // Camera look has priority over editing modes. In particular, Insert Mode
     // must not consume right-button movement before pointer lock can start.
@@ -15202,6 +15306,20 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
   }
   function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; boxSelectionEl.style.display='none'; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const {pickedId,additive}=state.pendingLeftClick; selectById(pickedId != null ? pickedId : null,{additive}); } state.pendingLeftClick=null; if(had){ const ids=boxSelectionIds(x0,y0,x1,y1); if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); renderTileInstances(); refreshLiveMisWindow(false, { force: true }); } flushTransformDragUi(); }
   cv.addEventListener('mouseup', e => {
+    if(e.button===1&&state.measurement.active&&state.measurement.middleDown){
+      const rect=cv.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
+      const gesture=state.measurement.middleDown,end=measurementWorldPoint(sx,sy);
+      const moved=Math.hypot(sx-gesture.sx,sy-gesture.sy)>3;
+      if(!gesture.wasEmpty||moved){
+        const previous=state.measurement.points.at(-1);
+        if(!previous||measurementDistance(previous,end)>0.001)state.measurement.points.push(end);
+      }
+      state.measurement.middleDown=null;
+      state.measurement.hover=null;
+      requestRender();
+      e.preventDefault();
+      return;
+    }
     if (state.insertModeActive && state.insertDragStart){
       const rect = cv.getBoundingClientRect();
       const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
@@ -15289,10 +15407,10 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     const next=pickGizmoModeAt(e.clientX,e.clientY);
     if(next===state.hoveredGizmoHandle)return;
     state.hoveredGizmoHandle=next;
-    cv.style.cursor=next?'pointer':'';
+    cv.style.cursor=next?'pointer':(state.measurement.active?'crosshair':'');
     updateItemGizmo();
   });
-  cv.addEventListener('mouseleave',()=>{state.hoveredGizmoHandle=null;cv.style.cursor='';updateItemGizmo();});
+  cv.addEventListener('mouseleave',()=>{state.hoveredGizmoHandle=null;cv.style.cursor=state.measurement.active?'crosshair':'';updateItemGizmo();});
   function rayPlanePoint(ray,point,normal){
     const den=vec3Dot(ray.dir,normal);if(Math.abs(den)<1e-6)return null;
     const t=vec3Dot(vec3Sub(point,ray.origin),normal)/den;return t>=0?vec3Add(ray.origin,vec3Scale(ray.dir,t)):null;
