@@ -3182,7 +3182,6 @@ end group
     | GENERAL_ATTRIB_BITS.fogColorOverride;
 
   const GENERAL_TERRAINS = ["dvd1","dvd2","dvd3","jungle1","arctic1","desert1"];
-  const GENERAL_TILES = ["trntile11","trntile12","trntile13","trntile21","trntile31"];
   const GENERAL_PLAYERS = [
     { value: "3", label: "10th Mountain" },
     { value: "1", label: "Delta Force" },
@@ -5413,8 +5412,11 @@ end group
     const generation = ++state.generalInfoLoadGeneration;
     const kv = sec?.kv || {};
     const terrainOptions = state.generalTerrainNames || [];
+    const currentTile=String(kv.terrain_tile_tga||"trntile11").replace(/\.tga$/i,"");
+    const tileOptions=TERRAIN_TILE_FILE_INDEX.map(fileName=>String(fileName).replace(/\.tga$/i,""));
+    if(currentTile&&!tileOptions.some(value=>value.toLowerCase()===currentTile.toLowerCase()))tileOptions.push({value:currentTile,label:`${currentTile} (unavailable)`});
     ensureSelectOptions(giTerrain, terrainOptions.map(v=>({ value:v, label:v })), kv.terrain || "dvd1", { caseInsensitive: true });
-    ensureSelectOptions(giTiles, GENERAL_TILES.map(v=>({ value:v, label:v })), kv.terrain_tile_tga || "trntile11");
+    ensureSelectOptions(giTiles, tileOptions, currentTile, { caseInsensitive: true });
     const playerTypeRaw = String(kv.player_type ?? "1");
     ensureSelectOptions(
       giPlayerType,
