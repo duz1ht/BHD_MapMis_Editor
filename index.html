@@ -8868,13 +8868,14 @@ end group
     const blockNumber=getNextBeginItemNumber(),misId=getNextMisItemId();
     const x=dfbhdmedTilCoordinate(worldToRaw(centerX,"x")),y=dfbhdmedTilCoordinate(worldToRaw(centerY,"y")),z=0;
     const kv={
-      type_id:String(tileIndex+3),name:'"MapTile"',iai_name:'""',ai_textfile:'""',id:String(misId),position:`${x} ${y} ${z}`,
+      type_id:String(tileIndex+3),name:"MapTile",iai_name:"",ai_textfile:"",id:String(misId),position:`${x} ${y} ${z}`,
       team:"1",wpdistance:"4",wp_adv_trigger:"0",fov:"180",obliqueness:"15",waccuracy1:"100",waccuracy2:"100",
       perception2:"100",perfectionist2:"100",crouchtimer:"3",shoottimer:"5",attention:"30",advancetimer:"10",
-      max_attack_distance:"100",edistances:"10 100",extra_mlink:'""',extra_val1:String(flags),extra_val2:String(recordIndex),
-      extra_val3:"0",extra_val4:"0",extra_val5:"0",extra_valmode:"0",extra_bheight:String(tileIndex),gen_string:'""'
+      max_attack_distance:"100",edistances:"10 100",extra_mlink:"",extra_val1:String(flags),extra_val2:String(recordIndex),
+      extra_val3:"0",extra_val4:"0",extra_val5:"0",extra_valmode:"0",extra_bheight:String(tileIndex),gen_string:""
     };
-    const lines=Object.entries(kv).map(([key,value])=>`  ${key} ${value}`),sectionId=state.sectionBlocks.reduce((max,sec)=>Math.max(max,sec.id),0)+1;
+    const quotedKeys=new Set(["name","iai_name","ai_textfile","extra_mlink","gen_string"]);
+    const lines=Object.entries(kv).map(([key,value])=>`  ${key} ${quotedKeys.has(key)?`"${value}"`:value}`),sectionId=state.sectionBlocks.reduce((max,sec)=>Math.max(max,sec.id),0)+1;
     const start=Number.MAX_SAFE_INTEGER-sectionId,beginLine=`begin item ${blockNumber}`;
     const item={id:editorId,start,end:start,beginLine,lines:lines.slice(),kv:{...kv},x,y,z,heading:0,pitch:0};
     state.items.push(item);
