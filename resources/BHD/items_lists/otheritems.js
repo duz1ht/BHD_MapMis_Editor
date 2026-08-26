@@ -137,7 +137,7 @@ end
 begin "waypoint, mp, red base"
 	type_id 106027
 	graphic 1_waypoint
-	tint #FF00AA
+	tint #FF0000
 	editor_helper circle_volume
 	editor_helper_opacity 20
 	editor_helper_size 20
