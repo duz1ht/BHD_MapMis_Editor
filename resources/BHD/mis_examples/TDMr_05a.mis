@@ -3,35 +3,37 @@
 
 begin general_information
   file_version 290671938
-  name "Squid Island A"
+  name "Squid Island A DUZv"
   designer "Richard Charon Heath"
-  terrain "ts_05"
-  loadoutfile "Default"
+  terrain TS_05
+  loadoutfile Default
   terrain_color 1
   attrib 536870913
   water_level 50
-  num_items 1224
+  num_items 1168
   num_events 7
-  sunset "day2"
+  sunset day2
   viewx -28113
   viewy -21764
   viewzoom 0.005373
-  subgoals_win 0 0 0 0 0 0 0 0 
-  subgoals_lose 0 0 0 0 0 0 0 0 
-  win_scores 0 0 0 0 0 0 0 0 
-  lose_scores 0 0 0 0 0 0 0 0 
-  terrain_tile_tga "trntile7"
-  wind 0 0 
+  subgoals_win 0 0 0 0 0 0 0 0
+  subgoals_lose 0 0 0 0 0 0 0 0
+  win_scores 0 0 0 0 0 0 0 0
+  lose_scores 0 0 0 0 0 0 0 0
+  terrain_tile_tga trntile7
+  wind 0 0
   player_type 1
   max_saves 3
-  map_zoom 0.5
+  map_zoom 0.50
   bonus_expiration 10
-  wp_names_blue 0 0 0 0 0 0 0 0 
-  wp_names_red 0 0 0 0 0 0 0 0 
-  teammate 0 0 
+  wp_names_blue 0 0 0 0 0 0 0 0
+  wp_names_red 0 0 0 0 0 0 0 0
+  teammate 0 0
   default_primary WPN_CAR15AUTO
   default_secondary WPN_M9Berreta
   default_accessory WPN_CLAYMORE
+  hardwin 0
+  hardlose 0
 end general_information
 
 begin areatrig 1
@@ -3221,31 +3223,8 @@ begin item 121
   height_lock 1
 end item
 
-begin item 122
-  type_id 6191
-  id 1543
-  position -6802945 -1462093 2021170 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 123
+begin item 122
   type_id 6191
   id 1544
   position -6680044 -5385007 2111490 
@@ -3269,7 +3248,7 @@ begin item 123
   height_lock 1
 end item
 
-begin item 124
+begin item 123
   type_id 6191
   id 1545
   position -7929217 -6222723 1978827 
@@ -3293,7 +3272,7 @@ begin item 124
   height_lock 1
 end item
 
-begin item 125
+begin item 124
   type_id 6191
   id 1546
   position -9699072 -2054734 1998848 
@@ -3317,7 +3296,7 @@ begin item 125
   height_lock 1
 end item
 
-begin item 126
+begin item 125
   type_id 6191
   id 1547
   position -8809414 -1376913 1998848 
@@ -3341,7 +3320,7 @@ begin item 126
   height_lock 1
 end item
 
-begin item 127
+begin item 126
   type_id 6191
   id 1548
   position -3415735 -14069325 2477915 
@@ -3365,31 +3344,8 @@ begin item 127
   height_lock 1
 end item
 
-begin item 128
-  type_id 6191
-  id 1549
-  position -2970905 -13274309 2236055 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 129
+begin item 127
   type_id 6191
   id 1550
   position -2138031 -14381653 2097152 
@@ -3413,7 +3369,7 @@ begin item 129
   height_lock 1
 end item
 
-begin item 130
+begin item 128
   type_id 6191
   id 1551
   position -833078 -10152889 1998848 
@@ -3437,10 +3393,10 @@ begin item 130
   height_lock 1
 end item
 
-begin item 131
+begin item 129
   type_id 6191
   id 1552
-  position -346261 -8857774 1998848 
+  position -1356208 -4099014 2013508
   edistances 16 320 
   facing 0 0 
   shoottimer 5
@@ -3461,31 +3417,8 @@ begin item 131
   height_lock 1
 end item
 
-begin item 132
-  type_id 6191
-  id 1553
-  position 76257 -9785481 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 133
+begin item 130
   type_id 6191
   id 1554
   position 792704 -8426069 1998848 
@@ -3509,7 +3442,7 @@ begin item 133
   height_lock 1
 end item
 
-begin item 134
+begin item 131
   type_id 6191
   id 1555
   position 1959226 -10309038 1998848 
@@ -3533,7 +3466,7 @@ begin item 134
   height_lock 1
 end item
 
-begin item 135
+begin item 132
   type_id 6191
   id 1556
   position -2073081 -8674070 1998848 
@@ -3557,127 +3490,12 @@ begin item 135
   height_lock 1
 end item
 
-begin item 136
-  type_id 6191
-  id 1557
-  position -1319894 -7516733 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 137
-  type_id 6191
-  id 1558
-  position 241591 -7057473 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 138
-  type_id 6191
-  id 1559
-  position 1995967 -10961188 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 139
-  type_id 6191
-  id 1560
-  position 728408 -10814225 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 140
-  type_id 6191
-  id 1561
-  position -1917757 -15765925 2066446 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 141
+begin item 133
   type_id 6191
   id 1562
   position -2367832 -15563850 2118836 
@@ -3701,103 +3519,11 @@ begin item 141
   height_lock 1
 end item
 
-begin item 142
-  type_id 6191
-  id 1563
-  position -2523981 -14746366 2154707 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 143
-  type_id 6191
-  id 1564
-  position -2027979 -16427260 2043222 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 144
-  type_id 6191
-  id 1565
-  position -9983122 -280405 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 145
-  type_id 6191
-  id 1566
-  position -10458531 -1957026 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 146
+begin item 134
   type_id 6191
   id 1567
   position -11967128 -326331 1900544 
@@ -3821,55 +3547,9 @@ begin item 146
   height_lock 1
 end item
 
-begin item 147
-  type_id 6191
-  id 1568
-  position -10809791 -2971672 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 148
-  type_id 6191
-  id 1569
-  position -9257490 -2585893 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 149
+begin item 135
   type_id 6191
   id 1570
   position -6523209 -13518471 3768329 
@@ -3893,32 +3573,9 @@ begin item 149
   height_lock 1
 end item
 
-begin item 150
-  type_id 6191
-  id 1571
-  position -5639351 -13836108 3496959 
-  edistances 16 320 
-  facing 277 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
 
-begin item 151
+begin item 136
   type_id 6191
   id 1573
   position -7752407 -18020835 3606330 
@@ -3942,7 +3599,7 @@ begin item 151
   height_lock 1
 end item
 
-begin item 152
+begin item 137
   type_id 6191
   id 1574
   position -9009143 -17855111 2927356 
@@ -3966,7 +3623,7 @@ begin item 152
   height_lock 1
 end item
 
-begin item 153
+begin item 138
   type_id 6191
   id 1575
   position -9119626 -18683729 2614430 
@@ -3990,7 +3647,7 @@ begin item 153
   height_lock 1
 end item
 
-begin item 154
+begin item 139
   type_id 6191
   id 1576
   position -8429111 -15769758 3674976 
@@ -4014,7 +3671,7 @@ begin item 154
   height_lock 1
 end item
 
-begin item 155
+begin item 140
   type_id 6191
   id 1577
   position -6799497 -19305191 3423091 
@@ -4038,7 +3695,7 @@ begin item 155
   height_lock 1
 end item
 
-begin item 156
+begin item 141
   type_id 6191
   id 1578
   position -8304818 -19015175 2804748 
@@ -4062,7 +3719,7 @@ begin item 156
   height_lock 1
 end item
 
-begin item 157
+begin item 142
   type_id 6191
   id 1579
   position -7393339 -20147619 2801271 
@@ -4086,7 +3743,7 @@ begin item 157
   height_lock 1
 end item
 
-begin item 158
+begin item 143
   type_id 6191
   id 1580
   position -4838436 -18587057 2713866 
@@ -4110,7 +3767,7 @@ begin item 158
   height_lock 1
 end item
 
-begin item 159
+begin item 144
   type_id 6191
   id 1581
   position -5749915 -20396205 2838730 
@@ -4134,7 +3791,7 @@ begin item 159
   height_lock 1
 end item
 
-begin item 160
+begin item 145
   type_id 6191
   id 1582
   position -4410317 -19001365 2177735 
@@ -4158,7 +3815,7 @@ begin item 160
   height_lock 1
 end item
 
-begin item 161
+begin item 146
   type_id 6191
   id 1583
   position -4548420 -17592715 2857831 
@@ -4182,7 +3839,7 @@ begin item 161
   height_lock 1
 end item
 
-begin item 162
+begin item 147
   type_id 6191
   id 1584
   position -3429786 -18062265 2032280 
@@ -4206,7 +3863,7 @@ begin item 162
   height_lock 1
 end item
 
-begin item 163
+begin item 148
   type_id 6191
   id 1585
   position -3305494 -16916011 2212088 
@@ -4230,55 +3887,9 @@ begin item 163
   height_lock 1
 end item
 
-begin item 164
-  type_id 6191
-  id 1586
-  position -3333444 -9527545 2076322 
-  edistances 16 320 
-  facing 32 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 165
-  type_id 6191
-  id 1587
-  position -3292013 -8740359 2099987 
-  edistances 16 320 
-  facing 95 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 166
+begin item 149
   type_id 6191
   id 1588
   position -9230438 -7953172 1986436 
@@ -4302,7 +3913,7 @@ begin item 166
   height_lock 1
 end item
 
-begin item 167
+begin item 150
   type_id 6191
   id 1589
   position -9237571 8906541 2072610 
@@ -4326,7 +3937,7 @@ begin item 167
   height_lock 1
 end item
 
-begin item 168
+begin item 151
   type_id 6191
   id 1590
   position -8668006 9237257 2293615 
@@ -4350,7 +3961,7 @@ begin item 168
   height_lock 1
 end item
 
-begin item 169
+begin item 152
   type_id 6191
   id 1591
   position -6573478 10339639 2120619 
@@ -4374,7 +3985,7 @@ begin item 169
   height_lock 1
 end item
 
-begin item 170
+begin item 153
   type_id 6191
   id 1592
   position 11304401 -5428692 3092740 
@@ -4398,7 +4009,7 @@ begin item 170
   height_lock 1
 end item
 
-begin item 171
+begin item 154
   type_id 6191
   id 1593
   position 9127660 -5999894 2568925 
@@ -4422,7 +4033,7 @@ begin item 171
   height_lock 1
 end item
 
-begin item 172
+begin item 155
   type_id 6191
   id 1594
   position 8185949 -6123397 2238445 
@@ -4446,7 +4057,7 @@ begin item 172
   height_lock 1
 end item
 
-begin item 173
+begin item 156
   type_id 6191
   id 1595
   position 8263138 -7389303 1888230 
@@ -4470,7 +4081,7 @@ begin item 173
   height_lock 1
 end item
 
-begin item 174
+begin item 157
   type_id 6191
   id 1596
   position 7444930 -7620871 1778845 
@@ -4494,7 +4105,7 @@ begin item 174
   height_lock 1
 end item
 
-begin item 175
+begin item 158
   type_id 6191
   id 1597
   position 8618210 -4224538 2433339 
@@ -4518,7 +4129,7 @@ begin item 175
   height_lock 1
 end item
 
-begin item 176
+begin item 159
   type_id 6191
   id 1598
   position 9559920 -4872928 2815578 
@@ -4542,7 +4153,7 @@ begin item 176
   height_lock 1
 end item
 
-begin item 177
+begin item 160
   type_id 6191
   id 1599
   position 10007619 -6555657 2660347 
@@ -4566,7 +4177,7 @@ begin item 177
   height_lock 1
 end item
 
-begin item 178
+begin item 161
   type_id 6191
   id 1600
   position 11242649 -6926167 2506877 
@@ -4590,7 +4201,7 @@ begin item 178
   height_lock 1
 end item
 
-begin item 179
+begin item 162
   type_id 6191
   id 1601
   position 10887578 -8037694 1994081 
@@ -4614,7 +4225,7 @@ begin item 179
   height_lock 1
 end item
 
-begin item 180
+begin item 163
   type_id 6191
   id 1602
   position 12338739 -6941605 2214665 
@@ -4638,7 +4249,7 @@ begin item 180
   height_lock 1
 end item
 
-begin item 181
+begin item 164
   type_id 6191
   id 1603
   position 10362690 -6725474 2656509 
@@ -4663,7 +4274,7 @@ begin item 181
 end item
 
 
-begin item 182
+begin item 165
   type_id 6191
   id 1605
   position 9498168 -5999894 2694527 
@@ -4687,7 +4298,7 @@ begin item 182
   height_lock 1
 end item
 
-begin item 183
+begin item 166
   type_id 6191
   id 1606
   position 9035032 -4363478 2600446 
@@ -4711,7 +4322,7 @@ begin item 183
   height_lock 1
 end item
 
-begin item 184
+begin item 167
   type_id 6191
   id 1607
   position 8294014 -4687674 2346119 
@@ -4735,7 +4346,7 @@ begin item 184
   height_lock 1
 end item
 
-begin item 185
+begin item 168
   type_id 6191
   id 1608
   position 10131122 -3251951 2850071 
@@ -4761,7 +4372,7 @@ end item
 
 
 
-begin item 186
+begin item 169
   type_id 6191
   id 1611
   position 14237598 -3298265 2226064 
@@ -4785,7 +4396,7 @@ begin item 186
   height_lock 1
 end item
 
-begin item 187
+begin item 170
   type_id 6191
   id 1612
   position 11813851 -1615536 2540340 
@@ -4809,7 +4420,7 @@ begin item 187
   height_lock 1
 end item
 
-begin item 188
+begin item 171
   type_id 6191
   id 1613
   position 10270063 -1630974 2367636 
@@ -4833,7 +4444,7 @@ begin item 188
   height_lock 1
 end item
 
-begin item 189
+begin item 172
   type_id 6191
   id 1614
   position 9529044 -2526371 2417886 
@@ -4857,7 +4468,7 @@ begin item 189
   height_lock 1
 end item
 
-begin item 190
+begin item 173
   type_id 6191
   id 1615
   position 8926967 -2974069 2356083 
@@ -4881,7 +4492,7 @@ begin item 190
   height_lock 1
 end item
 
-begin item 191
+begin item 174
   type_id 6191
   id 1616
   position 6750226 -4687674 2031616 
@@ -4905,7 +4516,7 @@ begin item 191
   height_lock 1
 end item
 
-begin item 192
+begin item 175
   type_id 6191
   id 1617
   position 11088270 -565760 2132869 
@@ -4929,7 +4540,7 @@ begin item 192
   height_lock 1
 end item
 
-begin item 193
+begin item 176
   type_id 6191
   id 1618
   position 13048881 -1507470 2060838 
@@ -4953,7 +4564,7 @@ begin item 193
   height_lock 1
 end item
 
-begin item 194
+begin item 177
   type_id 6191
   id 1619
   position 13990592 -4409792 2654498 
@@ -4977,7 +4588,7 @@ begin item 194
   height_lock 1
 end item
 
-begin item 195
+begin item 178
   type_id 6191
   id 1620
   position 13805337 -5351503 2550816 
@@ -5001,7 +4612,7 @@ begin item 195
   height_lock 1
 end item
 
-begin item 196
+begin item 179
   type_id 6191
   id 1621
   position 14407414 -7605433 1725756 
@@ -5025,7 +4636,7 @@ begin item 196
   height_lock 1
 end item
 
-begin item 197
+begin item 180
   type_id 6191
   id 1622
   position 15518942 -6941605 1857616 
@@ -5049,7 +4660,7 @@ begin item 197
   height_lock 1
 end item
 
-begin item 198
+begin item 181
   type_id 6191
   id 1623
   position 16136457 -6447592 1766596 
@@ -5073,7 +4684,7 @@ begin item 198
   height_lock 1
 end item
 
-begin item 199
+begin item 182
   type_id 6191
   id 1624
   position 15518942 -5150810 1917983 
@@ -5097,7 +4708,7 @@ begin item 199
   height_lock 1
 end item
 
-begin item 200
+begin item 183
   type_id 6191
   id 1625
   position 13604645 -2927756 2434680 
@@ -5121,7 +4732,7 @@ begin item 200
   height_lock 1
 end item
 
-begin item 201
+begin item 184
   type_id 6191
   id 1626
   position 10794950 -5428692 3104540 
@@ -5145,7 +4756,7 @@ begin item 201
   height_lock 1
 end item
 
-begin item 202
+begin item 185
   type_id 6191
   id 1627
   position -22489272 -7139752 3641151 
@@ -5169,7 +4780,7 @@ begin item 202
   height_lock 1
 end item
 
-begin item 203
+begin item 186
   type_id 6191
   id 1628
   position -24049896 -10373814 4183571 
@@ -5193,7 +4804,7 @@ begin item 203
   height_lock 1
 end item
 
-begin item 204
+begin item 187
   type_id 6191
   id 1629
   position -25065240 -11407962 2535743 
@@ -5217,7 +4828,7 @@ begin item 204
   height_lock 1
 end item
 
-begin item 205
+begin item 188
   type_id 6191
   id 1630
   position -25948966 -10129379 3132592 
@@ -5241,7 +4852,7 @@ begin item 205
   height_lock 1
 end item
 
-begin item 206
+begin item 189
   type_id 6191
   id 1631
   position -25309676 -12855769 1962215 
@@ -5265,7 +4876,7 @@ begin item 206
   height_lock 1
 end item
 
-begin item 207
+begin item 190
   type_id 6191
   id 1632
   position -24181514 -15074485 3358420 
@@ -5289,7 +4900,7 @@ begin item 207
   height_lock 1
 end item
 
-begin item 208
+begin item 191
   type_id 6191
   id 1633
   position -23974684 -15845396 2900413 
@@ -5313,7 +4924,7 @@ begin item 208
   height_lock 1
 end item
 
-begin item 209
+begin item 192
   type_id 6191
   id 1634
   position -22639694 -13758297 4704559 
@@ -5337,7 +4948,7 @@ begin item 209
   height_lock 1
 end item
 
-begin item 210
+begin item 193
   type_id 6191
   id 1635
   position -22714904 -16296660 3169361 
@@ -5361,7 +4972,7 @@ begin item 210
   height_lock 1
 end item
 
-begin item 211
+begin item 194
   type_id 6191
   id 1636
   position -21304704 -16597503 3446185 
@@ -5385,7 +4996,7 @@ begin item 211
   height_lock 1
 end item
 
-begin item 212
+begin item 195
   type_id 6191
   id 1637
   position -19894502 -16710319 3000044 
@@ -5409,7 +5020,7 @@ begin item 212
   height_lock 1
 end item
 
-begin item 213
+begin item 196
   type_id 6191
   id 1638
   position -20289470 -18647107 2222873 
@@ -5433,7 +5044,7 @@ begin item 213
   height_lock 1
 end item
 
-begin item 214
+begin item 197
   type_id 6191
   id 1639
   position -20345878 -17819789 2542525 
@@ -5457,7 +5068,7 @@ begin item 214
   height_lock 1
 end item
 
-begin item 215
+begin item 198
   type_id 6191
   id 1640
   position -20439636 -15788843 3488942 
@@ -5481,7 +5092,7 @@ begin item 215
   height_lock 1
 end item
 
-begin item 216
+begin item 199
   type_id 6191
   id 1641
   position -18766454 -15883113 3007379 
@@ -5505,7 +5116,7 @@ begin item 216
   height_lock 1
 end item
 
-begin item 217
+begin item 200
   type_id 6191
   id 1642
   position -18409202 -17330919 2676055 
@@ -5529,7 +5140,7 @@ begin item 217
   height_lock 1
 end item
 
-begin item 218
+begin item 201
   type_id 6191
   id 1643
   position -18691242 -18158237 2725162 
@@ -5553,7 +5164,7 @@ begin item 218
   height_lock 1
 end item
 
-begin item 219
+begin item 202
   type_id 6191
   id 1644
   position -16660552 -17744579 2789089 
@@ -5577,7 +5188,7 @@ begin item 219
   height_lock 1
 end item
 
-begin item 220
+begin item 203
   type_id 6191
   id 1645
   position -16152880 -18853937 2708331 
@@ -5601,7 +5212,7 @@ begin item 220
   height_lock 1
 end item
 
-begin item 221
+begin item 204
   type_id 6191
   id 1646
   position -14629862 -18534291 2328864 
@@ -5625,7 +5236,7 @@ begin item 221
   height_lock 1
 end item
 
-begin item 222
+begin item 205
   type_id 6191
   id 1647
   position -17318646 -15431848 2877239 
@@ -5649,7 +5260,7 @@ begin item 222
   height_lock 1
 end item
 
-begin item 223
+begin item 206
   type_id 6191
   id 1648
   position -18766454 -14585728 3048491 
@@ -5673,7 +5284,7 @@ begin item 223
   height_lock 1
 end item
 
-begin item 224
+begin item 207
   type_id 6191
   id 1649
   position -20195458 -15695086 3402709 
@@ -5697,7 +5308,7 @@ begin item 224
   height_lock 1
 end item
 
-begin item 225
+begin item 208
   type_id 6191
   id 1650
   position -19988628 -14172069 3308410 
@@ -5721,7 +5332,7 @@ begin item 225
   height_lock 1
 end item
 
-begin item 226
+begin item 209
   type_id 6191
   id 1651
   position -17149422 -14548122 2617169 
@@ -5745,7 +5356,7 @@ begin item 226
   height_lock 1
 end item
 
-begin item 227
+begin item 210
   type_id 6191
   id 1652
   position -17675898 -12329405 2697746 
@@ -5769,7 +5380,7 @@ begin item 227
   height_lock 1
 end item
 
-begin item 228
+begin item 211
   type_id 6191
   id 1653
   position -19800600 -12818275 3413689 
@@ -5793,7 +5404,7 @@ begin item 228
   height_lock 1
 end item
 
-begin item 229
+begin item 212
   type_id 6191
   id 1654
   position -20439892 -11746522 4173588 
@@ -5817,7 +5428,7 @@ begin item 229
   height_lock 1
 end item
 
-begin item 230
+begin item 213
   type_id 6191
   id 1655
   position -21436434 -10749979 4904718 
@@ -5841,7 +5452,7 @@ begin item 230
   height_lock 1
 end item
 
-begin item 231
+begin item 214
   type_id 6191
   id 1656
   position -22545792 -12084971 5399957 
@@ -5865,7 +5476,7 @@ begin item 231
   height_lock 1
 end item
 
-begin item 232
+begin item 215
   type_id 6191
   id 1657
   position -20345878 -9678227 3904292 
@@ -5889,7 +5500,7 @@ begin item 232
   height_lock 1
 end item
 
-begin item 233
+begin item 216
   type_id 6191
   id 1658
   position -18747650 -10938007 3940054 
@@ -5913,7 +5524,7 @@ begin item 233
   height_lock 1
 end item
 
-begin item 234
+begin item 217
   type_id 6191
   id 1659
   position -17431462 -9189357 3657235 
@@ -5937,7 +5548,7 @@ begin item 234
   height_lock 1
 end item
 
-begin item 235
+begin item 218
   type_id 6191
   id 1660
   position -18258780 -9640621 3768995 
@@ -5961,7 +5572,7 @@ begin item 235
   height_lock 1
 end item
 
-begin item 236
+begin item 219
   type_id 6191
   id 1661
   position -16716960 -11896943 2790033 
@@ -5985,7 +5596,7 @@ begin item 236
   height_lock 1
 end item
 
-begin item 237
+begin item 220
   type_id 6191
   id 1662
   position -17657094 -13683199 2514440 
@@ -6009,7 +5620,7 @@ begin item 237
   height_lock 1
 end item
 
-begin item 238
+begin item 221
   type_id 6191
   id 1663
   position -18559624 -12912289 2818264 
@@ -6033,7 +5644,7 @@ begin item 238
   height_lock 1
 end item
 
-begin item 239
+begin item 222
   type_id 6191
   id 1664
   position -16096472 -14322490 2356865 
@@ -6057,7 +5668,7 @@ begin item 239
   height_lock 1
 end item
 
-begin item 240
+begin item 223
   type_id 6191
   id 1665
   position -15494786 -11765325 2433073 
@@ -6081,7 +5692,7 @@ begin item 240
   height_lock 1
 end item
 
-begin item 241
+begin item 224
   type_id 6191
   id 1666
   position -14084584 -10900401 2655893 
@@ -6105,7 +5716,7 @@ begin item 241
   height_lock 1
 end item
 
-begin item 242
+begin item 225
   type_id 6191
   id 1667
   position -14159795 -9132949 3398023 
@@ -6129,7 +5740,7 @@ begin item 242
   height_lock 1
 end item
 
-begin item 243
+begin item 226
   type_id 6191
   id 1668
   position -14893100 -9828648 3643288 
@@ -6154,7 +5765,7 @@ begin item 243
 end item
 
 
-begin item 244
+begin item 227
   type_id 6191
   id 1670
   position -17657094 -8531263 3284039 
@@ -6178,7 +5789,7 @@ begin item 244
   height_lock 1
 end item
 
-begin item 245
+begin item 228
   type_id 6191
   id 1671
   position -18841664 -7929577 2959624 
@@ -6202,7 +5813,7 @@ begin item 245
   height_lock 1
 end item
 
-begin item 246
+begin item 229
   type_id 6191
   id 1672
   position -20176654 -8230420 3177363 
@@ -6226,7 +5837,7 @@ begin item 246
   height_lock 1
 end item
 
-begin item 247
+begin item 230
   type_id 6191
   id 1673
   position -24313246 -7929577 3564690 
@@ -6250,7 +5861,7 @@ begin item 247
   height_lock 1
 end item
 
-begin item 248
+begin item 231
   type_id 6191
   id 1674
   position -21812488 -8343236 4667061 
@@ -6274,7 +5885,7 @@ begin item 248
   height_lock 1
 end item
 
-begin item 249
+begin item 232
   type_id 6191
   id 1675
   position -24313246 -6199730 2673366 
@@ -6298,7 +5909,7 @@ begin item 249
   height_lock 1
 end item
 
-begin item 250
+begin item 233
   type_id 6191
   id 1676
   position -26061896 -7553523 3313229 
@@ -6322,7 +5933,7 @@ begin item 250
   height_lock 1
 end item
 
-begin item 251
+begin item 234
   type_id 6191
   id 1677
   position -25629432 -9151751 3399157 
@@ -6346,7 +5957,7 @@ begin item 251
   height_lock 1
 end item
 
-begin item 252
+begin item 235
   type_id 6191
   id 1678
   position -22451780 -6519376 3455503 
@@ -6370,7 +5981,7 @@ begin item 252
   height_lock 1
 end item
 
-begin item 253
+begin item 236
   type_id 6191
   id 1679
   position -19932220 -6594586 2555922 
@@ -6394,7 +6005,7 @@ begin item 253
   height_lock 1
 end item
 
-begin item 254
+begin item 237
   type_id 6191
   id 1680
   position -19217718 -7722747 2821277 
@@ -6418,7 +6029,7 @@ begin item 254
   height_lock 1
 end item
 
-begin item 255
+begin item 238
   type_id 6191
   id 1681
   position -19386942 -6876627 2505007 
@@ -6442,7 +6053,7 @@ begin item 255
   height_lock 1
 end item
 
-begin item 256
+begin item 239
   type_id 6191
   id 1682
   position -16942592 -6820218 2755472 
@@ -6466,7 +6077,7 @@ begin item 256
   height_lock 1
 end item
 
-begin item 257
+begin item 240
   type_id 6191
   id 1683
   position -17788714 -6745008 2516825 
@@ -6490,7 +6101,7 @@ begin item 257
   height_lock 1
 end item
 
-begin item 258
+begin item 241
   type_id 6191
   id 1684
   position -16604144 -7929577 3045231 
@@ -6514,7 +6125,7 @@ begin item 258
   height_lock 1
 end item
 
-begin item 259
+begin item 242
   type_id 6191
   id 1685
   position -15814432 -8963725 3781028 
@@ -6538,7 +6149,7 @@ begin item 259
   height_lock 1
 end item
 
-begin item 260
+begin item 243
   type_id 6191
   id 1686
   position -13971768 -7647536 3279791 
@@ -6562,7 +6173,7 @@ begin item 260
   height_lock 1
 end item
 
-begin item 261
+begin item 244
   type_id 6191
   id 1687
   position -13633320 -9584213 3060752 
@@ -6586,7 +6197,7 @@ begin item 261
   height_lock 1
 end item
 
-begin item 262
+begin item 245
   type_id 6191
   id 1688
   position -12730791 -9020133 2504961 
@@ -6610,7 +6221,7 @@ begin item 262
   height_lock 1
 end item
 
-begin item 263
+begin item 246
   type_id 6191
   id 1689
   position -13595714 -7102259 2912959 
@@ -6634,7 +6245,7 @@ begin item 263
   height_lock 1
 end item
 
-begin item 264
+begin item 247
   type_id 6191
   id 1690
   position -13182056 -7929577 2634582 
@@ -6658,7 +6269,7 @@ begin item 264
   height_lock 1
 end item
 
-begin item 265
+begin item 248
   type_id 6191
   id 1691
   position -17751108 -17819789 2815781 
@@ -6682,7 +6293,7 @@ begin item 265
   height_lock 1
 end item
 
-begin item 266
+begin item 249
   type_id 6191
   id 1692
   position -15419575 -17706973 2431703 
@@ -6706,7 +6317,7 @@ begin item 266
   height_lock 1
 end item
 
-begin item 267
+begin item 250
   type_id 6191
   id 1693
   position -15099929 -18647107 2453020 
@@ -6730,7 +6341,7 @@ begin item 267
   height_lock 1
 end item
 
-begin item 268
+begin item 251
   type_id 6191
   id 1694
   position -21962910 -16503601 3488105 
@@ -6754,7 +6365,7 @@ begin item 268
   height_lock 1
 end item
 
-begin item 269
+begin item 252
   type_id 6191
   id 1695
   position -23636348 -14867768 3890385 
@@ -6778,7 +6389,7 @@ begin item 269
   height_lock 1
 end item
 
-begin item 270
+begin item 253
   type_id 6191
   id 1696
   position -21342472 -6087005 3129488 
@@ -6802,7 +6413,7 @@ begin item 270
   height_lock 1
 end item
 
-begin item 271
+begin item 254
   type_id 6191
   id 1697
   position -20609168 -5598135 2352598 
@@ -6827,7 +6438,7 @@ begin item 271
 end item
 
 
-begin item 272
+begin item 255
   type_id 6191
   id 1699
   position -14159846 -5880175 3004333 
@@ -6851,7 +6462,7 @@ begin item 272
   height_lock 1
 end item
 
-begin item 273
+begin item 256
   type_id 6191
   id 1700
   position -14686322 -7798049 3656509 
@@ -6875,7 +6486,7 @@ begin item 273
   height_lock 1
 end item
 
-begin item 274
+begin item 257
   type_id 6191
   id 1701
   position -15193994 -7121153 3615187 
@@ -6899,7 +6510,7 @@ begin item 274
   height_lock 1
 end item
 
-begin item 275
+begin item 258
   type_id 6191
   id 1702
   position -15382021 -8869803 3804067 
@@ -6923,7 +6534,7 @@ begin item 275
   height_lock 1
 end item
 
-begin item 276
+begin item 259
   type_id 6191
   id 1703
   position -13445344 -9020224 2924592 
@@ -6947,7 +6558,7 @@ begin item 276
   height_lock 1
 end item
 
-begin item 277
+begin item 260
   type_id 6191
   id 1704
   position -16171734 -3323010 2873342 
@@ -6971,7 +6582,7 @@ begin item 277
   height_lock 1
 end item
 
-begin item 278
+begin item 261
   type_id 6191
   id 1705
   position -14949559 -1630768 2713227 
@@ -6995,7 +6606,7 @@ begin item 278
   height_lock 1
 end item
 
-begin item 279
+begin item 262
   type_id 6191
   id 1706
   position -16416168 -1894006 2878595 
@@ -7019,7 +6630,7 @@ begin item 279
   height_lock 1
 end item
 
-begin item 280
+begin item 263
   type_id 6191
   id 1707
   position -17469118 -1254715 2221712 
@@ -7043,7 +6654,7 @@ begin item 280
   height_lock 1
 end item
 
-begin item 281
+begin item 264
   type_id 6191
   id 1708
   position -16058918 -615424 2109320 
@@ -7067,7 +6678,7 @@ begin item 281
   height_lock 1
 end item
 
-begin item 282
+begin item 265
   type_id 6191
   id 1709
   position -15457350 -70206 1938857 
@@ -7091,7 +6702,7 @@ begin item 282
   height_lock 1
 end item
 
-begin item 283
+begin item 266
   type_id 6191
   id 1710
   position -15400942 -2439344 2769949 
@@ -7115,7 +6726,7 @@ begin item 283
   height_lock 1
 end item
 
-begin item 284
+begin item 267
   type_id 6191
   id 1711
   position -13505552 -12364918 2001724 
@@ -7139,7 +6750,7 @@ begin item 284
   height_lock 1
 end item
 
-begin item 285
+begin item 268
   type_id 6191
   id 1712
   position -14253186 -12120793 2071253 
@@ -7163,7 +6774,7 @@ begin item 285
   height_lock 1
 end item
 
-begin item 286
+begin item 269
   type_id 6191
   id 1713
   position -12437504 -12029246 2057067 
@@ -7187,7 +6798,7 @@ begin item 286
   height_lock 1
 end item
 
-begin item 287
+begin item 270
   type_id 6191
   id 1714
   position -10530276 -12075019 1961035 
@@ -7211,7 +6822,7 @@ begin item 287
   height_lock 1
 end item
 
-begin item 288
+begin item 271
   type_id 6191
   id 1715
   position -10499760 -12868426 1998848 
@@ -7235,7 +6846,7 @@ begin item 288
   height_lock 1
 end item
 
-begin item 289
+begin item 272
   type_id 6191
   id 1716
   position -10057283 -13036262 1998848 
@@ -7259,7 +6870,7 @@ begin item 289
   height_lock 1
 end item
 
-begin item 290
+begin item 273
   type_id 6191
   id 1717
   position -9858744 -13902710 1998848 
@@ -7283,7 +6894,7 @@ begin item 290
   height_lock 1
 end item
 
-begin item 291
+begin item 274
   type_id 6191
   id 1718
   position -10408213 -14378951 1998848 
@@ -7307,7 +6918,7 @@ begin item 291
   height_lock 1
 end item
 
-begin item 292
+begin item 275
   type_id 6191
   id 1719
   position -9935220 -14638335 2002129 
@@ -7331,7 +6942,7 @@ begin item 292
   height_lock 1
 end item
 
-begin item 293
+begin item 276
   type_id 6191
   id 1720
   position -10377697 -14928233 1998848 
@@ -7355,7 +6966,7 @@ begin item 293
   height_lock 1
 end item
 
-begin item 294
+begin item 277
   type_id 6191
   id 1721
   position -9874189 -15584320 2154063 
@@ -7379,7 +6990,7 @@ begin item 294
   height_lock 1
 end item
 
-begin item 295
+begin item 278
   type_id 6191
   id 1722
   position -10759143 -15981023 1998848 
@@ -7403,7 +7014,7 @@ begin item 295
   height_lock 1
 end item
 
-begin item 296
+begin item 279
   type_id 6191
   id 1723
   position -11033784 -16515047 1998848 
@@ -7427,7 +7038,7 @@ begin item 296
   height_lock 1
 end item
 
-begin item 297
+begin item 280
   type_id 6191
   id 1724
   position -16404540 -13188841 2191447 
@@ -7451,7 +7062,7 @@ begin item 297
   height_lock 1
 end item
 
-begin item 298
+begin item 281
   type_id 6191
   id 1725
   position -12574825 -11342643 2347997 
@@ -7475,7 +7086,7 @@ begin item 298
   height_lock 1
 end item
 
-begin item 299
+begin item 282
   type_id 6191
   id 1726
   position 8037620 -3653104 2229055 
@@ -7499,7 +7110,7 @@ begin item 299
   height_lock 1
 end item
 
-begin item 300
+begin item 283
   type_id 6191
   id 1727
   position 7045861 -3973519 2020989 
@@ -7523,7 +7134,7 @@ begin item 300
   height_lock 1
 end item
 
-begin item 301
+begin item 284
   type_id 6191
   id 1728
   position 8037620 -2951244 2129115 
@@ -7547,7 +7158,7 @@ begin item 301
   height_lock 1
 end item
 
-begin item 302
+begin item 285
   type_id 6191
   id 1729
   position 8541128 -3073307 2259734 
@@ -7571,7 +7182,7 @@ begin item 302
   height_lock 1
 end item
 
-begin item 303
+begin item 286
   type_id 6191
   id 1730
   position 7305244 -3302174 2028994 
@@ -7595,7 +7206,7 @@ begin item 303
   height_lock 1
 end item
 
-begin item 304
+begin item 287
   type_id 6191
   id 1731
   position 8129167 -1578040 1998848 
@@ -7619,7 +7230,7 @@ begin item 304
   height_lock 1
 end item
 
-begin item 305
+begin item 288
   type_id 6191
   id 1732
   position 8785254 -2249384 2151646 
@@ -7643,7 +7254,7 @@ begin item 305
   height_lock 1
 end item
 
-begin item 306
+begin item 289
   type_id 6191
   id 1733
   position -9696462 -7273220 1983535 
@@ -7667,7 +7278,7 @@ begin item 306
   height_lock 1
 end item
 
-begin item 307
+begin item 290
   type_id 6191
   id 1734
   position -9597763 -7772196 1979055 
@@ -7691,7 +7302,7 @@ begin item 307
   height_lock 1
 end item
 
-begin item 308
+begin item 291
   type_id 6191
   id 1735
   position -9976107 -8117640 1971937 
@@ -7715,7 +7326,7 @@ begin item 308
   height_lock 1
 end item
 
-begin item 309
+begin item 292
   type_id 6191
   id 1736
   position -7947306 -6549432 1980332 
@@ -7739,7 +7350,7 @@ begin item 309
   height_lock 1
 end item
 
-begin item 310
+begin item 293
   type_id 6191
   id 1737
   position -7464780 -7519966 2147091 
@@ -7763,7 +7374,7 @@ begin item 310
   height_lock 1
 end item
 
-begin item 311
+begin item 294
   type_id 6191
   id 1738
   position -7821191 -8452118 2268213 
@@ -7787,7 +7398,7 @@ begin item 311
   height_lock 1
 end item
 
-begin item 312
+begin item 295
   type_id 6191
   id 1739
   position -8873975 -8951094 2101185 
@@ -7811,7 +7422,7 @@ begin item 312
   height_lock 1
 end item
 
-begin item 313
+begin item 296
   type_id 6191
   id 1740
   position -9301668 -6434283 1998848 
@@ -7835,7 +7446,7 @@ begin item 313
   height_lock 1
 end item
 
-begin item 314
+begin item 297
   type_id 6191
   id 1741
   position -10427792 -9837249 1967499 
@@ -7859,7 +7470,7 @@ begin item 314
   height_lock 1
 end item
 
-begin item 315
+begin item 298
   type_id 6191
   id 1742
   position -10311180 -10543979 1967788 
@@ -7883,7 +7494,7 @@ begin item 315
   height_lock 1
 end item
 
-begin item 316
+begin item 299
   type_id 6191
   id 1743
   position -10030423 -12081215 1970297 
@@ -7907,7 +7518,7 @@ begin item 316
   height_lock 1
 end item
 
-begin item 317
+begin item 300
   type_id 6191
   id 1744
   position -10513085 -11782333 1913771 
@@ -7931,7 +7542,7 @@ begin item 317
   height_lock 1
 end item
 
-begin item 318
+begin item 301
   type_id 6191
   id 1745
   position -10809578 -13187615 1998848 
@@ -7955,7 +7566,7 @@ begin item 318
   height_lock 1
 end item
 
-begin item 319
+begin item 302
   type_id 6191
   id 1746
   position -10007048 -13226572 1998848 
@@ -7979,7 +7590,7 @@ begin item 319
   height_lock 1
 end item
 
-begin item 320
+begin item 303
   type_id 6191
   id 1747
   position -10825161 -14005727 1998848 
@@ -8003,7 +7614,7 @@ begin item 320
   height_lock 1
 end item
 
-begin item 321
+begin item 304
   type_id 6191
   id 1748
   position -11619899 -12642206 1998848 
@@ -8027,7 +7638,7 @@ begin item 321
   height_lock 1
 end item
 
-begin item 322
+begin item 305
   type_id 6191
   id 1749
   position -11456276 -11465682 2120477 
@@ -8051,7 +7662,7 @@ begin item 322
   height_lock 1
 end item
 
-begin item 323
+begin item 306
   type_id 6191
   id 1750
   position -8596778 -9361964 2295180 
@@ -8075,7 +7686,7 @@ begin item 323
   height_lock 1
 end item
 
-begin item 324
+begin item 307
   type_id 6191
   id 1751
   position -10864119 -8598393 1966080 
@@ -8099,7 +7710,7 @@ begin item 324
   height_lock 1
 end item
 
-begin item 325
+begin item 308
   type_id 6191
   id 1752
   position -9992618 -10499112 1968319 
@@ -8123,7 +7734,7 @@ begin item 325
   height_lock 1
 end item
 
-begin item 326
+begin item 309
   type_id 6191
   id 1753
   position -9229864 -13020686 2422748 
@@ -8147,7 +7758,7 @@ begin item 326
   height_lock 1
 end item
 
-begin item 327
+begin item 310
   type_id 6191
   id 1754
   position -11656368 426657 1897841 
@@ -8171,7 +7782,7 @@ begin item 327
   height_lock 1
 end item
 
-begin item 328
+begin item 311
   type_id 6191
   id 1755
   position -11307561 2432299 1841317 
@@ -8195,7 +7806,7 @@ begin item 328
   height_lock 1
 end item
 
-begin item 329
+begin item 312
   type_id 6191
   id 1756
   position -11656368 3446020 1841947 
@@ -8219,7 +7830,7 @@ begin item 329
   height_lock 1
 end item
 
-begin item 330
+begin item 313
   type_id 6191
   id 1757
   position -12484786 3565923 1768726 
@@ -8243,7 +7854,7 @@ begin item 330
   height_lock 1
 end item
 
-begin item 331
+begin item 314
   type_id 6191
   id 1758
   position -12986196 5157357 1800981 
@@ -8267,55 +7878,9 @@ begin item 331
   height_lock 1
 end item
 
-begin item 332
-  type_id 6191
-  id 1759
-  position -10555445 5091955 2098320 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 333
-  type_id 6191
-  id 1760
-  position -10359241 3337018 2025183 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 334
+begin item 315
   type_id 6191
   id 1761
   position -10926053 1135172 1899341 
@@ -8339,58 +7904,12 @@ begin item 334
   height_lock 1
 end item
 
-begin item 335
-  type_id 6191
-  id 1762
-  position -11514666 786364 1877818 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 336
-  type_id 6191
-  id 1763
-  position -11405663 5244558 1966080 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 337
+begin item 316
   type_id 6191
   id 1764
-  position -12059677 4492443 1881396 
+  position -12059677 4745367 1924477
   edistances 16 320 
   facing 0 0 
   shoottimer 5
@@ -8411,7 +7930,7 @@ begin item 337
   height_lock 1
 end item
 
-begin item 338
+begin item 317
   type_id 6191
   id 1765
   position -10097636 5190057 2244272 
@@ -8435,10 +7954,10 @@ begin item 338
   height_lock 1
 end item
 
-begin item 339
+begin item 318
   type_id 6191
   id 1766
-  position -11111357 6410883 1964781 
+  position -10939263 6787309 2010756
   edistances 16 320 
   facing 0 0 
   shoottimer 5
@@ -8459,7 +7978,7 @@ begin item 339
   height_lock 1
 end item
 
-begin item 340
+begin item 319
   type_id 6191
   id 1767
   position -12114178 6650688 1895340 
@@ -8483,7 +8002,7 @@ begin item 340
   height_lock 1
 end item
 
-begin item 341
+begin item 320
   type_id 6191
   id 1768
   position -9312819 4601445 2350137 
@@ -8507,7 +8026,7 @@ begin item 341
   height_lock 1
 end item
 
-begin item 342
+begin item 321
   type_id 6191
   id 1769
   position -10314500 6342141 2264702 
@@ -8531,7 +8050,7 @@ begin item 342
   height_lock 1
 end item
 
-begin item 343
+begin item 322
   type_id 6191
   id 1770
   position -10022983 4010003 2116982 
@@ -8555,7 +8074,7 @@ begin item 343
   height_lock 1
 end item
 
-begin item 344
+begin item 323
   type_id 6191
   id 1771
   position -9404613 2976442 2100480 
@@ -8579,7 +8098,7 @@ begin item 344
   height_lock 1
 end item
 
-begin item 345
+begin item 324
   type_id 6191
   id 1772
   position -9537121 4964060 2389268 
@@ -8603,7 +8122,7 @@ begin item 345
   height_lock 1
 end item
 
-begin item 346
+begin item 325
   type_id 6191
   id 1773
   position -11948763 2101890 1767700 
@@ -8627,7 +8146,7 @@ begin item 346
   height_lock 1
 end item
 
-begin item 347
+begin item 326
   type_id 6191
   id 1774
   position -8795148 2331419 2116093 
@@ -8651,31 +8170,8 @@ begin item 347
   height_lock 1
 end item
 
-begin item 348
-  type_id 6191
-  id 1775
-  position -10818101 1969231 1887890 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 349
+begin item 327
   type_id 6191
   id 1776
   position -9819875 2048735 1971400 
@@ -8699,7 +8195,7 @@ begin item 349
   height_lock 1
 end item
 
-begin item 350
+begin item 328
   type_id 6191
   id 1777
   position 1884630 -6723995 1998848 
@@ -8723,7 +8219,7 @@ begin item 350
   height_lock 1
 end item
 
-begin item 351
+begin item 329
   type_id 6191
   id 1778
   position 2547170 -5337079 1998848 
@@ -8747,55 +8243,9 @@ begin item 351
   height_lock 1
 end item
 
-begin item 352
-  type_id 6191
-  id 1779
-  position 162028 -5875944 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 353
-  type_id 6191
-  id 1780
-  position -1375062 -7033180 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 354
+begin item 330
   type_id 6191
   id 1781
   position -10279952 -2509024 1998848 
@@ -8819,7 +8269,7 @@ begin item 354
   height_lock 1
 end item
 
-begin item 355
+begin item 331
   type_id 6191
   id 1782
   position 7793495 -2203611 1998848 
@@ -8843,7 +8293,7 @@ begin item 355
   height_lock 1
 end item
 
-begin item 356
+begin item 332
   type_id 6191
   id 1783
   position 9242989 -891437 1998848 
@@ -8867,7 +8317,7 @@ begin item 356
   height_lock 1
 end item
 
-begin item 357
+begin item 333
   type_id 6191
   id 1784
   position 9563403 -1639071 2186218 
@@ -8891,7 +8341,7 @@ begin item 357
   height_lock 1
 end item
 
-begin item 358
+begin item 334
   type_id 6191
   id 1785
   position 8769996 -1318657 1998848 
@@ -8915,7 +8365,7 @@ begin item 358
   height_lock 1
 end item
 
-begin item 359
+begin item 335
   type_id 6191
   id 1786
   position 8586902 -448960 1998848 
@@ -8939,7 +8389,7 @@ begin item 359
   height_lock 1
 end item
 
-begin item 360
+begin item 336
   type_id 6191
   id 1787
   position 10234748 8774 2000053 
@@ -8963,7 +8413,7 @@ begin item 360
   height_lock 1
 end item
 
-begin item 361
+begin item 337
   type_id 6191
   id 1788
   position 10097427 -815148 2075174 
@@ -8987,7 +8437,7 @@ begin item 361
   height_lock 1
 end item
 
-begin item 362
+begin item 338
   type_id 6191
   id 1789
   position 11379085 664860 1959482 
@@ -9011,7 +8461,7 @@ begin item 362
   height_lock 1
 end item
 
-begin item 363
+begin item 339
   type_id 6191
   id 1790
   position 12019914 283415 1884059 
@@ -9035,7 +8485,7 @@ begin item 363
   height_lock 1
 end item
 
-begin item 364
+begin item 340
   type_id 6191
   id 1791
   position 10997639 146094 2031616 
@@ -9059,7 +8509,7 @@ begin item 364
   height_lock 1
 end item
 
-begin item 365
+begin item 341
   type_id 6191
   id 1792
   position 12065687 1168369 1736348 
@@ -9083,7 +8533,7 @@ begin item 365
   height_lock 1
 end item
 
-begin item 366
+begin item 342
   type_id 6191
   id 1793
   position 6282970 -3836198 1998848 
@@ -9107,7 +8557,7 @@ begin item 366
   height_lock 1
 end item
 
-begin item 367
+begin item 343
   type_id 6191
   id 1794
   position 6618642 -2966502 1998848 
@@ -9131,7 +8581,7 @@ begin item 367
   height_lock 1
 end item
 
-begin item 368
+begin item 344
   type_id 6191
   id 1795
   position 7457822 -2752893 1998857 
@@ -9155,7 +8605,7 @@ begin item 368
   height_lock 1
 end item
 
-begin item 369
+begin item 345
   type_id 6191
   id 1796
   position 5733688 -4385480 1998848 
@@ -9179,7 +8629,7 @@ begin item 369
   height_lock 1
 end item
 
-begin item 370
+begin item 346
   type_id 6191
   id 1797
   position -21990262 -5251221 2269365 
@@ -9203,7 +8653,7 @@ begin item 370
   height_lock 1
 end item
 
-begin item 371
+begin item 347
   type_id 6191
   id 1798
   position -23045508 -4824098 1949245 
@@ -9227,7 +8677,7 @@ begin item 371
   height_lock 1
 end item
 
-begin item 372
+begin item 348
   type_id 6191
   id 1799
   position -20746580 -5062784 2012681 
@@ -9251,7 +8701,7 @@ begin item 372
   height_lock 1
 end item
 
-begin item 373
+begin item 349
   type_id 6191
   id 1800
   position -22605822 -5917031 3035812 
@@ -9275,7 +8725,7 @@ begin item 373
   height_lock 1
 end item
 
-begin item 374
+begin item 350
   type_id 6191
   id 1801
   position 4774446 4794709 2111161 
@@ -9299,7 +8749,7 @@ begin item 374
   height_lock 1
 end item
 
-begin item 375
+begin item 351
   type_id 6191
   id 1802
   position 3034349 7418663 2256496 
@@ -9323,7 +8773,7 @@ begin item 375
   height_lock 1
 end item
 
-begin item 376
+begin item 352
   type_id 6191
   id 1803
   position 810893 5360930 2452888 
@@ -9347,7 +8797,7 @@ begin item 376
   height_lock 1
 end item
 
-begin item 377
+begin item 353
   type_id 6191
   id 1804
   position 9896 5070914 2363436 
@@ -9371,7 +8821,7 @@ begin item 377
   height_lock 1
 end item
 
-begin item 378
+begin item 354
   type_id 6191
   id 1805
   position 2053819 3165094 2069743 
@@ -9395,7 +8845,7 @@ begin item 378
   height_lock 1
 end item
 
-begin item 379
+begin item 355
   type_id 6191
   id 1806
   position 1611890 4325159 2370532 
@@ -9419,7 +8869,7 @@ begin item 379
   height_lock 1
 end item
 
-begin item 380
+begin item 356
   type_id 6191
   id 1807
   position 3545330 4200866 2142839 
@@ -9443,7 +8893,7 @@ begin item 380
   height_lock 1
 end item
 
-begin item 381
+begin item 357
   type_id 6191
   id 1808
   position 3531520 2667924 1998848 
@@ -9467,7 +8917,7 @@ begin item 381
   height_lock 1
 end item
 
-begin item 382
+begin item 358
   type_id 6191
   id 1809
   position 4539671 3510352 1998848 
@@ -9491,7 +8941,7 @@ begin item 382
   height_lock 1
 end item
 
-begin item 383
+begin item 359
   type_id 6191
   id 1810
   position 6031182 5830480 2161624 
@@ -9515,7 +8965,7 @@ begin item 383
   height_lock 1
 end item
 
-begin item 384
+begin item 360
   type_id 6191
   id 1811
   position 4484430 5609516 2345013 
@@ -9539,7 +8989,7 @@ begin item 384
   height_lock 1
 end item
 
-begin item 385
+begin item 361
   type_id 6191
   id 1812
   position 3614381 7101027 2435891 
@@ -9563,7 +9013,7 @@ begin item 385
   height_lock 1
 end item
 
-begin item 386
+begin item 362
   type_id 6191
   id 1813
   position 1957147 6438133 2359672 
@@ -9587,7 +9037,7 @@ begin item 386
   height_lock 1
 end item
 
-begin item 387
+begin item 363
   type_id 6191
   id 1814
   position 1722372 8026316 1831538 
@@ -9611,7 +9061,7 @@ begin item 387
   height_lock 1
 end item
 
-begin item 388
+begin item 364
   type_id 6191
   id 1815
   position 3365796 8233471 2003034 
@@ -9635,7 +9085,7 @@ begin item 388
   height_lock 1
 end item
 
-begin item 389
+begin item 365
   type_id 6191
   id 1816
   position 4539671 8053937 2271256 
@@ -9659,7 +9109,7 @@ begin item 389
   height_lock 1
 end item
 
-begin item 390
+begin item 366
   type_id 6191
   id 1817
   position 4940169 8716831 2064383 
@@ -9683,7 +9133,7 @@ begin item 390
   height_lock 1
 end item
 
-begin item 391
+begin item 367
   type_id 6191
   id 1818
   position -6994689 -4931243 2012602 
@@ -9707,7 +9157,7 @@ begin item 391
   height_lock 1
 end item
 
-begin item 392
+begin item 368
   type_id 6191
   id 1819
   position -7042417 -5005005 2010343 
@@ -9732,7 +9182,7 @@ begin item 392
 end item
 
 
-begin item 393
+begin item 369
   type_id 6191
   id 1821
   position -5839455 -5858010 2352874 
@@ -9756,7 +9206,7 @@ begin item 393
   height_lock 1
 end item
 
-begin item 394
+begin item 370
   type_id 6191
   id 1822
   position -3221540 -6045843 2136411 
@@ -9780,7 +9230,7 @@ begin item 394
   height_lock 1
 end item
 
-begin item 395
+begin item 371
   type_id 6191
   id 1823
   position -4888553 -6221936 2473193 
@@ -9804,32 +9254,9 @@ begin item 395
   height_lock 1
 end item
 
-begin item 396
-  type_id 6191
-  id 1824
-  position -3679382 -5212336 2140032 
-  edistances 16 320 
-  facing 61 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
 
-begin item 397
+begin item 372
   type_id 6191
   id 1826
   position -2552387 -6480205 2048730 
@@ -9855,7 +9282,7 @@ end item
 
 
 
-begin item 398
+begin item 373
   type_id 6191
   id 1829
   position -4665183 -4435458 2104707 
@@ -9880,7 +9307,7 @@ begin item 398
 end item
 
 
-begin item 399
+begin item 374
   type_id 6191
   id 1831
   position 6183095 9780223 1894699 
@@ -9904,7 +9331,7 @@ begin item 399
   height_lock 1
 end item
 
-begin item 400
+begin item 375
   type_id 6191
   id 1832
   position 7356970 9711171 2020021 
@@ -9928,7 +9355,7 @@ begin item 400
   height_lock 1
 end item
 
-begin item 401
+begin item 376
   type_id 6191
   id 1833
   position 7937002 10498358 1824940 
@@ -9952,7 +9379,7 @@ begin item 401
   height_lock 1
 end item
 
-begin item 402
+begin item 377
   type_id 6191
   id 1834
   position 7785089 11050769 1729864 
@@ -9976,7 +9403,7 @@ begin item 402
   height_lock 1
 end item
 
-begin item 403
+begin item 378
   type_id 6191
   id 1835
   position 1432356 6811011 2173172 
@@ -10000,7 +9427,7 @@ begin item 403
   height_lock 1
 end item
 
-begin item 404
+begin item 379
   type_id 6191
   id 1836
   position 3269124 4988053 2370276 
@@ -10024,7 +9451,7 @@ begin item 404
   height_lock 1
 end item
 
-begin item 405
+begin item 380
   type_id 6191
   id 1837
   position 2799574 3123664 2031616 
@@ -10048,7 +9475,7 @@ begin item 405
   height_lock 1
 end item
 
-begin item 406
+begin item 381
   type_id 6191
   id 1838
   position 5188754 4656606 2029962 
@@ -10072,7 +9499,7 @@ begin item 406
   height_lock 1
 end item
 
-begin item 407
+begin item 382
   type_id 6191
   id 1839
   position 2164301 5899532 2512560 
@@ -10096,7 +9523,7 @@ begin item 407
   height_lock 1
 end item
 
-begin item 408
+begin item 383
   type_id 6191
   id 1840
   position 1377115 5098535 2527264 
@@ -10120,7 +9547,7 @@ begin item 408
   height_lock 1
 end item
 
-begin item 409
+begin item 384
   type_id 6191
   id 1841
   position 5105893 7418663 2491673 
@@ -10144,7 +9571,7 @@ begin item 409
   height_lock 1
 end item
 
-begin item 410
+begin item 385
   type_id 6191
   id 1842
   position 6887420 8647779 2316823 
@@ -10168,7 +9595,7 @@ begin item 410
   height_lock 1
 end item
 
-begin item 411
+begin item 386
   type_id 6191
   id 1843
   position 8378931 8730641 2179403 
@@ -10192,7 +9619,7 @@ begin item 411
   height_lock 1
 end item
 
-begin item 412
+begin item 387
   type_id 6191
   id 1844
   position 6417870 5844291 2112500 
@@ -10216,7 +9643,7 @@ begin item 412
   height_lock 1
 end item
 
-begin item 413
+begin item 388
   type_id 6191
   id 1845
   position -8400823 5927002 3267909 
@@ -10240,7 +9667,7 @@ begin item 413
   height_lock 1
 end item
 
-begin item 414
+begin item 389
   type_id 6191
   id 1846
   position -8373202 7819011 3048751 
@@ -10264,7 +9691,7 @@ begin item 414
   height_lock 1
 end item
 
-begin item 415
+begin item 390
   type_id 6191
   id 1847
   position -9657559 6617516 2623730 
@@ -10288,7 +9715,7 @@ begin item 415
   height_lock 1
 end item
 
-begin item 416
+begin item 391
   type_id 6191
   id 1848
   position -6826450 6161777 3537678 
@@ -10312,7 +9739,7 @@ begin item 416
   height_lock 1
 end item
 
-begin item 417
+begin item 392
   type_id 6191
   id 1849
   position -7171707 5153626 3554652 
@@ -10336,7 +9763,7 @@ begin item 417
   height_lock 1
 end item
 
-begin item 418
+begin item 393
   type_id 6191
   id 1850
   position -8290341 3689735 2464047 
@@ -10360,7 +9787,7 @@ begin item 418
   height_lock 1
 end item
 
-begin item 419
+begin item 394
   type_id 6191
   id 1851
   position -8387013 2667774 2229149 
@@ -10384,7 +9811,7 @@ begin item 419
   height_lock 1
 end item
 
-begin item 420
+begin item 395
   type_id 6191
   id 1852
   position -7461723 2419188 2527317 
@@ -10408,7 +9835,7 @@ begin item 420
   height_lock 1
 end item
 
-begin item 421
+begin item 396
   type_id 6191
   id 1853
   position -8207479 4463111 2739870 
@@ -10432,7 +9859,7 @@ begin item 421
   height_lock 1
 end item
 
-begin item 422
+begin item 397
   type_id 6191
   id 1854
   position -6191177 3965941 3956856 
@@ -10456,7 +9883,7 @@ begin item 422
   height_lock 1
 end item
 
-begin item 423
+begin item 398
   type_id 6191
   id 1855
   position 5261207 3168585 1998848 
@@ -10480,7 +9907,7 @@ begin item 423
   height_lock 1
 end item
 
-begin item 424
+begin item 399
   type_id 6191
   id 1856
   position 6006660 3346843 1998848 
@@ -10504,7 +9931,7 @@ begin item 424
   height_lock 1
 end item
 
-begin item 425
+begin item 400
   type_id 6191
   id 1857
   position -6398331 3082082 3658660 
@@ -10528,7 +9955,7 @@ begin item 425
   height_lock 1
 end item
 
-begin item 426
+begin item 401
   type_id 6191
   id 1858
   position -6646916 2267275 3108424 
@@ -10552,7 +9979,7 @@ begin item 426
   height_lock 1
 end item
 
-begin item 427
+begin item 402
   type_id 6191
   id 1859
   position -6950743 969108 2477980 
@@ -10577,7 +10004,7 @@ begin item 427
 end item
 
 
-begin item 428
+begin item 403
   type_id 6191
   id 1861
   position -6564054 -66663 2462878 
@@ -10601,7 +10028,7 @@ begin item 428
   height_lock 1
 end item
 
-begin item 429
+begin item 404
   type_id 6191
   id 1862
   position -5293508 -411920 2606765 
@@ -10625,7 +10052,7 @@ begin item 429
   height_lock 1
 end item
 
-begin item 430
+begin item 405
   type_id 6191
   id 1863
   position -5307318 1065780 3332473 
@@ -10649,7 +10076,7 @@ begin item 430
   height_lock 1
 end item
 
-begin item 431
+begin item 406
   type_id 6191
   id 1864
   position -4492511 1880587 3470824 
@@ -10673,7 +10100,7 @@ begin item 431
   height_lock 1
 end item
 
-begin item 432
+begin item 407
   type_id 6191
   id 1865
   position -3111482 1079590 2420264 
@@ -10697,7 +10124,7 @@ begin item 432
   height_lock 1
 end item
 
-begin item 433
+begin item 408
   type_id 6191
   id 1866
   position -4064392 471938 2716143 
@@ -10721,7 +10148,7 @@ begin item 433
   height_lock 1
 end item
 
-begin item 434
+begin item 409
   type_id 6191
   id 1867
   position -19207438 -3448121 1919763 
@@ -10745,7 +10172,7 @@ begin item 434
   height_lock 1
 end item
 
-begin item 435
+begin item 410
   type_id 6191
   id 1868
   position -17776660 -286400 1966333 
@@ -10769,7 +10196,7 @@ begin item 435
   height_lock 1
 end item
 
-begin item 436
+begin item 411
   type_id 6191
   id 1869
   position -4105823 2557291 3376725 
@@ -10794,7 +10221,7 @@ begin item 436
 end item
 
 
-begin item 437
+begin item 412
   type_id 6191
   id 1871
   position -4589183 4628835 2888691 
@@ -10818,7 +10245,7 @@ begin item 437
   height_lock 1
 end item
 
-begin item 438
+begin item 413
   type_id 6191
   id 1872
   position -18021618 23655 1922017 
@@ -10842,7 +10269,7 @@ begin item 438
   height_lock 1
 end item
 
-begin item 439
+begin item 414
   type_id 6191
   id 1873
   position -2973379 4615024 2010275 
@@ -10866,7 +10293,7 @@ begin item 439
   height_lock 1
 end item
 
-begin item 440
+begin item 415
   type_id 6191
   id 1874
   position -3567222 3454960 2766291 
@@ -10890,7 +10317,7 @@ begin item 440
   height_lock 1
 end item
 
-begin item 441
+begin item 416
   type_id 6191
   id 1875
   position -3732945 2626343 3117995 
@@ -10914,7 +10341,7 @@ begin item 441
   height_lock 1
 end item
 
-begin item 442
+begin item 417
   type_id 6191
   id 1876
   position -4312978 5126005 2391916 
@@ -10938,7 +10365,7 @@ begin item 442
   height_lock 1
 end item
 
-begin item 443
+begin item 418
   type_id 6191
   id 1877
   position -6260228 5029333 3651665 
@@ -10962,7 +10389,7 @@ begin item 443
   height_lock 1
 end item
 
-begin item 444
+begin item 419
   type_id 6191
   id 1878
   position -6246418 6065105 3232367 
@@ -10986,7 +10413,7 @@ begin item 444
   height_lock 1
 end item
 
-begin item 445
+begin item 420
   type_id 6191
   id 1879
   position -7572206 6617516 3685995 
@@ -11010,7 +10437,7 @@ begin item 445
   height_lock 1
 end item
 
-begin item 446
+begin item 421
   type_id 6191
   id 1880
   position -7668878 7225169 3577400 
@@ -11034,7 +10461,7 @@ begin item 446
   height_lock 1
 end item
 
-begin item 447
+begin item 422
   type_id 6191
   id 1881
   position -6964553 6727998 3523304 
@@ -11058,7 +10485,7 @@ begin item 447
   height_lock 1
 end item
 
-begin item 448
+begin item 423
   type_id 6191
   id 1882
   position -5997833 7432323 2612301 
@@ -11082,7 +10509,7 @@ begin item 448
   height_lock 1
 end item
 
-begin item 449
+begin item 424
   type_id 6191
   id 1883
   position -8387013 6341310 3399975 
@@ -11106,7 +10533,7 @@ begin item 449
   height_lock 1
 end item
 
-begin item 450
+begin item 425
   type_id 6191
   id 1884
   position -4479286 -5812330 2333526 
@@ -11130,31 +10557,8 @@ begin item 450
   height_lock 1
 end item
 
-begin item 451
-  type_id 6191
-  id 1885
-  position -3844013 -6875722 2290296 
-  edistances 16 320 
-  facing 61 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 452
+begin item 426
   type_id 6191
   id 1886
   position -5694592 -6392362 2490482 
@@ -11178,7 +10582,7 @@ begin item 452
   height_lock 1
 end item
 
-begin item 453
+begin item 427
   type_id 6191
   id 1887
   position -5225042 -7497185 2823049 
@@ -11202,7 +10606,7 @@ begin item 453
   height_lock 1
 end item
 
-begin item 454
+begin item 428
   type_id 6191
   id 1888
   position -3360653 -7759581 2171285 
@@ -11226,31 +10630,8 @@ begin item 454
   height_lock 1
 end item
 
-begin item 455
-  type_id 6191
-  id 1889
-  position -4548338 -8864404 2795233 
-  edistances 16 320 
-  facing 341 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 456
+begin item 429
   type_id 6191
   id 1890
   position -4382614 -9623970 2699211 
@@ -11274,7 +10655,7 @@ begin item 456
   height_lock 1
 end item
 
-begin item 457
+begin item 430
   type_id 6191
   id 1891
   position -5846505 -9693021 3215745 
@@ -11298,7 +10679,7 @@ begin item 457
   height_lock 1
 end item
 
-begin item 458
+begin item 431
   type_id 6191
   id 1892
   position -6675122 -9223472 2994696 
@@ -11322,7 +10703,7 @@ begin item 458
   height_lock 1
 end item
 
-begin item 459
+begin item 432
   type_id 6191
   id 1893
   position -6454158 -7676719 2640758 
@@ -11346,7 +10727,7 @@ begin item 459
   height_lock 1
 end item
 
-begin item 460
+begin item 433
   type_id 6191
   id 1894
   position -7683273 -9596349 2729039 
@@ -11370,7 +10751,7 @@ begin item 460
   height_lock 1
 end item
 
-begin item 461
+begin item 434
   type_id 6191
   id 1895
   position -7476119 -10687362 3018121 
@@ -11394,7 +10775,7 @@ begin item 461
   height_lock 1
 end item
 
-begin item 462
+begin item 435
   type_id 6191
   id 1896
   position -7048000 -12427459 3725605 
@@ -11418,7 +10799,7 @@ begin item 462
   height_lock 1
 end item
 
-begin item 463
+begin item 436
   type_id 6191
   id 1897
   position -8166634 -12551751 3450014 
@@ -11442,7 +10823,7 @@ begin item 463
   height_lock 1
 end item
 
-begin item 464
+begin item 437
   type_id 6191
   id 1898
   position -8870958 -12869388 2830351 
@@ -11468,7 +10849,7 @@ end item
 
 
 
-begin item 465
+begin item 438
   type_id 6191
   id 1901
   position -9326698 -15424291 2880975 
@@ -11492,7 +10873,7 @@ begin item 465
   height_lock 1
 end item
 
-begin item 466
+begin item 439
   type_id 6191
   id 1902
   position -9147164 -14347089 2760234 
@@ -11518,7 +10899,7 @@ end item
 
 
 
-begin item 467
+begin item 440
   type_id 6191
   id 1905
   position -7710894 -17205819 3930504 
@@ -11542,7 +10923,7 @@ begin item 467
   height_lock 1
 end item
 
-begin item 468
+begin item 441
   type_id 6191
   id 1906
   position -9202405 -17040095 2914105 
@@ -11568,7 +10949,7 @@ end item
 
 
 
-begin item 469
+begin item 442
   type_id 6191
   id 1909
   position -5100749 -17219629 3675382 
@@ -11592,7 +10973,7 @@ begin item 469
   height_lock 1
 end item
 
-begin item 470
+begin item 443
   type_id 6191
   id 1910
   position -5114560 -14927121 3464114 
@@ -11616,7 +10997,7 @@ begin item 470
   height_lock 1
 end item
 
-begin item 471
+begin item 444
   type_id 6191
   id 1911
   position -3940685 -14982362 2800321 
@@ -11640,31 +11021,8 @@ begin item 471
   height_lock 1
 end item
 
-begin item 472
-  type_id 6191
-  id 1912
-  position -4203081 -12717475 2872685 
-  edistances 16 320 
-  facing 81 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 473
+begin item 445
   type_id 6191
   id 1913
   position -3733531 -11847426 2499442 
@@ -11688,7 +11046,7 @@ begin item 473
   height_lock 1
 end item
 
-begin item 474
+begin item 446
   type_id 6191
   id 1914
   position -2407743 -12040770 1966906 
@@ -11712,7 +11070,7 @@ begin item 474
   height_lock 1
 end item
 
-begin item 475
+begin item 447
   type_id 6191
   id 1915
   position -4493097 -11004999 2916410 
@@ -11736,127 +11094,12 @@ begin item 475
   height_lock 1
 end item
 
-begin item 476
-  type_id 6191
-  id 1916
-  position -5142180 -13200835 3315256 
-  edistances 16 320 
-  facing 302 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 477
-  type_id 6191
-  id 1917
-  position -8418954 -806258 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 478
-  type_id 6191
-  id 1918
-  position -1028572 -12250318 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 479
-  type_id 6191
-  id 1919
-  position -1757336 -12695148 1970836 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 480
-  type_id 6191
-  id 1920
-  position -1189468 -12751935 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 481
+begin item 448
   type_id 6191
   id 1921
   position -2098057 -13092656 2046295 
@@ -11880,7 +11123,7 @@ begin item 481
   height_lock 1
 end item
 
-begin item 482
+begin item 449
   type_id 6191
   id 1922
   position -7300021 -312913 2135747 
@@ -11904,7 +11147,7 @@ begin item 482
   height_lock 1
 end item
 
-begin item 483
+begin item 450
   type_id 6191
   id 1923
   position -7164582 -1165204 2028172 
@@ -11928,7 +11171,7 @@ begin item 483
   height_lock 1
 end item
 
-begin item 484
+begin item 451
   type_id 6191
   id 1924
   position -5374401 -1816511 2011714 
@@ -11953,31 +11196,8 @@ begin item 484
 end item
 
 
-begin item 485
-  type_id 6191
-  id 1926
-  position -8487622 -3695709 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 486
+begin item 452
   type_id 6191
   id 1927
   position -18052479 -3000935 2050141 
@@ -12001,7 +11221,7 @@ begin item 486
   height_lock 1
 end item
 
-begin item 487
+begin item 453
   type_id 6191
   id 1928
   position -18942333 -2316140 1950454 
@@ -12025,7 +11245,7 @@ begin item 487
   height_lock 1
 end item
 
-begin item 488
+begin item 454
   type_id 6191
   id 1929
   position -19469291 -2843630 1900544 
@@ -12049,7 +11269,7 @@ begin item 488
   height_lock 1
 end item
 
-begin item 489
+begin item 455
   type_id 6191
   id 1930
   position -20289737 -3393929 1902264 
@@ -12073,7 +11293,7 @@ begin item 489
   height_lock 1
 end item
 
-begin item 490
+begin item 456
   type_id 6191
   id 1931
   position -20276033 -3804932 1911026 
@@ -12097,7 +11317,7 @@ begin item 490
   height_lock 1
 end item
 
-begin item 491
+begin item 457
   type_id 6191
   id 1932
   position -21400343 -3003717 1900544 
@@ -12121,7 +11341,7 @@ begin item 491
   height_lock 1
 end item
 
-begin item 492
+begin item 458
   type_id 6191
   id 1933
   position -21604979 -4144839 1908619 
@@ -12145,7 +11365,7 @@ begin item 492
   height_lock 1
 end item
 
-begin item 493
+begin item 459
   type_id 6191
   id 1934
   position -22160401 -4219493 1902118 
@@ -12169,7 +11389,7 @@ begin item 493
   height_lock 1
 end item
 
-begin item 494
+begin item 460
   type_id 6191
   id 1935
   position -22750835 -2963248 1900544 
@@ -12193,7 +11413,7 @@ begin item 494
   height_lock 1
 end item
 
-begin item 495
+begin item 461
   type_id 6191
   id 1936
   position -24346265 -4458179 1900544 
@@ -12217,7 +11437,7 @@ begin item 495
   height_lock 1
 end item
 
-begin item 496
+begin item 462
   type_id 6191
   id 1937
   position -23461465 -2253308 1899916 
@@ -12241,7 +11461,7 @@ begin item 496
   height_lock 1
 end item
 
-begin item 497
+begin item 463
   type_id 6191
   id 1938
   position -22607347 -2468284 1900544 
@@ -12265,7 +11485,7 @@ begin item 497
   height_lock 1
 end item
 
-begin item 498
+begin item 464
   type_id 6191
   id 1939
   position -22739245 -1373527 1877168 
@@ -12289,7 +11509,7 @@ begin item 498
   height_lock 1
 end item
 
-begin item 499
+begin item 465
   type_id 6191
   id 1940
   position -22178677 -1188869 1883373 
@@ -12313,7 +11533,7 @@ begin item 499
   height_lock 1
 end item
 
-begin item 500
+begin item 466
   type_id 6191
   id 1941
   position -18778915 -1112688 1968328 
@@ -12337,7 +11557,7 @@ begin item 500
   height_lock 1
 end item
 
-begin item 501
+begin item 467
   type_id 6191
   id 1942
   position -18778915 -242214 1900544 
@@ -12361,7 +11581,7 @@ begin item 501
   height_lock 1
 end item
 
-begin item 502
+begin item 468
   type_id 6191
   id 1943
   position -18852291 552353 1804187 
@@ -12385,7 +11605,7 @@ begin item 502
   height_lock 1
 end item
 
-begin item 503
+begin item 469
   type_id 6191
   id 1944
   position -18704363 -676081 1943416 
@@ -12409,7 +11629,7 @@ begin item 503
   height_lock 1
 end item
 
-begin item 504
+begin item 470
   type_id 6191
   id 1945
   position 2051007 -11415464 1998848 
@@ -12433,7 +11653,7 @@ begin item 504
   height_lock 1
 end item
 
-begin item 505
+begin item 471
   type_id 6191
   id 1946
   position 2426 -11668279 1998848 
@@ -12457,79 +11677,10 @@ begin item 505
   height_lock 1
 end item
 
-begin item 506
-  type_id 6191
-  id 1947
-  position 636484 -11268500 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 507
-  type_id 6191
-  id 1948
-  position -530037 -13316803 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 508
-  type_id 6191
-  id 1949
-  position 721725 -12605262 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 509
+begin item 472
   type_id 6191
   id 1950
   position 938781 -14357905 1997405 
@@ -12553,79 +11704,10 @@ begin item 509
   height_lock 1
 end item
 
-begin item 510
-  type_id 6191
-  id 1951
-  position 1627320 -12649077 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 511
-  type_id 6191
-  id 1952
-  position 1602282 -13418989 1997744 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 512
-  type_id 6191
-  id 1953
-  position 2021665 -14370424 1929539 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 513
+begin item 473
   type_id 6191
   id 1954
   position 2810355 -13375173 1978283 
@@ -12649,31 +11731,8 @@ begin item 513
   height_lock 1
 end item
 
-begin item 514
-  type_id 6191
-  id 1955
-  position 2578756 -12599001 1998848 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 515
+begin item 474
   type_id 6191
   id 1956
   position 2543699 1469347 1998848 
@@ -12697,7 +11756,7 @@ begin item 515
   height_lock 1
 end item
 
-begin item 516
+begin item 475
   type_id 6191
   id 1957
   position 3476521 210362 1998848 
@@ -12721,7 +11780,7 @@ begin item 516
   height_lock 1
 end item
 
-begin item 517
+begin item 476
   type_id 6191
   id 1958
   position 2341398 -182774 1998848 
@@ -12745,7 +11804,7 @@ begin item 517
   height_lock 1
 end item
 
-begin item 518
+begin item 477
   type_id 6191
   id 1959
   position 2172814 -1711268 1998848 
@@ -12769,7 +11828,7 @@ begin item 518
   height_lock 1
 end item
 
-begin item 519
+begin item 478
   type_id 6191
   id 1960
   position 6027757 -2498219 1998848 
@@ -12793,7 +11852,7 @@ begin item 519
   height_lock 1
 end item
 
-begin item 520
+begin item 479
   type_id 6191
   id 1961
   position 5133893 3564871 1998848 
@@ -12817,7 +11876,7 @@ begin item 520
   height_lock 1
 end item
 
-begin item 521
+begin item 480
   type_id 6194
   id 141
   position -5949511 -19308157 4113493 
@@ -12843,7 +11902,7 @@ begin item 521
 end item
 
 
-begin item 522
+begin item 481
   type_id 6194
   id 143
   position -7542138 -18853119 4187988 
@@ -12868,7 +11927,7 @@ begin item 522
   height_lock 1
 end item
 
-begin item 523
+begin item 482
   type_id 6194
   id 144
   position -6313540 -20081717 3988900 
@@ -12893,7 +11952,7 @@ begin item 523
   height_lock 1
 end item
 
-begin item 524
+begin item 483
   type_id 6194
   id 145
   position -5251789 -20991789 3088322 
@@ -12918,7 +11977,7 @@ begin item 524
   height_lock 1
 end item
 
-begin item 525
+begin item 484
   type_id 6194
   id 146
   position -6829248 -20339571 3883604 
@@ -12943,7 +12002,7 @@ begin item 525
   height_lock 1
 end item
 
-begin item 526
+begin item 485
   type_id 6194
   id 147
   position -8194357 -19793529 3229195 
@@ -12968,7 +12027,7 @@ begin item 526
   height_lock 1
 end item
 
-begin item 527
+begin item 486
   type_id 6194
   id 148
   position -8452211 -18352581 3885240 
@@ -12993,7 +12052,7 @@ begin item 527
   height_lock 1
 end item
 
-begin item 528
+begin item 487
   type_id 6194
   id 149
   position -9134765 -19399163 3187075 
@@ -13017,7 +12076,7 @@ begin item 528
   height_lock 1
 end item
 
-begin item 529
+begin item 488
   type_id 6194
   id 150
   position -9271276 -20142389 2781396 
@@ -13041,7 +12100,7 @@ begin item 529
   height_lock 1
 end item
 
-begin item 530
+begin item 489
   type_id 6194
   id 151
   position -9650473 -16335253 3644057 
@@ -13065,7 +12124,7 @@ begin item 530
   height_lock 1
 end item
 
-begin item 531
+begin item 490
   type_id 6194
   id 152
   position -8164021 -16486932 4649918 
@@ -13090,7 +12149,7 @@ begin item 531
   height_lock 1
 end item
 
-begin item 532
+begin item 491
   type_id 6194
   id 153
   position -8543218 -11178176 3362713 
@@ -13115,7 +12174,7 @@ begin item 532
   height_lock 1
 end item
 
-begin item 533
+begin item 492
   type_id 6194
   id 154
   position -11895711 -24162225 2726277 
@@ -13139,7 +12198,7 @@ begin item 533
   height_lock 1
 end item
 
-begin item 534
+begin item 493
   type_id 6194
   id 155
   position -6183816 -589959 3315291 
@@ -13163,7 +12222,7 @@ begin item 534
   height_lock 1
 end item
 
-begin item 535
+begin item 494
   type_id 6194
   id 156
   position -5090618 130684 3841062 
@@ -13187,7 +12246,7 @@ begin item 535
   height_lock 1
 end item
 
-begin item 536
+begin item 495
   type_id 6194
   id 157
   position -6927387 351648 3335783 
@@ -13211,7 +12270,7 @@ begin item 536
   height_lock 1
 end item
 
-begin item 537
+begin item 496
   type_id 6194
   id 158
   position -6015908 544993 3702676 
@@ -13237,7 +12296,7 @@ begin item 537
 end item
 
 
-begin item 538
+begin item 497
   type_id 6194
   id 160
   position -3723400 1691246 3751463 
@@ -13262,7 +12321,7 @@ begin item 538
   height_lock 1
 end item
 
-begin item 539
+begin item 498
   type_id 6194
   id 161
   position -3778641 1111214 3726120 
@@ -13286,7 +12345,7 @@ begin item 539
   height_lock 1
 end item
 
-begin item 540
+begin item 499
   type_id 6194
   id 779
   position 6383722 -4367975 2936337 
@@ -13310,7 +12369,7 @@ begin item 540
   height_lock 1
 end item
 
-begin item 541
+begin item 500
   type_id 6194
   id 780
   position 6261660 -3376216 2941017 
@@ -13334,7 +12393,7 @@ begin item 541
   height_lock 1
 end item
 
-begin item 542
+begin item 501
   type_id 6194
   id 781
   position 6856715 -3574567 2942304 
@@ -13358,7 +12417,7 @@ begin item 542
   height_lock 1
 end item
 
-begin item 543
+begin item 502
   type_id 6194
   id 782
   position 6490527 -5710664 2968020 
@@ -13382,7 +12441,7 @@ begin item 543
   height_lock 1
 end item
 
-begin item 544
+begin item 503
   type_id 6194
   id 783
   position 6994036 -2445488 2935252 
@@ -13406,7 +12465,7 @@ begin item 544
   height_lock 1
 end item
 
-begin item 545
+begin item 504
   type_id 6194
   id 784
   position 8229920 -2369199 3010006 
@@ -13430,7 +12489,7 @@ begin item 545
   height_lock 1
 end item
 
-begin item 546
+begin item 505
   type_id 6194
   id 785
   position 7604349 -1850433 2935252 
@@ -13454,7 +12513,7 @@ begin item 546
   height_lock 1
 end item
 
-begin item 547
+begin item 506
   type_id 6194
   id 786
   position 8718170 -1682596 2962931 
@@ -13478,7 +12537,7 @@ begin item 547
   height_lock 1
 end item
 
-begin item 548
+begin item 507
   type_id 6194
   id 787
   position 8077341 -980736 2935252 
@@ -13502,7 +12561,7 @@ begin item 548
   height_lock 1
 end item
 
-begin item 549
+begin item 508
   type_id 6194
   id 788
   position 9221679 -2003011 3130892 
@@ -13526,7 +12585,7 @@ begin item 549
   height_lock 1
 end item
 
-begin item 550
+begin item 509
   type_id 6194
   id 789
   position 9770961 -1163830 3047403 
@@ -13550,7 +12609,7 @@ begin item 550
   height_lock 1
 end item
 
-begin item 551
+begin item 510
   type_id 6194
   id 790
   position 9297968 -202587 2935252 
@@ -13574,7 +12633,7 @@ begin item 551
   height_lock 1
 end item
 
-begin item 552
+begin item 511
   type_id 6194
   id 1426
   position 1527856 -13956704 2931403 
@@ -13598,7 +12657,7 @@ begin item 552
   height_lock 1
 end item
 
-begin item 553
+begin item 512
   type_id 6194
   id 1427
   position 939468 -13662510 2935252 
@@ -13622,31 +12681,8 @@ begin item 553
   height_lock 1
 end item
 
-begin item 554
-  type_id 6194
-  id 1428
-  position 1915942 -13036566 2935252 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 555
+begin item 513
   type_id 6194
   id 1429
   position 2379141 -12128946 2935252 
@@ -13670,7 +12706,7 @@ begin item 555
   height_lock 1
 end item
 
-begin item 556
+begin item 514
   type_id 6194
   id 1430
   position 2817302 -12930155 2935252 
@@ -13694,55 +12730,9 @@ begin item 556
   height_lock 1
 end item
 
-begin item 557
-  type_id 6194
-  id 1431
-  position 2335324 -13587397 2924671 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 558
-  type_id 6194
-  id 1432
-  position 2109984 -14670281 2808714 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 559
+begin item 515
   type_id 6194
   id 1434
   position 3017604 -13837775 2827655 
@@ -13766,7 +12756,7 @@ begin item 559
   height_lock 1
 end item
 
-begin item 560
+begin item 516
   type_id 6194
   id 1435
   position 3969040 -13067863 2850810 
@@ -13790,7 +12780,7 @@ begin item 560
   height_lock 1
 end item
 
-begin item 561
+begin item 517
   type_id 6194
   id 791
   position 9831992 -339908 2938539 
@@ -13814,7 +12804,7 @@ begin item 561
   height_lock 1
 end item
 
-begin item 562
+begin item 518
   type_id 6194
   id 792
   position 10503336 -355165 2988481 
@@ -13838,7 +12828,7 @@ begin item 562
   height_lock 1
 end item
 
-begin item 563
+begin item 519
   type_id 6194
   id 793
   position 10503336 453499 2968020 
@@ -13862,7 +12852,7 @@ begin item 563
   height_lock 1
 end item
 
-begin item 564
+begin item 520
   type_id 6194
   id 794
   position 11373033 -50009 2968020 
@@ -13886,7 +12876,7 @@ begin item 564
   height_lock 1
 end item
 
-begin item 565
+begin item 521
   type_id 6194
   id 795
   position 12380049 514530 2684693 
@@ -13910,7 +12900,7 @@ begin item 565
   height_lock 1
 end item
 
-begin item 566
+begin item 522
   type_id 6194
   id 796
   position 11556126 1124843 2805834 
@@ -13934,7 +12924,7 @@ begin item 566
   height_lock 1
 end item
 
-begin item 567
+begin item 523
   type_id 6194
   id 797
   position 4903713 -4657873 2935252 
@@ -13958,7 +12948,7 @@ begin item 567
   height_lock 1
 end item
 
-begin item 568
+begin item 524
   type_id 6194
   id 798
   position 5880214 -3772919 2935252 
@@ -13982,7 +12972,7 @@ begin item 568
   height_lock 1
 end item
 
-begin item 569
+begin item 525
   type_id 6194
   id 799
   position 7665380 -3727146 3074975 
@@ -14007,7 +12997,7 @@ begin item 569
 end item
 
 
-begin item 570
+begin item 526
   type_id 6194
   id 801
   position 10671172 -1896206 3402131 
@@ -14033,7 +13023,7 @@ begin item 570
 end item
 
 
-begin item 571
+begin item 527
   type_id 6194
   id 803
   position -21481254 -4507789 2869716 
@@ -14057,7 +13047,7 @@ begin item 571
   height_lock 1
 end item
 
-begin item 572
+begin item 528
   type_id 6194
   id 804
   position -22385750 -4759038 2916944 
@@ -14081,7 +13071,7 @@ begin item 572
   height_lock 1
 end item
 
-begin item 573
+begin item 529
   type_id 6194
   id 805
   position -21481254 -5437410 3394756 
@@ -14106,7 +13096,7 @@ begin item 573
   height_lock 1
 end item
 
-begin item 574
+begin item 530
   type_id 6194
   id 806
   position -20262696 -4482664 2869716 
@@ -14130,7 +13120,7 @@ begin item 574
   height_lock 1
 end item
 
-begin item 575
+begin item 531
   type_id 6194
   id 807
   position -21915978 -3685878 2841367 
@@ -14154,7 +13144,7 @@ begin item 575
   height_lock 1
 end item
 
-begin item 576
+begin item 532
   type_id 6194
   id 808
   position -20714944 -4545476 2869716 
@@ -14178,7 +13168,7 @@ begin item 576
   height_lock 1
 end item
 
-begin item 577
+begin item 533
   type_id 6194
   id 809
   position -21091742 -3673050 2836948 
@@ -14202,7 +13192,7 @@ begin item 577
   height_lock 1
 end item
 
-begin item 578
+begin item 534
   type_id 6194
   id 810
   position -22674686 -3477668 2836948 
@@ -14228,7 +13218,7 @@ end item
 
 
 
-begin item 579
+begin item 535
   type_id 6194
   id 164
   position -3198609 2727018 3623620 
@@ -14254,7 +13244,7 @@ end item
 
 
 
-begin item 580
+begin item 536
   type_id 6194
   id 167
   position -7010249 2892742 3883530 
@@ -14280,7 +13270,7 @@ begin item 580
 end item
 
 
-begin item 581
+begin item 537
   type_id 6194
   id 169
   position -7935538 3265619 3474206 
@@ -14305,7 +13295,7 @@ begin item 581
 end item
 
 
-begin item 582
+begin item 538
   type_id 6194
   id 171
   position -6982628 3624687 4221290 
@@ -14330,7 +13320,7 @@ begin item 582
   height_lock 1
 end item
 
-begin item 583
+begin item 539
   type_id 6194
   id 172
   position -7175972 1649816 3406218 
@@ -14354,7 +13344,7 @@ begin item 583
   height_lock 1
 end item
 
-begin item 584
+begin item 540
   type_id 6194
   id 173
   position -8639863 4135668 3223014 
@@ -14379,7 +13369,7 @@ begin item 584
   height_lock 1
 end item
 
-begin item 585
+begin item 541
   type_id 6194
   id 174
   position -7838866 5268111 4075257 
@@ -14404,7 +13394,7 @@ begin item 585
   height_lock 1
 end item
 
-begin item 586
+begin item 542
   type_id 6194
   id 175
   position -7673142 4425684 3907722 
@@ -14429,7 +13419,7 @@ begin item 586
   height_lock 1
 end item
 
-begin item 587
+begin item 543
   type_id 6194
   id 176
   position -5132049 4895234 3912915 
@@ -14454,7 +13444,7 @@ begin item 587
   height_lock 1
 end item
 
-begin item 588
+begin item 544
   type_id 6194
   id 177
   position -4593448 3804221 4182962 
@@ -14479,7 +13469,7 @@ begin item 588
   height_lock 1
 end item
 
-begin item 589
+begin item 545
   type_id 6194
   id 178
   position -4911085 5875764 3190939 
@@ -14504,7 +13494,7 @@ begin item 589
   height_lock 1
 end item
 
-begin item 590
+begin item 546
   type_id 6194
   id 179
   position -6526888 5571938 4356583 
@@ -14530,7 +13520,7 @@ begin item 590
 end item
 
 
-begin item 591
+begin item 547
   type_id 6194
   id 181
   position -5808753 6455796 3567416 
@@ -14555,7 +13545,7 @@ begin item 591
   height_lock 1
 end item
 
-begin item 592
+begin item 548
   type_id 6194
   id 182
   position -7465988 6276262 4472841 
@@ -14580,7 +13570,7 @@ begin item 592
   height_lock 1
 end item
 
-begin item 593
+begin item 549
   type_id 6194
   id 183
   position -9012740 6248642 3819551 
@@ -14605,7 +13595,7 @@ begin item 593
   height_lock 1
 end item
 
-begin item 594
+begin item 550
   type_id 6194
   id 184
   position -9330377 5489076 3589239 
@@ -14629,7 +13619,7 @@ begin item 594
   height_lock 1
 end item
 
-begin item 595
+begin item 551
   type_id 6194
   id 185
   position -9924220 5751471 3357608 
@@ -14653,7 +13643,7 @@ begin item 595
   height_lock 1
 end item
 
-begin item 596
+begin item 552
   type_id 6194
   id 186
   position -8777966 5047147 3633353 
@@ -14677,7 +13667,7 @@ begin item 596
   height_lock 1
 end item
 
-begin item 597
+begin item 553
   type_id 6194
   id 187
   position -8197933 6966777 4321714 
@@ -14702,7 +13692,7 @@ begin item 597
   height_lock 1
 end item
 
-begin item 598
+begin item 554
   type_id 6194
   id 188
   position -10048512 6994397 3277696 
@@ -14726,7 +13716,7 @@ begin item 598
   height_lock 1
 end item
 
-begin item 599
+begin item 555
   type_id 6194
   id 189
   position -7576470 7878256 4022768 
@@ -14751,7 +13741,7 @@ begin item 599
   height_lock 1
 end item
 
-begin item 600
+begin item 556
   type_id 6194
   id 190
   position -6292114 6828674 3843389 
@@ -14776,7 +13766,7 @@ begin item 600
   height_lock 1
 end item
 
-begin item 601
+begin item 557
   type_id 6194
   id 191
   position -9012740 7229172 3737753 
@@ -14801,7 +13791,7 @@ begin item 601
   height_lock 1
 end item
 
-begin item 602
+begin item 558
   type_id 6194
   id 192
   position -5808753 7864445 3293629 
@@ -14825,7 +13815,7 @@ begin item 602
   height_lock 1
 end item
 
-begin item 603
+begin item 559
   type_id 6194
   id 193
   position -6112580 8513529 3289831 
@@ -14849,7 +13839,7 @@ begin item 603
   height_lock 1
 end item
 
-begin item 604
+begin item 560
   type_id 6194
   id 194
   position -6982628 7325844 4156453 
@@ -14874,7 +13864,7 @@ begin item 604
   height_lock 1
 end item
 
-begin item 605
+begin item 561
   type_id 6194
   id 195
   position -8681294 8403047 3470389 
@@ -14898,7 +13888,7 @@ begin item 605
   height_lock 1
 end item
 
-begin item 606
+begin item 562
   type_id 6194
   id 196
   position -7010249 8831166 3607880 
@@ -14922,7 +13912,7 @@ begin item 606
   height_lock 1
 end item
 
-begin item 607
+begin item 563
   type_id 6194
   id 197
   position -5187409 9107270 2732015 
@@ -14946,7 +13936,7 @@ begin item 607
   height_lock 1
 end item
 
-begin item 608
+begin item 564
   type_id 6194
   id 198
   position -6223181 9604441 3131558 
@@ -14970,7 +13960,7 @@ begin item 608
   height_lock 1
 end item
 
-begin item 609
+begin item 565
   type_id 6194
   id 199
   position -7438487 10433058 3214370 
@@ -14995,7 +13985,7 @@ begin item 609
 end item
 
 
-begin item 610
+begin item 566
   type_id 6194
   id 396
   position 9198797 -5241190 3494661 
@@ -15020,7 +14010,7 @@ begin item 610
   height_lock 1
 end item
 
-begin item 611
+begin item 567
   type_id 6194
   id 397
   position 8689347 -3759153 3213233 
@@ -15045,7 +14035,7 @@ begin item 611
   height_lock 1
 end item
 
-begin item 612
+begin item 568
   type_id 6194
   id 398
   position 7685884 -4345793 3096719 
@@ -15069,7 +14059,7 @@ begin item 612
   height_lock 1
 end item
 
-begin item 613
+begin item 569
   type_id 6194
   id 399
   position 8272524 -5457320 3271534 
@@ -15093,7 +14083,7 @@ begin item 613
   height_lock 1
 end item
 
-begin item 614
+begin item 570
   type_id 6194
   id 400
   position 7855701 -6831291 2954773 
@@ -15117,7 +14107,7 @@ begin item 614
   height_lock 1
 end item
 
-begin item 615
+begin item 571
   type_id 6194
   id 401
   position 10155945 -7232676 3298659 
@@ -15141,7 +14131,7 @@ begin item 615
   height_lock 1
 end item
 
-begin item 616
+begin item 572
   type_id 6194
   id 402
   position 8998104 -6723226 3259643 
@@ -15165,7 +14155,7 @@ begin item 616
   height_lock 1
 end item
 
-begin item 617
+begin item 573
   type_id 6194
   id 403
   position 11174846 -6213776 3673103 
@@ -15190,7 +14180,7 @@ begin item 617
   height_lock 1
 end item
 
-begin item 618
+begin item 574
   type_id 6194
   id 404
   position 10171383 -5920456 3722992 
@@ -15215,7 +14205,7 @@ begin item 618
   height_lock 1
 end item
 
-begin item 619
+begin item 575
   type_id 6194
   id 405
   position 9522992 -3373206 3427739 
@@ -15240,7 +14230,7 @@ begin item 619
   height_lock 1
 end item
 
-begin item 620
+begin item 576
   type_id 6194
   id 406
   position 11252035 -2277117 3699449 
@@ -15267,7 +14257,7 @@ end item
 
 
 
-begin item 621
+begin item 577
   type_id 6194
   id 409
   position 12270935 -2493247 3685319 
@@ -15294,7 +14284,7 @@ end item
 
 
 
-begin item 622
+begin item 578
   type_id 6194
   id 412
   position 14555741 -5333817 3136864 
@@ -15319,7 +14309,7 @@ begin item 622
   height_lock 1
 end item
 
-begin item 623
+begin item 579
   type_id 6194
   id 413
   position 12734071 -6599723 3075918 
@@ -15344,7 +14334,7 @@ begin item 623
   height_lock 1
 end item
 
-begin item 624
+begin item 580
   type_id 6194
   id 414
   position 13243522 -5333817 3494594 
@@ -15369,7 +14359,7 @@ begin item 624
   height_lock 1
 end item
 
-begin item 625
+begin item 581
   type_id 6194
   id 415
   position 11576230 -7479682 3100713 
@@ -15393,7 +14383,7 @@ begin item 625
   height_lock 1
 end item
 
-begin item 626
+begin item 582
   type_id 6194
   id 416
   position 11900426 -6059397 3579528 
@@ -15420,7 +14410,7 @@ end item
 
 
 
-begin item 627
+begin item 583
   type_id 6194
   id 419
   position 10294886 -2493247 3513879 
@@ -15445,7 +14435,7 @@ begin item 627
   height_lock 1
 end item
 
-begin item 628
+begin item 584
   type_id 6194
   id 420
   position 10835212 -1211903 3242333 
@@ -15469,7 +14459,7 @@ begin item 628
   height_lock 1
 end item
 
-begin item 629
+begin item 585
   type_id 6194
   id 421
   position 12471627 -1412595 3190885 
@@ -15493,7 +14483,7 @@ begin item 629
   height_lock 1
 end item
 
-begin item 630
+begin item 586
   type_id 6194
   id 422
   position 13938226 -2091862 2789645 
@@ -15517,7 +14507,7 @@ begin item 630
   height_lock 1
 end item
 
-begin item 631
+begin item 587
   type_id 6194
   id 423
   position 11838674 -918583 3123204 
@@ -15541,7 +14531,7 @@ begin item 631
   height_lock 1
 end item
 
-begin item 632
+begin item 588
   type_id 6194
   id 882
   position -20764334 -3015639 2836948 
@@ -15565,7 +14555,7 @@ begin item 632
   height_lock 1
 end item
 
-begin item 633
+begin item 589
   type_id 6194
   id 883
   position -21995004 -2655443 2836948 
@@ -15589,7 +14579,7 @@ begin item 633
   height_lock 1
 end item
 
-begin item 634
+begin item 590
   type_id 6194
   id 884
   position -22985542 -2135160 2836948 
@@ -15613,7 +14603,7 @@ begin item 634
   height_lock 1
 end item
 
-begin item 635
+begin item 591
   type_id 6194
   id 885
   position -23956072 -2005089 2755141 
@@ -15637,7 +14627,7 @@ begin item 635
   height_lock 1
 end item
 
-begin item 636
+begin item 592
   type_id 6194
   id 886
   position -19783800 -3235758 2841296 
@@ -15661,7 +14651,7 @@ begin item 636
   height_lock 1
 end item
 
-begin item 637
+begin item 593
   type_id 6194
   id 887
   position -18933338 -2895573 2874790 
@@ -15685,7 +14675,7 @@ begin item 637
   height_lock 1
 end item
 
-begin item 638
+begin item 594
   type_id 6194
   id 888
   position -18172924 -1684914 2970118 
@@ -15709,7 +14699,7 @@ begin item 638
   height_lock 1
 end item
 
-begin item 639
+begin item 595
   type_id 6194
   id 889
   position -18423060 -2415312 2929781 
@@ -15733,7 +14723,7 @@ begin item 639
   height_lock 1
 end item
 
-begin item 640
+begin item 596
   type_id 6194
   id 890
   position -18292988 -704381 2913724 
@@ -15757,7 +14747,7 @@ begin item 640
   height_lock 1
 end item
 
-begin item 641
+begin item 597
   type_id 6194
   id 891
   position -18353022 226125 2809981 
@@ -15781,7 +14771,7 @@ begin item 641
   height_lock 1
 end item
 
-begin item 642
+begin item 598
   type_id 6194
   id 892
   position -18813272 -1714931 2900974 
@@ -15805,7 +14795,7 @@ begin item 642
   height_lock 1
 end item
 
-begin item 643
+begin item 599
   type_id 6194
   id 424
   position 12595130 -378257 2813941 
@@ -15829,7 +14819,7 @@ begin item 643
   height_lock 1
 end item
 
-begin item 644
+begin item 600
   type_id 6194
   id 425
   position 13058267 -2199927 3207714 
@@ -15854,7 +14844,7 @@ begin item 644
   height_lock 1
 end item
 
-begin item 645
+begin item 601
   type_id 6194
   id 426
   position 14648368 -3759153 3109247 
@@ -15878,7 +14868,7 @@ begin item 645
   height_lock 1
 end item
 
-begin item 646
+begin item 602
   type_id 6194
   id 427
   position 13150894 -3388644 3664054 
@@ -15903,7 +14893,7 @@ begin item 646
   height_lock 1
 end item
 
-begin item 647
+begin item 603
   type_id 6194
   id 428
   position 15003440 -4685426 2943037 
@@ -15928,7 +14918,7 @@ begin item 647
   height_lock 1
 end item
 
-begin item 648
+begin item 604
   type_id 6194
   id 429
   position 15559204 -6182900 2829747 
@@ -15952,7 +14942,7 @@ begin item 648
   height_lock 1
 end item
 
-begin item 649
+begin item 605
   type_id 6194
   id 430
   position 12717422 -5423803 3591755 
@@ -15977,7 +14967,7 @@ begin item 649
   height_lock 1
 end item
 
-begin item 650
+begin item 606
   type_id 6194
   id 431
   position 13938226 -6476220 2902470 
@@ -16002,7 +14992,7 @@ begin item 650
   height_lock 1
 end item
 
-begin item 651
+begin item 607
   type_id 6194
   id 432
   position 14648368 -6630599 2912688 
@@ -16026,7 +15016,7 @@ begin item 651
   height_lock 1
 end item
 
-begin item 652
+begin item 608
   type_id 6194
   id 433
   position 15667268 -7325304 2704413 
@@ -16050,7 +15040,7 @@ begin item 652
   height_lock 1
 end item
 
-begin item 653
+begin item 609
   type_id 6194
   id 434
   position 13336149 -7371617 2769259 
@@ -16074,7 +15064,7 @@ begin item 653
   height_lock 1
 end item
 
-begin item 654
+begin item 610
   type_id 6194
   id 435
   position 12116556 -8066322 2706052 
@@ -16098,10 +15088,10 @@ begin item 654
   height_lock 1
 end item
 
-begin item 655
+begin item 611
   type_id 6194
   id 436
-  position 11699733 -8297890 2726776 
+  position -2548508 -4052991 2988853
   edistances 16 320 
   facing 201 0 
   shoottimer 5
@@ -16122,7 +15112,7 @@ begin item 655
   height_lock 1
 end item
 
-begin item 656
+begin item 612
   type_id 6194
   id 437
   position 10094194 -7742126 3004624 
@@ -16146,7 +15136,7 @@ begin item 656
   height_lock 1
 end item
 
-begin item 657
+begin item 613
   type_id 6194
   id 438
   position 8967229 -7634061 2842966 
@@ -16170,7 +15160,7 @@ begin item 657
   height_lock 1
 end item
 
-begin item 658
+begin item 614
   type_id 6194
   id 200
   position -7921847 9300614 3527218 
@@ -16194,7 +15184,7 @@ begin item 658
   height_lock 1
 end item
 
-begin item 659
+begin item 615
   type_id 6194
   id 201
   position -6913696 9783974 3398223 
@@ -16218,7 +15208,7 @@ begin item 659
   height_lock 1
 end item
 
-begin item 660
+begin item 616
   type_id 6194
   id 202
   position -8419017 9991129 3165962 
@@ -16242,7 +15232,7 @@ begin item 660
   height_lock 1
 end item
 
-begin item 661
+begin item 617
   type_id 6194
   id 203
   position -9468599 7974826 3284851 
@@ -16266,7 +15256,7 @@ begin item 661
   height_lock 1
 end item
 
-begin item 662
+begin item 618
   type_id 6194
   id 204
   position -7783744 8568669 3737816 
@@ -16290,7 +15280,7 @@ begin item 662
   height_lock 1
 end item
 
-begin item 663
+begin item 619
   type_id 6194
   id 205
   position -6665110 7795292 3861288 
@@ -16314,7 +15304,7 @@ begin item 663
   height_lock 1
 end item
 
-begin item 664
+begin item 620
   type_id 6194
   id 206
   position -4566157 848476 3861426 
@@ -16339,7 +15329,7 @@ begin item 664
   height_lock 1
 end item
 
-begin item 665
+begin item 621
   type_id 6194
   id 207
   position -5960996 -1457841 3034606 
@@ -16363,33 +15353,10 @@ begin item 665
   height_lock 1
 end item
 
-begin item 666
-  type_id 6194
-  id 208
-  position -7783954 -63002 2973932 
-  edistances 16 320 
-  facing 126 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
 
 
-begin item 667
+begin item 622
   type_id 6194
   id 211
   position -5684790 5571595 3861677 
@@ -16414,7 +15381,7 @@ begin item 667
   height_lock 1
 end item
 
-begin item 668
+begin item 623
   type_id 6194
   id 212
   position -2770819 1925679 3338529 
@@ -16438,7 +15405,7 @@ begin item 668
   height_lock 1
 end item
 
-begin item 669
+begin item 624
   type_id 6194
   id 213
   position -3793165 -10269342 3307075 
@@ -16462,7 +15429,7 @@ begin item 669
   height_lock 1
 end item
 
-begin item 670
+begin item 625
   type_id 6194
   id 214
   position -2702152 -8377332 2935252 
@@ -16486,7 +15453,7 @@ begin item 670
   height_lock 1
 end item
 
-begin item 671
+begin item 626
   type_id 6194
   id 215
   position -3047409 -11263683 2994397 
@@ -16510,7 +15477,7 @@ begin item 671
   height_lock 1
 end item
 
-begin item 672
+begin item 627
   type_id 6194
   id 216
   position -3655062 -13431898 3507250 
@@ -16534,7 +15501,7 @@ begin item 672
   height_lock 1
 end item
 
-begin item 673
+begin item 628
   type_id 6194
   id 218
   position -6720946 -10918426 4037163 
@@ -16559,7 +15526,7 @@ begin item 673
   height_lock 1
 end item
 
-begin item 674
+begin item 629
   type_id 6194
   id 219
   position -8129596 -8998796 3293970 
@@ -16583,7 +15550,7 @@ begin item 674
   height_lock 1
 end item
 
-begin item 675
+begin item 630
   type_id 6194
   id 220
   position -6872859 -6278169 3077604 
@@ -16607,7 +15574,7 @@ begin item 675
   height_lock 1
 end item
 
-begin item 676
+begin item 631
   type_id 6194
   id 221
   position -6292827 -12327075 4366872 
@@ -16632,7 +15599,7 @@ begin item 676
   height_lock 1
 end item
 
-begin item 677
+begin item 632
   type_id 6194
   id 222
   position 708169 3153532 3051891 
@@ -16656,7 +15623,7 @@ begin item 677
   height_lock 1
 end item
 
-begin item 678
+begin item 633
   type_id 6194
   id 223
   position 2323973 4824577 3358827 
@@ -16680,7 +15647,7 @@ begin item 678
   height_lock 1
 end item
 
-begin item 679
+begin item 634
   type_id 6194
   id 224
   position 2103008 3705944 3108683 
@@ -16704,7 +15671,7 @@ begin item 679
   height_lock 1
 end item
 
-begin item 680
+begin item 635
   type_id 6194
   id 225
   position 984375 4589802 3386239 
@@ -16728,7 +15695,7 @@ begin item 680
   height_lock 1
 end item
 
-begin item 681
+begin item 636
   type_id 6194
   id 226
   position 3318313 3526410 2988434 
@@ -16752,7 +15719,7 @@ begin item 681
   height_lock 1
 end item
 
-begin item 682
+begin item 637
   type_id 6194
   id 227
   position 3870725 4866008 3192777 
@@ -16776,7 +15743,7 @@ begin item 682
   height_lock 1
 end item
 
-begin item 683
+begin item 638
   type_id 6194
   id 228
   position 5679873 4065011 2935252 
@@ -16800,7 +15767,7 @@ begin item 683
   height_lock 1
 end item
 
-begin item 684
+begin item 639
   type_id 6194
   id 229
   position 6135612 6771828 3299824 
@@ -16824,7 +15791,7 @@ begin item 684
   height_lock 1
 end item
 
-begin item 685
+begin item 640
   type_id 6194
   id 230
   position 5334616 5611764 3148323 
@@ -16848,7 +15815,7 @@ begin item 685
   height_lock 1
 end item
 
-begin item 686
+begin item 641
   type_id 6194
   id 231
   position 7143763 5473661 2935252 
@@ -16872,7 +15839,7 @@ begin item 686
   height_lock 1
 end item
 
-begin item 687
+begin item 642
   type_id 6194
   id 232
   position 7019471 7282809 3301529 
@@ -16896,7 +15863,7 @@ begin item 687
   height_lock 1
 end item
 
-begin item 688
+begin item 643
   type_id 6194
   id 233
   position 5182702 7987133 3319596 
@@ -16920,7 +15887,7 @@ begin item 688
   height_lock 1
 end item
 
-begin item 689
+begin item 644
   type_id 6194
   id 234
   position 4505998 7172326 3443527 
@@ -16944,7 +15911,7 @@ begin item 689
   height_lock 1
 end item
 
-begin item 690
+begin item 645
   type_id 6194
   id 235
   position 2489696 8111426 2869780 
@@ -16968,7 +15935,7 @@ begin item 690
   height_lock 1
 end item
 
-begin item 691
+begin item 646
   type_id 6194
   id 475
   position -19561612 -14958915 4038723 
@@ -16993,7 +15960,7 @@ begin item 691
   height_lock 1
 end item
 
-begin item 692
+begin item 647
   type_id 6194
   id 476
   position -20934208 -15823839 4581544 
@@ -17018,7 +15985,7 @@ begin item 692
   height_lock 1
 end item
 
-begin item 693
+begin item 648
   type_id 6194
   id 477
   position -17342894 -17158829 3623380 
@@ -17043,7 +16010,7 @@ begin item 693
   height_lock 1
 end item
 
-begin item 694
+begin item 649
   type_id 6194
   id 478
   position -19505204 -17685305 3391410 
@@ -17068,7 +16035,7 @@ begin item 694
   height_lock 1
 end item
 
-begin item 695
+begin item 650
   type_id 6194
   id 479
   position -19335980 -16613551 3711067 
@@ -17093,7 +16060,7 @@ begin item 695
   height_lock 1
 end item
 
-begin item 696
+begin item 651
   type_id 6194
   id 480
   position -17418106 -18456215 3678049 
@@ -17118,7 +16085,7 @@ begin item 696
   height_lock 1
 end item
 
-begin item 697
+begin item 652
   type_id 6194
   id 481
   position -15876285 -18211779 3450571 
@@ -17143,7 +16110,7 @@ begin item 697
   height_lock 1
 end item
 
-begin item 698
+begin item 653
   type_id 6194
   id 482
   position -18038594 -14864902 3858082 
@@ -17167,7 +16134,7 @@ begin item 698
   height_lock 1
 end item
 
-begin item 699
+begin item 654
   type_id 6194
   id 483
   position -18170212 -13398292 3563395 
@@ -17191,7 +16158,7 @@ begin item 699
   height_lock 1
 end item
 
-begin item 700
+begin item 655
   type_id 6194
   id 484
   position -16835222 -12439355 3378354 
@@ -17215,7 +16182,7 @@ begin item 700
   height_lock 1
 end item
 
-begin item 701
+begin item 656
   type_id 6194
   id 485
   position -16741209 -13605121 3191094 
@@ -17239,7 +16206,7 @@ begin item 701
   height_lock 1
 end item
 
-begin item 702
+begin item 657
   type_id 6194
   id 486
   position -16515576 -10916337 4341324 
@@ -17264,7 +16231,7 @@ begin item 702
   height_lock 1
 end item
 
-begin item 703
+begin item 658
   type_id 6194
   id 487
   position -14409676 -10258243 4016506 
@@ -17289,7 +16256,7 @@ begin item 703
   height_lock 1
 end item
 
-begin item 704
+begin item 659
   type_id 6194
   id 488
   position -17925778 -11461615 4333237 
@@ -17314,7 +16281,7 @@ begin item 704
   height_lock 1
 end item
 
-begin item 705
+begin item 660
   type_id 6194
   id 489
   position -19636822 -11800064 4627908 
@@ -17339,7 +16306,7 @@ begin item 705
   height_lock 1
 end item
 
-begin item 706
+begin item 661
   type_id 6194
   id 490
   position -21592302 -13699135 5314460 
@@ -17364,7 +16331,7 @@ begin item 706
   height_lock 1
 end item
 
-begin item 707
+begin item 662
   type_id 6194
   id 491
   position -22607646 -14545256 5105552 
@@ -17389,7 +16356,7 @@ begin item 707
   height_lock 1
 end item
 
-begin item 708
+begin item 663
   type_id 6194
   id 492
   position -23811018 -12608579 4908027 
@@ -17414,7 +16381,7 @@ begin item 708
   height_lock 1
 end item
 
-begin item 709
+begin item 664
   type_id 6194
   id 493
   position -22118776 -15598207 4647126 
@@ -17440,7 +16407,7 @@ begin item 709
 end item
 
 
-begin item 710
+begin item 665
   type_id 6194
   id 495
   position -23905032 -14037583 4500757 
@@ -17465,7 +16432,7 @@ begin item 710
   height_lock 1
 end item
 
-begin item 711
+begin item 666
   type_id 6194
   id 496
   position -21761526 -12382947 5953690 
@@ -17490,7 +16457,7 @@ begin item 711
   height_lock 1
 end item
 
-begin item 712
+begin item 667
   type_id 6194
   id 497
   position -23359754 -10070217 5949347 
@@ -17515,7 +16482,7 @@ begin item 712
   height_lock 1
 end item
 
-begin item 713
+begin item 668
   type_id 6194
   id 498
   position -24769956 -10427468 4335181 
@@ -17540,7 +16507,7 @@ begin item 713
   height_lock 1
 end item
 
-begin item 714
+begin item 669
   type_id 6194
   id 499
   position -24807560 -12194921 3080395 
@@ -17565,7 +16532,7 @@ begin item 714
   height_lock 1
 end item
 
-begin item 715
+begin item 670
   type_id 6194
   id 500
   position -25258824 -9581347 4598753 
@@ -17591,7 +16558,7 @@ begin item 715
 end item
 
 
-begin item 716
+begin item 671
   type_id 6194
   id 973
   position -8531532 -2784871 2935252 
@@ -17615,7 +16582,7 @@ begin item 716
   height_lock 1
 end item
 
-begin item 717
+begin item 672
   type_id 6194
   id 974
   position -8739750 -5662071 2935252 
@@ -17639,7 +16606,7 @@ begin item 717
   height_lock 1
 end item
 
-begin item 718
+begin item 673
   type_id 6194
   id 975
   position -7367401 -6050115 2952660 
@@ -17663,7 +16630,7 @@ begin item 718
   height_lock 1
 end item
 
-begin item 719
+begin item 674
   type_id 6194
   id 976
   position -5067534 -2245396 2935252 
@@ -17687,7 +16654,7 @@ begin item 719
   height_lock 1
 end item
 
-begin item 720
+begin item 675
   type_id 6194
   id 977
   position -4328398 -4319841 2991401 
@@ -17711,7 +16678,7 @@ begin item 720
   height_lock 1
 end item
 
-begin item 721
+begin item 676
   type_id 6194
   id 978
   position -8891423 -4838970 2935252 
@@ -17735,7 +16702,7 @@ begin item 721
   height_lock 1
 end item
 
-begin item 722
+begin item 677
   type_id 6194
   id 979
   position -2626771 -12619013 2999886 
@@ -17759,7 +16726,7 @@ begin item 722
   height_lock 1
 end item
 
-begin item 723
+begin item 678
   type_id 6194
   id 980
   position -1405854 -13366706 2942118 
@@ -17783,7 +16750,7 @@ begin item 723
   height_lock 1
 end item
 
-begin item 724
+begin item 679
   type_id 6194
   id 981
   position -2683558 -14000826 3131005 
@@ -17807,7 +16774,7 @@ begin item 724
   height_lock 1
 end item
 
-begin item 725
+begin item 680
   type_id 6194
   id 982
   position -2134619 -15032454 3033556 
@@ -17831,7 +16798,7 @@ begin item 725
   height_lock 1
 end item
 
-begin item 726
+begin item 681
   type_id 6194
   id 983
   position -3194640 -14776913 3303772 
@@ -17855,7 +16822,7 @@ begin item 726
   height_lock 1
 end item
 
-begin item 727
+begin item 682
   type_id 6194
   id 984
   position -3535361 -15638180 3474132 
@@ -17879,7 +16846,7 @@ begin item 727
   height_lock 1
 end item
 
-begin item 728
+begin item 683
   type_id 6194
   id 985
   position -2475340 -16168190 3046104 
@@ -17903,7 +16870,7 @@ begin item 728
   height_lock 1
 end item
 
-begin item 729
+begin item 684
   type_id 6194
   id 986
   position -2853919 -15676038 3159011 
@@ -17927,7 +16894,7 @@ begin item 729
   height_lock 1
 end item
 
-begin item 730
+begin item 685
   type_id 6194
   id 987
   position -2314444 -17275533 2936674 
@@ -17951,7 +16918,7 @@ begin item 730
   height_lock 1
 end item
 
-begin item 731
+begin item 686
   type_id 6194
   id 988
   position -2721416 -16953741 3041268 
@@ -17975,31 +16942,8 @@ begin item 731
   height_lock 1
 end item
 
-begin item 732
-  type_id 6194
-  id 990
-  position -1756040 -16584627 2968020 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 733
+begin item 687
   type_id 6194
   id 991
   position -1803362 -17966441 2713754 
@@ -18023,7 +16967,7 @@ begin item 733
   height_lock 1
 end item
 
-begin item 734
+begin item 688
   type_id 6194
   id 502
   position -21084628 -11329997 5428853 
@@ -18049,7 +16993,7 @@ begin item 734
 end item
 
 
-begin item 735
+begin item 689
   type_id 6194
   id 994
   position -2069579 -13780502 3033243 
@@ -18073,7 +17017,7 @@ begin item 735
   height_lock 1
 end item
 
-begin item 736
+begin item 690
   type_id 6194
   id 504
   position -22457224 -8678818 5859509 
@@ -18098,7 +17042,7 @@ begin item 736
   height_lock 1
 end item
 
-begin item 737
+begin item 691
   type_id 6194
   id 996
   position -6036557 -4328917 2973917 
@@ -18122,7 +17066,7 @@ begin item 737
   height_lock 1
 end item
 
-begin item 738
+begin item 692
   type_id 6194
   id 505
   position -24318692 -8566002 4598563 
@@ -18147,7 +17091,7 @@ begin item 738
   height_lock 1
 end item
 
-begin item 739
+begin item 693
   type_id 6194
   id 506
   position -19317176 -9299307 4226224 
@@ -18172,7 +17116,7 @@ begin item 739
   height_lock 1
 end item
 
-begin item 740
+begin item 694
   type_id 6194
   id 507
   position -19524006 -10502679 4687823 
@@ -18197,7 +17141,7 @@ begin item 740
   height_lock 1
 end item
 
-begin item 741
+begin item 695
   type_id 6194
   id 508
   position -17173670 -10013809 4847780 
@@ -18222,7 +17166,7 @@ begin item 741
   height_lock 1
 end item
 
-begin item 742
+begin item 696
   type_id 6194
   id 509
   position -20652168 -8942056 4849689 
@@ -18247,7 +17191,7 @@ begin item 742
   height_lock 1
 end item
 
-begin item 743
+begin item 697
   type_id 6194
   id 510
   position -16797616 -8678818 4215717 
@@ -18272,7 +17216,7 @@ begin item 743
   height_lock 1
 end item
 
-begin item 744
+begin item 698
   type_id 6194
   id 511
   position -18339436 -9919795 4663801 
@@ -18297,7 +17241,7 @@ begin item 744
   height_lock 1
 end item
 
-begin item 745
+begin item 699
   type_id 6194
   id 512
   position -19787244 -13078647 4134282 
@@ -18322,7 +17266,7 @@ begin item 745
   height_lock 1
 end item
 
-begin item 746
+begin item 700
   type_id 6194
   id 513
   position -20821392 -12608579 5193329 
@@ -18347,7 +17291,7 @@ begin item 746
   height_lock 1
 end item
 
-begin item 747
+begin item 701
   type_id 6194
   id 514
   position -23246938 -13304279 5426151 
@@ -18372,7 +17316,7 @@ begin item 747
   height_lock 1
 end item
 
-begin item 748
+begin item 702
   type_id 6194
   id 515
   position -20520548 -14676875 4426763 
@@ -18397,7 +17341,7 @@ begin item 748
   height_lock 1
 end item
 
-begin item 749
+begin item 703
   type_id 6194
   id 516
   position -23472570 -15617009 4099683 
@@ -18422,7 +17366,7 @@ begin item 749
   height_lock 1
 end item
 
-begin item 750
+begin item 704
   type_id 6194
   id 517
   position -21084628 -17196435 3813909 
@@ -18447,7 +17391,7 @@ begin item 750
   height_lock 1
 end item
 
-begin item 751
+begin item 705
   type_id 6194
   id 518
   position -18621478 -18794663 3564874 
@@ -18472,7 +17416,7 @@ begin item 751
   height_lock 1
 end item
 
-begin item 752
+begin item 706
   type_id 6194
   id 519
   position -17982186 -16331511 3687816 
@@ -18497,7 +17441,7 @@ begin item 752
   height_lock 1
 end item
 
-begin item 753
+begin item 707
   type_id 6194
   id 520
   position -19072742 -13943570 3809954 
@@ -18522,7 +17466,7 @@ begin item 753
   height_lock 1
 end item
 
-begin item 754
+begin item 708
   type_id 6194
   id 521
   position -18621478 -12100907 4055778 
@@ -18548,7 +17492,7 @@ begin item 754
 end item
 
 
-begin item 755
+begin item 709
   type_id 6194
   id 523
   position -25898116 -11141970 3360547 
@@ -18573,7 +17517,7 @@ begin item 755
   height_lock 1
 end item
 
-begin item 756
+begin item 710
   type_id 6194
   id 524
   position -23547976 -6065268 3625251 
@@ -18598,7 +17542,7 @@ begin item 756
   height_lock 1
 end item
 
-begin item 757
+begin item 711
   type_id 6194
   id 525
   position -25259020 -7268640 4507587 
@@ -18623,7 +17567,7 @@ begin item 757
   height_lock 1
 end item
 
-begin item 758
+begin item 712
   type_id 6194
   id 526
   position -24356492 -7099416 4194365 
@@ -18648,7 +17592,7 @@ begin item 758
   height_lock 1
 end item
 
-begin item 759
+begin item 713
   type_id 6194
   id 527
   position -22062564 -6140479 4191639 
@@ -18673,7 +17617,7 @@ begin item 759
   height_lock 1
 end item
 
-begin item 760
+begin item 714
   type_id 6194
   id 528
   position -22983894 -7513075 4427132 
@@ -18698,7 +17642,7 @@ begin item 760
   height_lock 1
 end item
 
-begin item 761
+begin item 715
   type_id 6194
   id 1049
   position -22237216 -1811478 2836948 
@@ -18722,7 +17666,7 @@ begin item 761
   height_lock 1
 end item
 
-begin item 762
+begin item 716
   type_id 6194
   id 1050
   position -23437492 -1191555 2761062 
@@ -18746,7 +17690,7 @@ begin item 762
   height_lock 1
 end item
 
-begin item 763
+begin item 717
   type_id 6194
   id 1051
   position -22428468 -677151 2794088 
@@ -18770,7 +17714,7 @@ begin item 763
   height_lock 1
 end item
 
-begin item 764
+begin item 718
   type_id 6194
   id 529
   position -20689968 -6290900 3732310 
@@ -18795,7 +17739,7 @@ begin item 764
   height_lock 1
 end item
 
-begin item 765
+begin item 719
   type_id 6194
   id 530
   position -21705312 -7663497 4855197 
@@ -18820,7 +17764,7 @@ begin item 765
   height_lock 1
 end item
 
-begin item 766
+begin item 720
   type_id 6194
   id 531
   position -18753290 -7155824 3431835 
@@ -18845,7 +17789,7 @@ begin item 766
   height_lock 1
 end item
 
-begin item 767
+begin item 721
   type_id 6194
   id 532
   position -22814670 -5388371 3196295 
@@ -18870,7 +17814,7 @@ begin item 767
   height_lock 1
 end item
 
-begin item 768
+begin item 722
   type_id 6194
   id 533
   position -17625130 -7550680 3562815 
@@ -18895,7 +17839,7 @@ begin item 768
   height_lock 1
 end item
 
-begin item 769
+begin item 723
   type_id 6194
   id 534
   position -20257506 -7437864 3703258 
@@ -18920,7 +17864,7 @@ begin item 769
   height_lock 1
 end item
 
-begin item 770
+begin item 724
   type_id 6194
   id 535
   position -18226816 -8566026 4121430 
@@ -18946,7 +17890,7 @@ begin item 770
 end item
 
 
-begin item 771
+begin item 725
   type_id 6194
   id 537
   position -14391068 -6930192 4264503 
@@ -18971,7 +17915,7 @@ begin item 771
   height_lock 1
 end item
 
-begin item 772
+begin item 726
   type_id 6194
   id 538
   position -16929430 -6140479 3739898 
@@ -18996,7 +17940,7 @@ begin item 772
   height_lock 1
 end item
 
-begin item 773
+begin item 727
   type_id 6194
   id 539
   position -13093682 -6366111 3169110 
@@ -19021,7 +17965,7 @@ begin item 773
   height_lock 1
 end item
 
-begin item 774
+begin item 728
   type_id 6194
   id 540
   position -15331202 -7738707 4452617 
@@ -19046,7 +17990,7 @@ begin item 774
   height_lock 1
 end item
 
-begin item 775
+begin item 729
   type_id 6194
   id 541
   position -16064506 -6817376 4025158 
@@ -19071,7 +18015,7 @@ begin item 775
   height_lock 1
 end item
 
-begin item 776
+begin item 730
   type_id 6194
   id 542
   position -13826987 -8453209 3966612 
@@ -19096,7 +18040,7 @@ begin item 776
   height_lock 1
 end item
 
-begin item 777
+begin item 731
   type_id 6194
   id 543
   position -15538031 -9656581 4681869 
@@ -19121,7 +18065,7 @@ begin item 777
   height_lock 1
 end item
 
-begin item 778
+begin item 732
   type_id 6194
   id 544
   position -12868050 -9825805 3505055 
@@ -19146,7 +18090,7 @@ begin item 778
   height_lock 1
 end item
 
-begin item 779
+begin item 733
   type_id 6194
   id 545
   position -11871508 -9468555 3126060 
@@ -19171,7 +18115,7 @@ begin item 779
   height_lock 1
 end item
 
-begin item 780
+begin item 734
   type_id 6194
   id 546
   position -13112485 -10841151 3532251 
@@ -19195,7 +18139,7 @@ begin item 780
   height_lock 1
 end item
 
-begin item 781
+begin item 735
   type_id 6194
   id 547
   position -15350004 -10765940 3970395 
@@ -19220,7 +18164,7 @@ begin item 781
   height_lock 1
 end item
 
-begin item 782
+begin item 736
   type_id 6194
   id 548
   position -14673108 -8735250 4476389 
@@ -19245,7 +18189,7 @@ begin item 782
   height_lock 1
 end item
 
-begin item 783
+begin item 737
   type_id 6194
   id 549
   position -16120914 -7607089 4023539 
@@ -19270,7 +18214,7 @@ begin item 783
   height_lock 1
 end item
 
-begin item 784
+begin item 738
   type_id 6194
   id 550
   position -15444018 -3470498 3706281 
@@ -19297,7 +18241,7 @@ end item
 
 
 
-begin item 785
+begin item 739
   type_id 6194
   id 553
   position -17305484 -2191915 3416357 
@@ -19322,7 +18266,7 @@ begin item 785
   height_lock 1
 end item
 
-begin item 786
+begin item 740
   type_id 6194
   id 554
   position -14673108 -2567969 3502004 
@@ -19347,7 +18291,7 @@ begin item 786
   height_lock 1
 end item
 
-begin item 787
+begin item 741
   type_id 6194
   id 555
   position -16854220 -2661982 3630356 
@@ -19373,7 +18317,7 @@ begin item 787
 end item
 
 
-begin item 788
+begin item 742
   type_id 6194
   id 557
   position -15688453 -1665440 3586668 
@@ -19398,7 +18342,7 @@ begin item 788
   height_lock 1
 end item
 
-begin item 789
+begin item 743
   type_id 6194
   id 558
   position -17343246 346204 2799549 
@@ -19422,7 +18366,7 @@ begin item 789
   height_lock 1
 end item
 
-begin item 790
+begin item 744
   type_id 6194
   id 559
   position -16703955 -1176812 3397732 
@@ -19446,7 +18390,7 @@ begin item 790
   height_lock 1
 end item
 
-begin item 791
+begin item 745
   type_id 6194
   id 560
   position -14504041 214586 2762458 
@@ -19470,7 +18414,7 @@ begin item 791
   height_lock 1
 end item
 
-begin item 792
+begin item 746
   type_id 6194
   id 561
   position -16215085 26559 2860233 
@@ -19494,7 +18438,7 @@ begin item 792
   height_lock 1
 end item
 
-begin item 793
+begin item 747
   type_id 6194
   id 562
   position -14898897 -894772 3171883 
@@ -19518,7 +18462,7 @@ begin item 793
   height_lock 1
 end item
 
-begin item 794
+begin item 748
   type_id 6194
   id 563
   position -15406570 -631535 3082868 
@@ -19542,7 +18486,7 @@ begin item 794
   height_lock 1
 end item
 
-begin item 795
+begin item 749
   type_id 6194
   id 564
   position -17324444 -593929 2963440 
@@ -19566,7 +18510,7 @@ begin item 795
   height_lock 1
 end item
 
-begin item 796
+begin item 750
   type_id 6194
   id 565
   position -16008256 -2530606 3626036 
@@ -19594,7 +18538,7 @@ end item
 
 
 
-begin item 797
+begin item 751
   type_id 6194
   id 569
   position -23285036 -8698127 5315205 
@@ -19619,7 +18563,7 @@ begin item 797
   height_lock 1
 end item
 
-begin item 798
+begin item 752
   type_id 6194
   id 570
   position -25334530 -8265665 4422627 
@@ -19644,7 +18588,7 @@ begin item 798
   height_lock 1
 end item
 
-begin item 799
+begin item 753
   type_id 6194
   id 571
   position -20972306 -8002428 4550358 
@@ -19669,7 +18613,7 @@ begin item 799
   height_lock 1
 end item
 
-begin item 800
+begin item 754
   type_id 6194
   id 572
   position -19392882 -8246863 3812187 
@@ -19694,7 +18638,7 @@ begin item 800
   height_lock 1
 end item
 
-begin item 801
+begin item 755
   type_id 6194
   id 573
   position -21310756 -6893069 4310890 
@@ -19720,7 +18664,7 @@ begin item 801
 end item
 
 
-begin item 802
+begin item 756
   type_id 6194
   id 575
   position -24225172 -11349306 4392787 
@@ -19745,7 +18689,7 @@ begin item 802
   height_lock 1
 end item
 
-begin item 803
+begin item 757
   type_id 6194
   id 576
   position -24582422 -13530417 3420400 
@@ -19770,7 +18714,7 @@ begin item 803
   height_lock 1
 end item
 
-begin item 804
+begin item 758
   type_id 6194
   id 577
   position -22250890 -13060351 5894651 
@@ -19795,7 +18739,7 @@ begin item 804
   height_lock 1
 end item
 
-begin item 805
+begin item 759
   type_id 6194
   id 578
   position -21423572 -14620973 4823702 
@@ -19820,7 +18764,7 @@ begin item 805
   height_lock 1
 end item
 
-begin item 806
+begin item 760
   type_id 6194
   id 579
   position -20558648 -13699641 4482130 
@@ -19845,7 +18789,7 @@ begin item 806
   height_lock 1
 end item
 
-begin item 807
+begin item 761
   type_id 6194
   id 580
   position -20351818 -10710015 4882534 
@@ -19870,7 +18814,7 @@ begin item 807
   height_lock 1
 end item
 
-begin item 808
+begin item 762
   type_id 6194
   id 581
   position -17625428 -10747620 4731108 
@@ -19895,7 +18839,7 @@ begin item 808
   height_lock 1
 end item
 
-begin item 809
+begin item 763
   type_id 6194
   id 582
   position -16234030 -11687754 3577588 
@@ -19920,7 +18864,7 @@ begin item 809
   height_lock 1
 end item
 
-begin item 810
+begin item 764
   type_id 6194
   id 583
   position -16309241 -9788683 4759768 
@@ -19945,7 +18889,7 @@ begin item 810
   height_lock 1
 end item
 
-begin item 811
+begin item 765
   type_id 6194
   id 584
   position -15782766 -8265665 4379283 
@@ -19970,7 +18914,7 @@ begin item 811
   height_lock 1
 end item
 
-begin item 812
+begin item 766
   type_id 6194
   id 585
   position -21385966 -9149392 5869528 
@@ -19996,7 +18940,7 @@ begin item 812
 end item
 
 
-begin item 813
+begin item 767
   type_id 6194
   id 587
   position -24356790 -9318616 4981908 
@@ -20021,7 +18965,7 @@ begin item 813
   height_lock 1
 end item
 
-begin item 814
+begin item 768
   type_id 6194
   id 588
   position -23736302 -7043491 4017894 
@@ -20046,7 +18990,7 @@ begin item 814
   height_lock 1
 end item
 
-begin item 815
+begin item 769
   type_id 6194
   id 236
   position 2627799 6675156 3340231 
@@ -20070,7 +19014,7 @@ begin item 815
   height_lock 1
 end item
 
-begin item 816
+begin item 770
   type_id 6194
   id 237
   position 1205339 7489963 2853312 
@@ -20094,7 +19038,7 @@ begin item 816
   height_lock 1
 end item
 
-begin item 817
+begin item 771
   type_id 6194
   id 238
   position 1232960 6191796 3263425 
@@ -20118,7 +19062,7 @@ begin item 817
   height_lock 1
 end item
 
-begin item 818
+begin item 772
   type_id 6194
   id 239
   position 1951095 7310429 3039426 
@@ -20142,7 +19086,7 @@ begin item 818
   height_lock 1
 end item
 
-begin item 819
+begin item 773
   type_id 6194
   id 240
   position 1909664 5446040 3484935 
@@ -20166,7 +19110,7 @@ begin item 819
   height_lock 1
 end item
 
-begin item 820
+begin item 774
   type_id 6194
   id 241
   position 570066 6771828 3002477 
@@ -20190,7 +19134,7 @@ begin item 820
   height_lock 1
 end item
 
-begin item 821
+begin item 775
   type_id 6194
   id 242
   position 431963 7849030 2693314 
@@ -20214,7 +19158,7 @@ begin item 821
   height_lock 1
 end item
 
-begin item 822
+begin item 776
   type_id 6194
   id 243
   position 1232960 3609272 3142107 
@@ -20238,7 +19182,7 @@ begin item 822
   height_lock 1
 end item
 
-begin item 823
+begin item 777
   type_id 6194
   id 244
   position 3939776 7531394 3297963 
@@ -20262,7 +19206,7 @@ begin item 823
   height_lock 1
 end item
 
-begin item 824
+begin item 778
   type_id 6194
   id 245
   position 3594519 5570333 3404976 
@@ -20286,7 +19230,7 @@ begin item 824
   height_lock 1
 end item
 
-begin item 825
+begin item 779
   type_id 6194
   id 246
   position 3484037 6398950 3500426 
@@ -20310,7 +19254,7 @@ begin item 825
   height_lock 1
 end item
 
-begin item 826
+begin item 780
   type_id 6194
   id 247
   position 4119310 8719079 2851205 
@@ -20334,7 +19278,7 @@ begin item 826
   height_lock 1
 end item
 
-begin item 827
+begin item 781
   type_id 6194
   id 248
   position 6398008 9050525 3127063 
@@ -20358,7 +19302,7 @@ begin item 827
   height_lock 1
 end item
 
-begin item 828
+begin item 782
   type_id 6194
   id 249
   position 6246095 8014754 3401469 
@@ -20382,7 +19326,7 @@ begin item 828
   height_lock 1
 end item
 
-begin item 829
+begin item 783
   type_id 6194
   id 250
   position 5306995 9354352 2808354 
@@ -20406,7 +19350,7 @@ begin item 829
   height_lock 1
 end item
 
-begin item 830
+begin item 784
   type_id 6194
   id 251
   position 7171384 10417744 2722688 
@@ -20430,7 +19374,7 @@ begin item 830
   height_lock 1
 end item
 
-begin item 831
+begin item 785
   type_id 6194
   id 252
   position 8828618 10472985 2738467 
@@ -20454,7 +19398,7 @@ begin item 831
   height_lock 1
 end item
 
-begin item 832
+begin item 786
   type_id 6194
   id 253
   position 7502831 8829561 3188738 
@@ -20478,7 +19422,7 @@ begin item 832
   height_lock 1
 end item
 
-begin item 833
+begin item 787
   type_id 6194
   id 254
   position 8372879 10044867 2832497 
@@ -20502,7 +19446,7 @@ begin item 833
   height_lock 1
 end item
 
-begin item 834
+begin item 788
   type_id 6194
   id 255
   position 8787188 9036715 2987343 
@@ -20526,7 +19470,7 @@ begin item 834
   height_lock 1
 end item
 
-begin item 835
+begin item 789
   type_id 6194
   id 256
   position 9919632 8346201 2953000 
@@ -20550,7 +19494,7 @@ begin item 835
   height_lock 1
 end item
 
-begin item 836
+begin item 790
   type_id 6194
   id 257
   position 8069053 8125236 3234492 
@@ -20574,7 +19518,7 @@ begin item 836
   height_lock 1
 end item
 
-begin item 837
+begin item 791
   type_id 6194
   id 258
   position 9118635 8263339 3023497 
@@ -20598,7 +19542,7 @@ begin item 837
   height_lock 1
 end item
 
-begin item 838
+begin item 792
   type_id 6194
   id 259
   position 7917139 9520075 2985378 
@@ -20622,7 +19566,7 @@ begin item 838
   height_lock 1
 end item
 
-begin item 839
+begin item 793
   type_id 6194
   id 260
   position 6784696 9478645 3019083 
@@ -20646,7 +19590,7 @@ begin item 839
   height_lock 1
 end item
 
-begin item 840
+begin item 794
   type_id 6194
   id 261
   position 7074712 6247037 3054955 
@@ -20670,7 +19614,7 @@ begin item 840
   height_lock 1
 end item
 
-begin item 841
+begin item 795
   type_id 6194
   id 262
   position 5969889 5114593 2941182 
@@ -20694,7 +19638,7 @@ begin item 841
   height_lock 1
 end item
 
-begin item 842
+begin item 796
   type_id 6194
   id 263
   position 4630291 6205606 3394534 
@@ -20718,7 +19662,7 @@ begin item 842
   height_lock 1
 end item
 
-begin item 843
+begin item 797
   type_id 6194
   id 264
   position 4575050 4272166 2975985 
@@ -20742,7 +19686,7 @@ begin item 843
   height_lock 1
 end item
 
-begin item 844
+begin item 798
   type_id 6194
   id 265
   position 4285034 2656362 2935252 
@@ -20766,7 +19710,7 @@ begin item 844
   height_lock 1
 end item
 
-begin item 845
+begin item 799
   type_id 6194
   id 266
   position 2862574 4534561 3235277 
@@ -20790,7 +19734,7 @@ begin item 845
   height_lock 1
 end item
 
-begin item 846
+begin item 800
   type_id 6194
   id 267
   position 2738281 5708436 3504131 
@@ -20814,7 +19758,7 @@ begin item 846
   height_lock 1
 end item
 
-begin item 847
+begin item 801
   type_id 6194
   id 268
   position 5445098 6909931 3416273 
@@ -20838,7 +19782,7 @@ begin item 847
   height_lock 1
 end item
 
-begin item 848
+begin item 802
   type_id 6194
   id 74
   position -4902903 -6900657 3557675 
@@ -20862,7 +19806,7 @@ begin item 848
   height_lock 1
 end item
 
-begin item 849
+begin item 803
   type_id 6194
   id 75
   position -5843312 -8098919 3908935 
@@ -20886,7 +19830,7 @@ begin item 849
   height_lock 1
 end item
 
-begin item 850
+begin item 804
   type_id 6194
   id 76
   position -5297268 -5884409 3396360 
@@ -20910,7 +19854,7 @@ begin item 850
   height_lock 1
 end item
 
-begin item 851
+begin item 805
   type_id 6194
   id 77
   position -3689473 -5611387 3111556 
@@ -20934,7 +19878,7 @@ begin item 851
   height_lock 1
 end item
 
-begin item 852
+begin item 806
   type_id 6194
   id 78
   position -4462426 -5252041 3188756 
@@ -20958,7 +19902,7 @@ begin item 852
   height_lock 1
 end item
 
-begin item 853
+begin item 807
   type_id 6194
   id 79
   position -6298348 -6612467 3350268 
@@ -20982,7 +19926,7 @@ begin item 853
   height_lock 1
 end item
 
-begin item 854
+begin item 808
   type_id 6194
   id 1191
   position 1083741 -14983835 2873899 
@@ -21006,7 +19950,7 @@ begin item 854
   height_lock 1
 end item
 
-begin item 855
+begin item 809
   type_id 6194
   id 80
   position -7132581 -8159590 3402193 
@@ -21030,7 +19974,7 @@ begin item 855
   height_lock 1
 end item
 
-begin item 856
+begin item 810
   type_id 6194
   id 81
   position -3977663 -8371940 3402492 
@@ -21054,7 +19998,7 @@ begin item 856
   height_lock 1
 end item
 
-begin item 857
+begin item 811
   type_id 6194
   id 82
   position -4174845 -7568043 3453887 
@@ -21078,7 +20022,7 @@ begin item 857
   height_lock 1
 end item
 
-begin item 858
+begin item 812
   type_id 6194
   id 83
   position -5282100 -9054495 4057575 
@@ -21102,7 +20046,7 @@ begin item 858
   height_lock 1
 end item
 
-begin item 859
+begin item 813
   type_id 6194
   id 84
   position -5903983 -7295021 3656240 
@@ -21126,7 +20070,7 @@ begin item 859
   height_lock 1
 end item
 
-begin item 860
+begin item 814
   type_id 6194
   id 85
   position -6022063 -5106518 3141560 
@@ -21150,7 +20094,7 @@ begin item 860
   height_lock 1
 end item
 
-begin item 861
+begin item 815
   type_id 6194
   id 86
   position -4296188 -6309109 3324128 
@@ -21174,7 +20118,7 @@ begin item 861
   height_lock 1
 end item
 
-begin item 862
+begin item 816
   type_id 6194
   id 87
   position -4614714 -10252757 3821057 
@@ -21198,7 +20142,7 @@ begin item 862
   height_lock 1
 end item
 
-begin item 863
+begin item 817
   type_id 6194
   id 88
   position -7026406 -9979735 3962266 
@@ -21222,7 +20166,7 @@ begin item 863
   height_lock 1
 end item
 
-begin item 864
+begin item 818
   type_id 6194
   id 89
   position -6101165 -9099998 4058636 
@@ -21246,7 +20190,7 @@ begin item 864
   height_lock 1
 end item
 
-begin item 865
+begin item 819
   type_id 6194
   id 90
   position -7708960 -11253836 3836937 
@@ -21271,7 +20215,7 @@ begin item 865
   height_lock 1
 end item
 
-begin item 866
+begin item 820
   type_id 6194
   id 91
   position -5782640 -11496522 4212606 
@@ -21297,7 +20241,7 @@ begin item 866
 end item
 
 
-begin item 867
+begin item 821
   type_id 6194
   id 93
   position -5979822 -10419603 4204516 
@@ -21321,7 +20265,7 @@ begin item 867
   height_lock 1
 end item
 
-begin item 868
+begin item 822
   type_id 6194
   id 94
   position -6738216 -11572362 4154617 
@@ -21346,7 +20290,7 @@ begin item 868
   height_lock 1
 end item
 
-begin item 869
+begin item 823
   type_id 6194
   id 95
   position -8664536 -12209413 3603070 
@@ -21371,7 +20315,7 @@ begin item 869
   height_lock 1
 end item
 
-begin item 870
+begin item 824
   type_id 6194
   id 96
   position -6525866 -13013310 4593965 
@@ -21396,7 +20340,7 @@ begin item 870
   height_lock 1
 end item
 
-begin item 871
+begin item 825
   type_id 6194
   id 97
   position -8406682 -14226740 4393997 
@@ -21423,7 +20367,7 @@ end item
 
 
 
-begin item 872
+begin item 826
   type_id 6194
   id 100
   position -8543193 -15167148 4334706 
@@ -21448,7 +20392,7 @@ begin item 872
   height_lock 1
 end item
 
-begin item 873
+begin item 827
   type_id 6194
   id 101
   position -8952726 -16304739 4063411 
@@ -21475,7 +20419,7 @@ end item
 
 
 
-begin item 874
+begin item 828
   type_id 6194
   id 104
   position -8346011 -17396825 4261965 
@@ -21502,7 +20446,7 @@ end item
 
 
 
-begin item 875
+begin item 829
   type_id 6194
   id 107
   position -5721969 -14681776 4516423 
@@ -21528,7 +20472,7 @@ begin item 875
 end item
 
 
-begin item 876
+begin item 830
   type_id 6194
   id 109
   position -4281020 -14469426 3790002 
@@ -21553,7 +20497,7 @@ begin item 876
   height_lock 1
 end item
 
-begin item 877
+begin item 831
   type_id 6194
   id 110
   position -5585458 -13392507 4332376 
@@ -21578,7 +20522,7 @@ begin item 877
   height_lock 1
 end item
 
-begin item 878
+begin item 832
   type_id 6194
   id 111
   position -4690553 -12740288 3981657 
@@ -21603,7 +20547,7 @@ begin item 878
   height_lock 1
 end item
 
-begin item 879
+begin item 833
   type_id 6194
   id 112
   position -4660217 -11875719 3919406 
@@ -21628,7 +20572,7 @@ begin item 879
   height_lock 1
 end item
 
-begin item 880
+begin item 834
   type_id 6194
   id 113
   position -3461955 -12436931 3332915 
@@ -21652,7 +20596,7 @@ begin item 880
   height_lock 1
 end item
 
-begin item 881
+begin item 835
   type_id 6194
   id 114
   position -4447867 -13711032 3895472 
@@ -21677,7 +20621,7 @@ begin item 881
   height_lock 1
 end item
 
-begin item 882
+begin item 836
   type_id 6194
   id 115
   position -3780480 -11344844 3418233 
@@ -21701,7 +20645,7 @@ begin item 882
   height_lock 1
 end item
 
-begin item 883
+begin item 837
   type_id 6194
   id 116
   position -3886656 -9418524 3303583 
@@ -21725,7 +20669,7 @@ begin item 883
   height_lock 1
 end item
 
-begin item 884
+begin item 838
   type_id 6194
   id 117
   position -4948407 -8235429 3882161 
@@ -21749,7 +20693,7 @@ begin item 884
   height_lock 1
 end item
 
-begin item 885
+begin item 839
   type_id 6194
   id 118
   position -7344931 -8933152 3586548 
@@ -21773,7 +20717,7 @@ begin item 885
   height_lock 1
 end item
 
-begin item 886
+begin item 840
   type_id 6194
   id 119
   position -7845471 -10176917 3736075 
@@ -21797,7 +20741,7 @@ begin item 886
   height_lock 1
 end item
 
-begin item 887
+begin item 841
   type_id 6194
   id 120
   position -6980902 -7143343 3186923 
@@ -21821,7 +20765,7 @@ begin item 887
   height_lock 1
 end item
 
-begin item 888
+begin item 842
   type_id 6194
   id 121
   position -6571369 -8250597 3684150 
@@ -21845,7 +20789,7 @@ begin item 888
   height_lock 1
 end item
 
-begin item 889
+begin item 843
   type_id 6194
   id 122
   position -5175925 -9994903 4067482 
@@ -21869,7 +20813,7 @@ begin item 889
   height_lock 1
 end item
 
-begin item 890
+begin item 844
   type_id 6194
   id 123
   position -5145589 -11071822 4057339 
@@ -21894,7 +20838,7 @@ begin item 890
   height_lock 1
 end item
 
-begin item 891
+begin item 845
   type_id 6194
   id 124
   position -7542113 -12163909 4396080 
@@ -21920,7 +20864,7 @@ begin item 891
 end item
 
 
-begin item 892
+begin item 846
   type_id 6194
   id 674
   position -23022216 -12628272 5905488 
@@ -21945,7 +20889,7 @@ begin item 892
   height_lock 1
 end item
 
-begin item 893
+begin item 847
   type_id 6194
   id 675
   position -24620444 -14282908 3599771 
@@ -21970,7 +20914,7 @@ begin item 893
   height_lock 1
 end item
 
-begin item 894
+begin item 848
   type_id 6194
   id 676
   position -23830732 -11951375 4769464 
@@ -21995,7 +20939,7 @@ begin item 894
   height_lock 1
 end item
 
-begin item 895
+begin item 849
   type_id 6194
   id 677
   position -25447764 -10465963 4127507 
@@ -22020,7 +20964,7 @@ begin item 895
   height_lock 1
 end item
 
-begin item 896
+begin item 850
   type_id 6194
   id 678
   position -23717916 -9356604 5445937 
@@ -22045,7 +20989,7 @@ begin item 896
   height_lock 1
 end item
 
-begin item 897
+begin item 851
   type_id 6194
   id 679
   position -23830732 -7984008 4423056 
@@ -22070,7 +21014,7 @@ begin item 897
   height_lock 1
 end item
 
-begin item 898
+begin item 852
   type_id 6194
   id 680
   position -24940092 -6404583 3985315 
@@ -22095,7 +21039,7 @@ begin item 898
   height_lock 1
 end item
 
-begin item 899
+begin item 853
   type_id 6194
   id 681
   position -22890598 -6592609 4103154 
@@ -22121,7 +21065,7 @@ begin item 899
 end item
 
 
-begin item 900
+begin item 854
   type_id 6194
   id 683
   position -21329976 -12966720 5523821 
@@ -22146,7 +21090,7 @@ begin item 900
   height_lock 1
 end item
 
-begin item 901
+begin item 855
   type_id 6194
   id 684
   position -22852992 -15110226 4727224 
@@ -22171,7 +21115,7 @@ begin item 901
   height_lock 1
 end item
 
-begin item 902
+begin item 856
   type_id 6194
   id 685
   position -22119688 -14376921 5120470 
@@ -22196,7 +21140,7 @@ begin item 902
   height_lock 1
 end item
 
-begin item 903
+begin item 857
   type_id 6194
   id 686
   position -20935120 -15166634 4637790 
@@ -22221,7 +21165,7 @@ begin item 903
   height_lock 1
 end item
 
-begin item 904
+begin item 858
   type_id 6194
   id 687
   position -20521460 -16576835 4156162 
@@ -22246,7 +21190,7 @@ begin item 904
   height_lock 1
 end item
 
-begin item 905
+begin item 859
   type_id 6194
   id 688
   position -19524918 -15636701 4013169 
@@ -22271,7 +21215,7 @@ begin item 905
   height_lock 1
 end item
 
-begin item 906
+begin item 860
   type_id 6194
   id 689
   position -18565980 -16689652 3579735 
@@ -22296,7 +21240,7 @@ begin item 906
   height_lock 1
 end item
 
-begin item 907
+begin item 861
   type_id 6194
   id 690
   position -19524954 -18363323 3436866 
@@ -22321,7 +21265,7 @@ begin item 907
   height_lock 1
 end item
 
-begin item 908
+begin item 862
   type_id 6194
   id 691
   position -20201852 -17235163 3668880 
@@ -22346,7 +21290,7 @@ begin item 908
   height_lock 1
 end item
 
-begin item 909
+begin item 863
   type_id 6194
   id 692
   position -16704552 -18701771 3638982 
@@ -22371,7 +21315,7 @@ begin item 909
   height_lock 1
 end item
 
-begin item 910
+begin item 864
   type_id 6194
   id 1270
   position -7938120 -7021585 2917454 
@@ -22395,7 +21339,7 @@ begin item 910
   height_lock 1
 end item
 
-begin item 911
+begin item 865
   type_id 6194
   id 1271
   position -9259583 -6720006 2932089 
@@ -22419,7 +21363,7 @@ begin item 911
   height_lock 1
 end item
 
-begin item 912
+begin item 866
   type_id 6194
   id 1272
   position -7960053 -7942770 3024890 
@@ -22443,7 +21387,7 @@ begin item 912
   height_lock 1
 end item
 
-begin item 913
+begin item 867
   type_id 6194
   id 1273
   position -8552244 -8403363 2993257 
@@ -22467,7 +21411,7 @@ begin item 913
   height_lock 1
 end item
 
-begin item 914
+begin item 868
   type_id 6194
   id 1274
   position -9023803 -7427345 2927690 
@@ -22491,7 +21435,7 @@ begin item 914
   height_lock 1
 end item
 
-begin item 915
+begin item 869
   type_id 6194
   id 1275
   position -8360330 -7569910 2929424 
@@ -22515,7 +21459,7 @@ begin item 915
   height_lock 1
 end item
 
-begin item 916
+begin item 870
   type_id 6194
   id 1276
   position -8700291 -6517126 2915364 
@@ -22539,31 +21483,8 @@ begin item 916
   height_lock 1
 end item
 
-begin item 917
-  type_id 6194
-  id 1277
-  position -9385697 -6078467 2935252 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 918
+begin item 871
   type_id 6194
   id 1278
   position -9659860 -8480129 2902484 
@@ -22587,7 +21508,7 @@ begin item 918
   height_lock 1
 end item
 
-begin item 919
+begin item 872
   type_id 6194
   id 1279
   position -10235600 -7021585 2923069 
@@ -22611,7 +21532,7 @@ begin item 919
   height_lock 1
 end item
 
-begin item 920
+begin item 873
   type_id 6194
   id 1280
   position -11195168 -6922887 2937013 
@@ -22635,7 +21556,7 @@ begin item 920
   height_lock 1
 end item
 
-begin item 921
+begin item 874
   type_id 6194
   id 693
   position -16572933 -16953121 3581460 
@@ -22660,7 +21581,7 @@ begin item 921
   height_lock 1
 end item
 
-begin item 922
+begin item 875
   type_id 6194
   id 694
   position -15990050 -17460795 3399501 
@@ -22685,7 +21606,7 @@ begin item 922
   height_lock 1
 end item
 
-begin item 923
+begin item 876
   type_id 6194
   id 695
   position -16008852 -15881369 3556308 
@@ -22709,7 +21630,7 @@ begin item 923
   height_lock 1
 end item
 
-begin item 924
+begin item 877
   type_id 6194
   id 696
   position -18453202 -15467710 3818165 
@@ -22734,7 +21655,7 @@ begin item 924
   height_lock 1
 end item
 
-begin item 925
+begin item 878
   type_id 6194
   id 697
   position -17870318 -14264338 3670090 
@@ -22758,7 +21679,7 @@ begin item 925
   height_lock 1
 end item
 
-begin item 926
+begin item 879
   type_id 6194
   id 698
   position -19205308 -12402872 4154040 
@@ -22783,7 +21704,7 @@ begin item 926
   height_lock 1
 end item
 
-begin item 927
+begin item 880
   type_id 6194
   id 699
   position -19242914 -11105487 4734521 
@@ -22808,7 +21729,7 @@ begin item 927
   height_lock 1
 end item
 
-begin item 928
+begin item 881
   type_id 6194
   id 700
   position -19919810 -9544863 4422754 
@@ -22833,7 +21754,7 @@ begin item 928
   height_lock 1
 end item
 
-begin item 929
+begin item 882
   type_id 6194
   id 1289
   position -10168931 -10115497 2902484 
@@ -22857,7 +21778,7 @@ begin item 929
   height_lock 1
 end item
 
-begin item 930
+begin item 883
   type_id 6194
   id 1290
   position -9911810 -9453215 2902484 
@@ -22881,7 +21802,7 @@ begin item 930
   height_lock 1
 end item
 
-begin item 931
+begin item 884
   type_id 6194
   id 1291
   position -10270221 -9461006 2902484 
@@ -22905,7 +21826,7 @@ begin item 931
   height_lock 1
 end item
 
-begin item 932
+begin item 885
   type_id 6194
   id 1292
   position -11158458 -9803835 3063647 
@@ -22929,7 +21850,7 @@ begin item 932
   height_lock 1
 end item
 
-begin item 933
+begin item 886
   type_id 6194
   id 1293
   position -10971461 -10512865 3039754 
@@ -22953,7 +21874,7 @@ begin item 933
   height_lock 1
 end item
 
-begin item 934
+begin item 887
   type_id 6194
   id 1294
   position -11540244 -10621947 3208812 
@@ -22977,7 +21898,7 @@ begin item 934
   height_lock 1
 end item
 
-begin item 935
+begin item 888
   type_id 6194
   id 1295
   position -10948086 -11221896 2961410 
@@ -23001,7 +21922,7 @@ begin item 935
   height_lock 1
 end item
 
-begin item 936
+begin item 889
   type_id 6194
   id 1296
   position -10200097 -10886860 2891979 
@@ -23025,7 +21946,7 @@ begin item 936
   height_lock 1
 end item
 
-begin item 937
+begin item 890
   type_id 6194
   id 1297
   position -10129974 -11634848 2837459 
@@ -23049,7 +21970,7 @@ begin item 937
   height_lock 1
 end item
 
-begin item 938
+begin item 891
   type_id 6194
   id 1298
   position -10916920 -12780206 2935252 
@@ -23073,7 +21994,7 @@ begin item 938
   height_lock 1
 end item
 
-begin item 939
+begin item 892
   type_id 6194
   id 1299
   position -11477911 -12055592 2937603 
@@ -23097,7 +22018,7 @@ begin item 939
   height_lock 1
 end item
 
-begin item 940
+begin item 893
   type_id 6194
   id 1300
   position -9156030 -10871277 3157749 
@@ -23121,7 +22042,7 @@ begin item 940
   height_lock 1
 end item
 
-begin item 941
+begin item 894
   type_id 6194
   id 1301
   position -9288486 -11564725 3099167 
@@ -23145,7 +22066,7 @@ begin item 941
   height_lock 1
 end item
 
-begin item 942
+begin item 895
   type_id 6194
   id 1302
   position -9078114 -9577880 3086561 
@@ -23169,7 +22090,7 @@ begin item 942
   height_lock 1
 end item
 
-begin item 943
+begin item 896
   type_id 6194
   id 1303
   position -9272903 -10232370 3078804 
@@ -23193,7 +22114,7 @@ begin item 943
   height_lock 1
 end item
 
-begin item 944
+begin item 897
   type_id 6194
   id 1304
   position -8602830 -10138871 3394488 
@@ -23217,7 +22138,7 @@ begin item 944
   height_lock 1
 end item
 
-begin item 945
+begin item 898
   type_id 6194
   id 701
   position -19844600 -8905573 4119111 
@@ -23242,7 +22163,7 @@ begin item 945
   height_lock 1
 end item
 
-begin item 946
+begin item 899
   type_id 6194
   id 702
   position -16836170 -9356837 4642869 
@@ -23267,7 +22188,7 @@ begin item 946
   height_lock 1
 end item
 
-begin item 947
+begin item 900
   type_id 6194
   id 703
   position -18678850 -8868034 4176376 
@@ -23292,7 +22213,7 @@ begin item 947
   height_lock 1
 end item
 
-begin item 948
+begin item 901
   type_id 6194
   id 704
   position -18246388 -7739872 3708612 
@@ -23318,7 +22239,7 @@ begin item 948
 end item
 
 
-begin item 949
+begin item 902
   type_id 6194
   id 706
   position -13865362 -6423684 3758178 
@@ -23344,7 +22265,7 @@ begin item 949
 end item
 
 
-begin item 950
+begin item 903
   type_id 6194
   id 708
   position -17155832 -11556817 4014231 
@@ -23369,7 +22290,7 @@ begin item 950
   height_lock 1
 end item
 
-begin item 951
+begin item 904
   type_id 6194
   id 709
   position -20878764 -10146616 5349707 
@@ -23394,7 +22315,7 @@ begin item 951
   height_lock 1
 end item
 
-begin item 952
+begin item 905
   type_id 6194
   id 710
   position -20032644 -12459347 4533624 
@@ -23419,7 +22340,7 @@ begin item 952
   height_lock 1
 end item
 
-begin item 953
+begin item 906
   type_id 6194
   id 711
   position -18960890 -13061033 3769880 
@@ -23444,7 +22365,7 @@ begin item 953
   height_lock 1
 end item
 
-begin item 954
+begin item 907
   type_id 6194
   id 712
   position -23097480 -13963561 5212919 
@@ -23469,7 +22390,7 @@ begin item 954
   height_lock 1
 end item
 
-begin item 955
+begin item 908
   type_id 6194
   id 713
   position -16629357 -14753274 3503262 
@@ -23493,7 +22414,7 @@ begin item 955
   height_lock 1
 end item
 
-begin item 956
+begin item 909
   type_id 6194
   id 714
   position -20728342 -18024941 3179783 
@@ -23518,7 +22439,7 @@ begin item 956
   height_lock 1
 end item
 
-begin item 957
+begin item 910
   type_id 6194
   id 1320
   position -12043928 1039318 2749936 
@@ -23542,7 +22463,7 @@ begin item 957
   height_lock 1
 end item
 
-begin item 958
+begin item 911
   type_id 6194
   id 1321
   position -12752444 341703 2768495 
@@ -23566,7 +22487,7 @@ begin item 958
   height_lock 1
 end item
 
-begin item 959
+begin item 912
   type_id 6194
   id 1322
   position -12120230 145499 2817531 
@@ -23590,7 +22511,7 @@ begin item 959
   height_lock 1
 end item
 
-begin item 960
+begin item 913
   type_id 6194
   id 1323
   position -11248212 -137906 2836948 
@@ -23614,7 +22535,7 @@ begin item 960
   height_lock 1
 end item
 
-begin item 961
+begin item 914
   type_id 6194
   id 1324
   position -11193711 3077661 2808295 
@@ -23638,7 +22559,7 @@ begin item 961
   height_lock 1
 end item
 
-begin item 962
+begin item 915
   type_id 6194
   id 1325
   position -11967627 1693331 2713276 
@@ -23662,7 +22583,7 @@ begin item 962
   height_lock 1
 end item
 
-begin item 963
+begin item 916
   type_id 6194
   id 1326
   position -11161010 1813234 2795688 
@@ -23686,7 +22607,7 @@ begin item 963
   height_lock 1
 end item
 
-begin item 964
+begin item 917
   type_id 6194
   id 1328
   position -11727822 4015080 2808672 
@@ -23710,31 +22631,8 @@ begin item 964
   height_lock 1
 end item
 
-begin item 965
-  type_id 6194
-  id 1329
-  position -11150110 3731674 2830437 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 966
+begin item 918
   type_id 6194
   id 1330
   position -12207432 2772454 2702920 
@@ -23758,7 +22656,7 @@ begin item 966
   height_lock 1
 end item
 
-begin item 967
+begin item 919
   type_id 6194
   id 1331
   position -12959548 4309387 2702353 
@@ -23782,7 +22680,7 @@ begin item 967
   height_lock 1
 end item
 
-begin item 968
+begin item 920
   type_id 6194
   id 1332
   position -11738722 5061503 2880413 
@@ -23806,79 +22704,10 @@ begin item 968
   height_lock 1
 end item
 
-begin item 969
-  type_id 6194
-  id 1333
-  position -12230444 5064144 2835217 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 970
-  type_id 6194
-  id 1334
-  position -10648062 4125449 2953094 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 971
-  type_id 6194
-  id 1335
-  position -11248212 4538292 2903982 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 972
+begin item 921
   type_id 6194
   id 1336
   position -9842082 3437368 3027950 
@@ -23902,7 +22731,7 @@ begin item 972
   height_lock 1
 end item
 
-begin item 973
+begin item 922
   type_id 6194
   id 1337
   position -10060087 4636394 3121394 
@@ -23926,7 +22755,7 @@ begin item 973
   height_lock 1
 end item
 
-begin item 974
+begin item 923
   type_id 6194
   id 1338
   position -10757701 5889920 2982339 
@@ -23950,7 +22779,7 @@ begin item 974
   height_lock 1
 end item
 
-begin item 975
+begin item 924
   type_id 6194
   id 1339
   position -11749622 6238727 2836948 
@@ -23974,7 +22803,7 @@ begin item 975
   height_lock 1
 end item
 
-begin item 976
+begin item 925
   type_id 6194
   id 1340
   position -12719743 6642036 2778524 
@@ -23998,55 +22827,9 @@ begin item 976
   height_lock 1
 end item
 
-begin item 977
-  type_id 6194
-  id 1341
-  position -12621641 5802718 2796918 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 978
-  type_id 6194
-  id 1342
-  position -10921205 6870940 2936618 
-  edistances 16 320 
-  facing 0 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 979
+begin item 926
   type_id 6194
   id 1343
   position -9482375 3982380 3140401 
@@ -24070,7 +22853,7 @@ begin item 979
   height_lock 1
 end item
 
-begin item 980
+begin item 927
   type_id 6194
   id 1344
   position -8861062 3273865 3160859 
@@ -24094,7 +22877,7 @@ begin item 980
   height_lock 1
 end item
 
-begin item 981
+begin item 928
   type_id 6194
   id 1345
   position -9569576 1562529 2951270 
@@ -24118,7 +22901,7 @@ begin item 981
   height_lock 1
 end item
 
-begin item 982
+begin item 929
   type_id 6194
   id 1346
   position -13537260 -72505 2842276 
@@ -24142,7 +22925,7 @@ begin item 982
   height_lock 1
 end item
 
-begin item 983
+begin item 930
   type_id 6194
   id 1347
   position -10801302 2412747 2831605 
@@ -24166,7 +22949,7 @@ begin item 983
   height_lock 1
 end item
 
-begin item 984
+begin item 931
   type_id 6194
   id 715
   position -17362662 -12891809 3344654 
@@ -24190,7 +22973,7 @@ begin item 984
   height_lock 1
 end item
 
-begin item 985
+begin item 932
   type_id 6194
   id 716
   position -22401782 -8021912 5191480 
@@ -24215,7 +22998,7 @@ begin item 985
   height_lock 1
 end item
 
-begin item 986
+begin item 933
   type_id 6194
   id 717
   position -9427971 -13411114 2975613 
@@ -24239,7 +23022,7 @@ begin item 986
   height_lock 1
 end item
 
-begin item 987
+begin item 934
   type_id 6194
   id 718
   position -9880241 -14269899 2935252 
@@ -24263,7 +23046,7 @@ begin item 987
   height_lock 1
 end item
 
-begin item 988
+begin item 935
   type_id 6194
   id 719
   position -9758178 -15032790 3045120 
@@ -24287,7 +23070,7 @@ begin item 988
   height_lock 1
 end item
 
-begin item 989
+begin item 936
   type_id 6194
   id 720
   position -9208897 -14849696 3762947 
@@ -24311,7 +23094,7 @@ begin item 989
   height_lock 1
 end item
 
-begin item 990
+begin item 937
   type_id 6194
   id 721
   position -10200655 -15658361 2939401 
@@ -24335,7 +23118,7 @@ begin item 990
   height_lock 1
 end item
 
-begin item 991
+begin item 938
   type_id 6194
   id 722
   position -10200655 -16283932 3009500 
@@ -24359,7 +23142,7 @@ begin item 991
   height_lock 1
 end item
 
-begin item 992
+begin item 939
   type_id 6194
   id 723
   position -9849725 -16878987 3536648 
@@ -24383,7 +23166,7 @@ begin item 992
   height_lock 1
 end item
 
-begin item 993
+begin item 940
   type_id 6194
   id 724
   position -9086834 -13796906 3674351 
@@ -24407,7 +23190,7 @@ begin item 993
   height_lock 1
 end item
 
-begin item 994
+begin item 941
   type_id 6194
   id 726
   position -10401386 -13396138 2935252 
@@ -24431,7 +23214,7 @@ begin item 994
   height_lock 1
 end item
 
-begin item 995
+begin item 942
   type_id 6194
   id 727
   position -12275720 -10928434 3356543 
@@ -24455,7 +23238,7 @@ begin item 995
   height_lock 1
 end item
 
-begin item 996
+begin item 943
   type_id 6194
   id 729
   position -12886033 -11676068 3155478 
@@ -24479,7 +23262,7 @@ begin item 996
   height_lock 1
 end item
 
-begin item 997
+begin item 944
   type_id 6194
   id 730
   position -14335527 -11340395 3337684 
@@ -24503,7 +23286,7 @@ begin item 997
   height_lock 1
 end item
 
-begin item 998
+begin item 945
   type_id 6194
   id 731
   position -13694698 -10455441 3646782 
@@ -24528,7 +23311,7 @@ begin item 998
   height_lock 1
 end item
 
-begin item 999
+begin item 946
   type_id 6194
   id 732
   position -13694698 -11706583 3150567 
@@ -24552,7 +23335,7 @@ begin item 999
   height_lock 1
 end item
 
-begin item 1000
+begin item 947
   type_id 6194
   id 733
   position -14839036 -11615036 3266373 
@@ -24576,7 +23359,7 @@ begin item 1000
   height_lock 1
 end item
 
-begin item 1001
+begin item 948
   type_id 6194
   id 734
   position -15754505 -12545764 3113931 
@@ -24600,7 +23383,7 @@ begin item 1001
   height_lock 1
 end item
 
-begin item 1002
+begin item 949
   type_id 6194
   id 735
   position -16181724 -12683084 3161078 
@@ -24624,7 +23407,7 @@ begin item 1002
   height_lock 1
 end item
 
-begin item 1003
+begin item 950
   type_id 6194
   id 736
   position -15022130 -12393186 3042138 
@@ -24648,7 +23431,7 @@ begin item 1003
   height_lock 1
 end item
 
-begin item 1004
+begin item 951
   type_id 6194
   id 738
   position -12229947 -10287605 3308488 
@@ -24673,7 +23456,7 @@ begin item 1004
   height_lock 1
 end item
 
-begin item 1005
+begin item 952
   type_id 6194
   id 739
   position -11955306 -11691325 3087052 
@@ -24697,7 +23480,7 @@ begin item 1005
   height_lock 1
 end item
 
-begin item 1006
+begin item 953
   type_id 6194
   id 740
   position -9192105 -12407748 3323304 
@@ -24721,7 +23504,7 @@ begin item 1006
   height_lock 1
 end item
 
-begin item 1007
+begin item 954
   type_id 6194
   id 741
   position -10060691 -12542528 2937145 
@@ -24745,7 +23528,7 @@ begin item 1007
   height_lock 1
 end item
 
-begin item 1008
+begin item 955
   type_id 6194
   id 125
   position -5524786 -12421763 4255140 
@@ -24771,7 +23554,7 @@ begin item 1008
 end item
 
 
-begin item 1009
+begin item 956
   type_id 6194
   id 127
   position -8588696 -13392507 4097004 
@@ -24797,7 +23580,7 @@ begin item 1009
 end item
 
 
-begin item 1010
+begin item 957
   type_id 6194
   id 129
   position -4963575 -14241907 4155471 
@@ -24822,7 +23605,7 @@ begin item 1010
   height_lock 1
 end item
 
-begin item 1011
+begin item 958
   type_id 6194
   id 130
   position -4660217 -15440169 4163120 
@@ -24849,7 +23632,7 @@ end item
 
 
 
-begin item 1012
+begin item 959
   type_id 6194
   id 133
   position -4068695 -17108815 3479288 
@@ -24874,7 +23657,7 @@ begin item 1012
   height_lock 1
 end item
 
-begin item 1013
+begin item 960
   type_id 6194
   id 134
   position -3113119 -17548683 2910535 
@@ -24899,7 +23682,7 @@ begin item 1013
   height_lock 1
 end item
 
-begin item 1014
+begin item 961
   type_id 6194
   id 135
   position -4205206 -16213910 3798328 
@@ -24924,7 +23707,7 @@ begin item 1014
   height_lock 1
 end item
 
-begin item 1015
+begin item 962
   type_id 6194
   id 136
   position -4174870 -18140229 3177814 
@@ -24949,7 +23732,7 @@ begin item 1015
   height_lock 1
 end item
 
-begin item 1016
+begin item 963
   type_id 6194
   id 137
   position -3401308 -18807617 2643891 
@@ -24974,7 +23757,7 @@ begin item 1016
   height_lock 1
 end item
 
-begin item 1017
+begin item 964
   type_id 6194
   id 138
   position -5145614 -19262653 3597304 
@@ -24999,7 +23782,7 @@ begin item 1017
   height_lock 1
 end item
 
-begin item 1018
+begin item 965
   type_id 6194
   id 139
   position -5054607 -18079559 4040487 
@@ -25024,7 +23807,7 @@ begin item 1018
   height_lock 1
 end item
 
-begin item 1019
+begin item 966
   type_id 6194
   id 140
   position -6450051 -18671105 4598615 
@@ -25049,7 +23832,7 @@ begin item 1019
   height_lock 1
 end item
 
-begin item 1020
+begin item 967
   type_id 6197
   id 1193
   position 10024759 2575094 2795995 
@@ -25073,7 +23856,7 @@ begin item 1020
   height_lock 1
 end item
 
-begin item 1021
+begin item 968
   type_id 6197
   id 53
   position 16024462 11663000 2759870 
@@ -25098,7 +23881,7 @@ begin item 1021
   height_lock 1
 end item
 
-begin item 1022
+begin item 969
   type_id 6197
   id 54
   position 16125318 13090441 2749370 
@@ -25123,7 +23906,7 @@ begin item 1022
   height_lock 1
 end item
 
-begin item 1023
+begin item 970
   type_id 6197
   id 55
   position 18392316 14411403 2675766 
@@ -25148,7 +23931,7 @@ begin item 1023
   height_lock 1
 end item
 
-begin item 1024
+begin item 971
   type_id 6197
   id 56
   position 20187388 15610428 2697691 
@@ -25173,7 +23956,7 @@ begin item 1024
   height_lock 1
 end item
 
-begin item 1025
+begin item 972
   type_id 6197
   id 57
   position 22223378 17542674 2669899 
@@ -25198,7 +23981,7 @@ begin item 1025
   height_lock 1
 end item
 
-begin item 1026
+begin item 973
   type_id 6197
   id 59
   position 5660358 -5538916 2934336 
@@ -25222,7 +24005,7 @@ begin item 1026
   height_lock 1
 end item
 
-begin item 1027
+begin item 974
   type_id 6197
   id 18
   position -11965946 -20743806 2795995 
@@ -25247,7 +24030,7 @@ begin item 1027
   height_lock 1
 end item
 
-begin item 1028
+begin item 975
   type_id 6197
   id 60
   position 3703607 -8073500 2945395 
@@ -25271,31 +24054,8 @@ begin item 1028
   height_lock 1
 end item
 
-begin item 1029
-  type_id 6197
-  id 61
-  position 3138906 -10883869 2951196 
-  edistances 16 320 
-  facing 76 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 1030
+begin item 976
   type_id 6197
   id 13
   position -10841812 -18202169 2928017 
@@ -25319,7 +24079,7 @@ begin item 1030
   height_lock 1
 end item
 
-begin item 1031
+begin item 977
   type_id 6197
   id 19
   position -14747976 -19945784 2910659 
@@ -25343,7 +24103,7 @@ begin item 1031
   height_lock 1
 end item
 
-begin item 1032
+begin item 978
   type_id 6197
   id 20
   position -17978586 -20063976 2857889 
@@ -25367,7 +24127,7 @@ begin item 1032
   height_lock 1
 end item
 
-begin item 1033
+begin item 979
   type_id 6197
   id 21
   position -19597510 -19525594 2878651 
@@ -25391,7 +24151,7 @@ begin item 1033
   height_lock 1
 end item
 
-begin item 1034
+begin item 980
   type_id 6197
   id 22
   position -22352850 -18115290 2815800 
@@ -25415,7 +24175,7 @@ begin item 1034
   height_lock 1
 end item
 
-begin item 1035
+begin item 981
   type_id 6197
   id 23
   position -24772598 -17104464 2791895 
@@ -25439,7 +24199,7 @@ begin item 1035
   height_lock 1
 end item
 
-begin item 1036
+begin item 982
   type_id 6197
   id 24
   position -26153734 -14783839 2827932 
@@ -25463,7 +24223,7 @@ begin item 1036
   height_lock 1
 end item
 
-begin item 1037
+begin item 983
   type_id 6197
   id 25
   position -26951092 -12348795 2763227 
@@ -25487,7 +24247,7 @@ begin item 1037
   height_lock 1
 end item
 
-begin item 1038
+begin item 984
   type_id 6197
   id 26
   position -27264340 -10170301 2850949 
@@ -25511,7 +24271,7 @@ begin item 1038
   height_lock 1
 end item
 
-begin item 1039
+begin item 985
   type_id 6197
   id 27
   position -27141786 -8155731 2913583 
@@ -25535,7 +24295,7 @@ begin item 1039
   height_lock 1
 end item
 
-begin item 1040
+begin item 986
   type_id 6197
   id 28
   position -27141890 -6155005 2793967 
@@ -25559,7 +24319,7 @@ begin item 1040
   height_lock 1
 end item
 
-begin item 1041
+begin item 987
   type_id 6197
   id 29
   position -25982998 -5728621 2837839 
@@ -25583,7 +24343,7 @@ begin item 1041
   height_lock 1
 end item
 
-begin item 1042
+begin item 988
   type_id 6197
   id 30
   position -24091604 -4515068 2828763 
@@ -25607,7 +24367,7 @@ begin item 1042
   height_lock 1
 end item
 
-begin item 1043
+begin item 989
   type_id 6197
   id 50
   position 11536073 6724992 2717220 
@@ -25631,7 +24391,7 @@ begin item 1043
   height_lock 1
 end item
 
-begin item 1044
+begin item 990
   type_id 6197
   id 51
   position 14444638 9240604 2655812 
@@ -25656,7 +24416,7 @@ begin item 1044
   height_lock 1
 end item
 
-begin item 1045
+begin item 991
   type_id 6197
   id 52
   position 13733717 11162722 2744866 
@@ -25681,7 +24441,7 @@ begin item 1045
   height_lock 1
 end item
 
-begin item 1046
+begin item 992
   type_id 6215
   id 14
   position -13286577 -17713217 2917798 
@@ -25706,7 +24466,7 @@ begin item 1046
   height_lock 1
 end item
 
-begin item 1047
+begin item 993
   type_id 6215
   id 15
   position -15129553 -15832628 3122571 
@@ -25731,7 +24491,7 @@ begin item 1047
   height_lock 1
 end item
 
-begin item 1048
+begin item 994
   type_id 6215
   id 47
   position -1220936 6197932 2735135 
@@ -25755,7 +24515,7 @@ begin item 1048
   height_lock 1
 end item
 
-begin item 1049
+begin item 995
   type_id 6215
   id 64
   position -1627752 -10191441 2927067 
@@ -25779,7 +24539,7 @@ begin item 1049
   height_lock 1
 end item
 
-begin item 1050
+begin item 996
   type_id 6215
   id 58
   position 9317269 6169673 2940398 
@@ -25803,7 +24563,7 @@ begin item 1050
   height_lock 1
 end item
 
-begin item 1051
+begin item 997
   type_id 6215
   id 65
   position 328059 -11883970 2927067 
@@ -25827,36 +24587,13 @@ begin item 1051
   height_lock 1
 end item
 
-begin item 1052
-  type_id 6215
-  id 66
-  position 1494023 -8686970 2927067 
-  edistances 16 320 
-  facing 66 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 1053
+begin item 998
   type_id 6215
   id 67
-  position 313103 -6659971 2927067 
+  position -1087115 -6659971 2927067
   edistances 16 320 
-  facing 349 0 
+  facing 367.7216380928703 0
   shoottimer 5
   gen_string "null"
   crouchtimer 3
@@ -25876,7 +24613,7 @@ begin item 1053
 end item
 
 
-begin item 1054
+begin item 999
   type_id 6215
   id 69
   position 248524 -1062159 2927067 
@@ -25900,7 +24637,7 @@ begin item 1054
   height_lock 1
 end item
 
-begin item 1055
+begin item 1000
   type_id 6215
   id 70
   position 3073717 -5377136 2927067 
@@ -25925,7 +24662,7 @@ begin item 1055
 end item
 
 
-begin item 1056
+begin item 1001
   type_id 6215
   id 72
   position 1907442 1317104 2927067 
@@ -25949,7 +24686,7 @@ begin item 1056
   height_lock 1
 end item
 
-begin item 1057
+begin item 1002
   type_id 6215
   id 2
   position -11228498 -7741880 2878563 
@@ -25973,7 +24710,7 @@ begin item 1057
   height_lock 1
 end item
 
-begin item 1058
+begin item 1003
   type_id 6215
   id 901
   position -10400869 -4862711 2927067 
@@ -25997,7 +24734,7 @@ begin item 1058
   height_lock 1
 end item
 
-begin item 1059
+begin item 1004
   type_id 6215
   id 6
   position -12760012 -4473877 2896477 
@@ -26021,7 +24758,7 @@ begin item 1059
   height_lock 1
 end item
 
-begin item 1060
+begin item 1005
   type_id 6215
   id 36
   position -18665132 -4962856 2912888 
@@ -26045,7 +24782,7 @@ begin item 1060
   height_lock 1
 end item
 
-begin item 1061
+begin item 1006
   type_id 6215
   id 38
   position -9362491 1024457 2876170 
@@ -26070,7 +24807,7 @@ begin item 1061
   height_lock 1
 end item
 
-begin item 1062
+begin item 1007
   type_id 6215
   id 43
   position -1492370 820728 2927067 
@@ -26094,7 +24831,7 @@ begin item 1062
   height_lock 1
 end item
 
-begin item 1063
+begin item 1008
   type_id 6215
   id 44
   position -1213413 3161182 2927067 
@@ -26118,7 +24855,7 @@ begin item 1063
   height_lock 1
 end item
 
-begin item 1064
+begin item 1009
   type_id 6215
   id 45
   position -2416990 5004158 2927067 
@@ -26142,7 +24879,7 @@ begin item 1064
   height_lock 1
 end item
 
-begin item 1065
+begin item 1010
   type_id 6215
   id 46
   position -4533617 6722713 2855159 
@@ -26166,7 +24903,7 @@ begin item 1065
   height_lock 1
 end item
 
-begin item 1066
+begin item 1011
   type_id 6215
   id 48
   position 10521166 10006277 2707512 
@@ -26191,7 +24928,7 @@ begin item 1066
   height_lock 1
 end item
 
-begin item 1067
+begin item 1012
   type_id 6215
   id 49
   position 12476977 8727477 2861531 
@@ -26216,10 +24953,10 @@ begin item 1067
   height_lock 1
 end item
 
-begin item 1068
+begin item 1013
   type_id 6215
   id 7
-  position -13023294 -1615383 2898301 
+  position -12364099 -1615383 2898301
   edistances 16 320 
   facing 336 0 
   shoottimer 5
@@ -26240,31 +24977,8 @@ begin item 1068
   height_lock 1
 end item
 
-begin item 1069
-  type_id 6215
-  id 8
-  position -10732272 -2014315 2861531 
-  edistances 16 320 
-  facing 256 0 
-  shoottimer 5
-  gen_string "null"
-  crouchtimer 3
-  fov 180
-  layer 0
-  obliqueness 15
-  wpdistance 10
-  wp_adv_trigger 65535
-  waccuracy1 100
-  waccuracy2 100
-  max_attack_distance 16
-  perfectionist2 100
-  advancetimer 10
-  attention 30
-  perception2 100
-  height_lock 1
-end item
 
-begin item 1070
+begin item 1014
   type_id 6215
   id 11
   position -3355382 -1388221 2927067 
@@ -26290,7 +25004,7 @@ end item
 
 
 
-begin item 1071
+begin item 1015
   type_id 6254
   id 1147
   position -13068821 9219528 1814164 
@@ -26314,7 +25028,7 @@ begin item 1071
   height_lock 1
 end item
 
-begin item 1072
+begin item 1016
   type_id 6254
   id 1250
   position -9302066 -597322 1998848 
@@ -26338,7 +25052,7 @@ begin item 1072
   height_lock 1
 end item
 
-begin item 1073
+begin item 1017
   type_id 6254
   id 1020
   position -8991751 301221 1996350 
@@ -26362,7 +25076,7 @@ begin item 1073
   height_lock 1
 end item
 
-begin item 1074
+begin item 1018
   type_id 6254
   id 1044
   position -8937698 -6123686 1998848 
@@ -26386,7 +25100,7 @@ begin item 1074
   height_lock 1
 end item
 
-begin item 1075
+begin item 1019
   type_id 6254
   id 1482
   position 24326534 20096356 1802240 
@@ -26410,7 +25124,7 @@ begin item 1075
   height_lock 1
 end item
 
-begin item 1076
+begin item 1020
   type_id 6254
   id 1045
   position -3202048 -1792961 1998848 
@@ -26434,7 +25148,7 @@ begin item 1076
   height_lock 1
 end item
 
-begin item 1077
+begin item 1021
   type_id 6255
   id 1037
   position -4807018 -4156361 2071026 
@@ -26458,7 +25172,7 @@ begin item 1077
   height_lock 1
 end item
 
-begin item 1078
+begin item 1022
   type_id 6255
   id 1442
   position -4302883 -3884272 2056960 
@@ -26482,7 +25196,7 @@ begin item 1078
   height_lock 1
 end item
 
-begin item 1079
+begin item 1023
   type_id 6255
   id 1444
   position -3881968 -3536038 2043648 
@@ -26506,7 +25220,7 @@ begin item 1079
   height_lock 1
 end item
 
-begin item 1080
+begin item 1024
   type_id 6255
   id 1040
   position -8572820 -4151850 2048000 
@@ -26530,7 +25244,7 @@ begin item 1080
   height_lock 1
 end item
 
-begin item 1081
+begin item 1025
   type_id 6255
   id 1043
   position -8461776 -4681439 2048000 
@@ -26554,7 +25268,7 @@ begin item 1081
   height_lock 1
 end item
 
-begin item 1082
+begin item 1026
   type_id 6255
   id 1027
   position -6166456 -4878315 2182759 
@@ -26578,7 +25292,7 @@ begin item 1082
   height_lock 1
 end item
 
-begin item 1083
+begin item 1027
   type_id 6255
   id 1047
   position -4180358 -2135724 2047744 
@@ -26602,7 +25316,7 @@ begin item 1083
   height_lock 1
 end item
 
-begin item 1084
+begin item 1028
   type_id 6255
   id 1143
   position -12284781 7082001 1942342 
@@ -26626,7 +25340,7 @@ begin item 1084
   height_lock 1
 end item
 
-begin item 1085
+begin item 1029
   type_id 6255
   id 1145
   position -10979080 7831925 1961977 
@@ -26650,7 +25364,7 @@ begin item 1085
   height_lock 1
 end item
 
-begin item 1086
+begin item 1030
   type_id 6255
   id 1031
   position -8553999 -1591661 2043648 
@@ -26674,7 +25388,7 @@ begin item 1086
   height_lock 1
 end item
 
-begin item 1087
+begin item 1031
   type_id 6255
   id 1033
   position -8722575 -2110768 2046464 
@@ -26698,7 +25412,7 @@ begin item 1087
   height_lock 1
 end item
 
-begin item 1088
+begin item 1032
   type_id 6255
   id 1036
   position -8720738 -2663266 2048000 
@@ -26722,7 +25436,7 @@ begin item 1088
   height_lock 1
 end item
 
-begin item 1089
+begin item 1033
   type_id 6256
   id 1494
   position 25073556 19930666 1753408 
@@ -26746,7 +25460,7 @@ begin item 1089
   height_lock 1
 end item
 
-begin item 1090
+begin item 1034
   type_id 6256
   id 1495
   position 25000336 20499456 1802240 
@@ -26770,7 +25484,7 @@ begin item 1090
   height_lock 1
 end item
 
-begin item 1091
+begin item 1035
   type_id 6256
   id 1496
   position 24785695 20728484 1801523 
@@ -26794,7 +25508,7 @@ begin item 1091
   height_lock 1
 end item
 
-begin item 1092
+begin item 1036
   type_id 6256
   id 1497
   position 23756360 19712394 1846843 
@@ -26818,7 +25532,7 @@ begin item 1092
   height_lock 1
 end item
 
-begin item 1093
+begin item 1037
   type_id 6256
   id 1498
   position 23971002 19483368 1837497 
@@ -26842,7 +25556,7 @@ begin item 1093
   height_lock 1
 end item
 
-begin item 1094
+begin item 1038
   type_id 6256
   id 1039
   position -8575989 -4434776 2047744 
@@ -26866,7 +25580,7 @@ begin item 1094
   height_lock 1
 end item
 
-begin item 1095
+begin item 1039
   type_id 6256
   id 1445
   position -3729353 -3297782 2045696 
@@ -26890,7 +25604,7 @@ begin item 1095
   height_lock 1
 end item
 
-begin item 1096
+begin item 1040
   type_id 6256
   id 1024
   position -5919983 -4742811 2187149 
@@ -26914,7 +25628,7 @@ begin item 1096
   height_lock 1
 end item
 
-begin item 1097
+begin item 1041
   type_id 6256
   id 1041
   position -8577826 -3882278 2046720 
@@ -26938,7 +25652,7 @@ begin item 1097
   height_lock 1
 end item
 
-begin item 1098
+begin item 1042
   type_id 6256
   id 1042
   position -8323059 -4928044 2047744 
@@ -26962,7 +25676,7 @@ begin item 1098
   height_lock 1
 end item
 
-begin item 1099
+begin item 1043
   type_id 6256
   id 1022
   position -8403424 -1360892 2043648 
@@ -26986,7 +25700,7 @@ begin item 1099
   height_lock 1
 end item
 
-begin item 1100
+begin item 1044
   type_id 6256
   id 1032
   position -8698208 -1835098 2045696 
@@ -27010,7 +25724,7 @@ begin item 1100
   height_lock 1
 end item
 
-begin item 1101
+begin item 1045
   type_id 6256
   id 1046
   position -4036608 -2381839 2049792 
@@ -27034,7 +25748,7 @@ begin item 1101
   height_lock 1
 end item
 
-begin item 1102
+begin item 1046
   type_id 6256
   id 1026
   position -5057999 -4291433 2112912 
@@ -27058,7 +25772,7 @@ begin item 1102
   height_lock 1
 end item
 
-begin item 1103
+begin item 1047
   type_id 6256
   id 1140
   position -12129247 7308221 1945344 
@@ -27082,7 +25796,7 @@ begin item 1103
   height_lock 1
 end item
 
-begin item 1104
+begin item 1048
   type_id 6256
   id 1048
   position -4324378 -1894130 2058752 
@@ -27106,7 +25820,7 @@ begin item 1104
   height_lock 1
 end item
 
-begin item 1105
+begin item 1049
   type_id 6256
   id 1142
   position -11260757 7794271 1934268 
@@ -27130,7 +25844,7 @@ begin item 1105
   height_lock 1
 end item
 
-begin item 1106
+begin item 1050
   type_id 6256
   id 1034
   position -8725744 -2393694 2046720 
@@ -27154,7 +25868,7 @@ begin item 1106
   height_lock 1
 end item
 
-begin item 1107
+begin item 1051
   type_id 6256
   id 1144
   position -12428990 6838564 1929911 
@@ -27178,7 +25892,7 @@ begin item 1107
   height_lock 1
 end item
 
-begin item 1108
+begin item 1052
   type_id 6256
   id 1035
   position -8723907 -2946192 2047744 
@@ -27202,7 +25916,7 @@ begin item 1108
   height_lock 1
 end item
 
-begin item 1109
+begin item 1053
   type_id 6256
   id 1146
   position -10696154 7828756 2006090 
@@ -27226,7 +25940,7 @@ begin item 1109
   height_lock 1
 end item
 
-begin item 1110
+begin item 1054
   type_id 6256
   id 1023
   position -7534934 -874842 2041205 
@@ -27250,7 +25964,7 @@ begin item 1110
   height_lock 1
 end item
 
-begin item 1111
+begin item 1055
   type_id 6256
   id 1028
   position -6418191 -5008731 2165511 
@@ -27274,7 +25988,7 @@ begin item 1111
   height_lock 1
 end item
 
-begin item 1112
+begin item 1056
   type_id 6256
   id 1038
   position -4560545 -4020857 2058752 
@@ -27298,7 +26012,7 @@ begin item 1112
   height_lock 1
 end item
 
-begin item 1113
+begin item 1057
   type_id 6256
   id 1443
   position -4056410 -3748769 2058752 
@@ -27322,7 +26036,7 @@ begin item 1113
   height_lock 1
 end item
 
-begin item 1114
+begin item 1058
   type_id 6256
   id 1483
   position 24234060 20807975 1758285 
@@ -27346,7 +26060,7 @@ begin item 1114
   height_lock 1
 end item
 
-begin item 1115
+begin item 1059
   type_id 6256
   id 1484
   position 24547782 20797800 1780208 
@@ -27370,7 +26084,7 @@ begin item 1115
   height_lock 1
 end item
 
-begin item 1116
+begin item 1060
   type_id 6256
   id 1485
   position 23643011 19934762 1822449 
@@ -27394,7 +26108,7 @@ begin item 1116
   height_lock 1
 end item
 
-begin item 1117
+begin item 1061
   type_id 6256
   id 1486
   position 23653184 20248484 1796350 
@@ -27418,7 +26132,7 @@ begin item 1117
   height_lock 1
 end item
 
-begin item 1118
+begin item 1062
   type_id 6256
   id 1487
   position 23963154 20695784 1757149 
@@ -27442,7 +26156,7 @@ begin item 1118
   height_lock 1
 end item
 
-begin item 1119
+begin item 1063
   type_id 6256
   id 1488
   position 23734127 20481143 1767965 
@@ -27466,7 +26180,7 @@ begin item 1119
   height_lock 1
 end item
 
-begin item 1120
+begin item 1064
   type_id 6256
   id 1489
   position 24524069 19379023 1773886 
@@ -27490,7 +26204,7 @@ begin item 1120
   height_lock 1
 end item
 
-begin item 1121
+begin item 1065
   type_id 6256
   id 1490
   position 24210346 19389198 1802240 
@@ -27514,7 +26228,7 @@ begin item 1121
   height_lock 1
 end item
 
-begin item 1122
+begin item 1066
   type_id 6256
   id 1491
   position 24750217 19451806 1741476 
@@ -27538,7 +26252,7 @@ begin item 1122
   height_lock 1
 end item
 
-begin item 1123
+begin item 1067
   type_id 6256
   id 1492
   position 24979243 19666447 1729064 
@@ -27562,7 +26276,7 @@ begin item 1123
   height_lock 1
 end item
 
-begin item 1124
+begin item 1068
   type_id 6256
   id 1493
   position 25083729 20244388 1790919 
@@ -27586,7 +26300,7 @@ begin item 1124
   height_lock 1
 end item
 
-begin item 1125
+begin item 1069
   type_id 6003
   id 1084
   position -1316631 -15715609 2031616 
@@ -27611,7 +26325,7 @@ begin item 1125
   height_lock 1
 end item
 
-begin item 1126
+begin item 1070
   type_id 6003
   id 1085
   position 952560 -12333985 1998848 
@@ -27636,7 +26350,7 @@ begin item 1126
   height_lock 1
 end item
 
-begin item 1127
+begin item 1071
   type_id 6003
   id 1086
   position -2531612 -17997084 1873415 
@@ -27661,7 +26375,7 @@ begin item 1127
   height_lock 1
 end item
 
-begin item 1128
+begin item 1072
   type_id 6003
   id 1087
   position -3098939 -16426027 2261306 
@@ -27686,7 +26400,7 @@ begin item 1128
   height_lock 1
 end item
 
-begin item 1129
+begin item 1073
   type_id 6003
   id 1088
   position -1133654 -14628064 2031616 
@@ -27711,7 +26425,7 @@ begin item 1129
   height_lock 1
 end item
 
-begin item 1130
+begin item 1074
   type_id 6003
   id 1089
   position 1057505 -13317840 1998848 
@@ -27736,7 +26450,7 @@ begin item 1130
   height_lock 1
 end item
 
-begin item 1131
+begin item 1075
   type_id 6003
   id 1090
   position 2794808 -11614686 2004942 
@@ -27761,7 +26475,7 @@ begin item 1131
   height_lock 1
 end item
 
-begin item 1132
+begin item 1076
   type_id 6003
   id 1091
   position 2408490 -15046987 1772348 
@@ -27786,7 +26500,7 @@ begin item 1132
   height_lock 1
 end item
 
-begin item 1133
+begin item 1077
   type_id 6003
   id 1092
   position 3130160 -14275460 1799821 
@@ -27811,7 +26525,7 @@ begin item 1133
   height_lock 1
 end item
 
-begin item 1134
+begin item 1078
   type_id 6003
   id 1093
   position 1675330 -11573204 1998848 
@@ -27836,7 +26550,7 @@ begin item 1134
   height_lock 1
 end item
 
-begin item 1135
+begin item 1079
   type_id 6003
   id 1094
   position -80775 -15705547 1975817 
@@ -27861,7 +26575,7 @@ begin item 1135
   height_lock 1
 end item
 
-begin item 1136
+begin item 1080
   type_id 6003
   id 1095
   position 296985 -15705547 1931138 
@@ -27886,7 +26600,7 @@ begin item 1136
   height_lock 1
 end item
 
-begin item 1137
+begin item 1081
   type_id 6003
   id 1096
   position -3552800 -17578136 2225870 
@@ -27911,7 +26625,7 @@ begin item 1137
   height_lock 1
 end item
 
-begin item 1138
+begin item 1082
   type_id 6003
   id 1097
   position 2408666 -12937416 1998848 
@@ -27936,7 +26650,7 @@ begin item 1138
   height_lock 1
 end item
 
-begin item 1139
+begin item 1083
   type_id 6003
   id 1098
   position 1162449 -15600385 1824691 
@@ -27961,7 +26675,7 @@ begin item 1139
   height_lock 1
 end item
 
-begin item 1140
+begin item 1084
   type_id 6003
   id 1099
   position 102202 -14618002 1998848 
@@ -27986,7 +26700,7 @@ begin item 1140
   height_lock 1
 end item
 
-begin item 1141
+begin item 1085
   type_id 6003
   id 1100
   position -80253 -14307057 1998848 
@@ -28011,7 +26725,7 @@ begin item 1141
   height_lock 1
 end item
 
-begin item 1142
+begin item 1086
   type_id 6003
   id 1101
   position 2539847 -14275460 1879409 
@@ -28036,7 +26750,7 @@ begin item 1142
   height_lock 1
 end item
 
-begin item 1143
+begin item 1087
   type_id 6003
   id 1102
   position 2066597 -13195666 1998848 
@@ -28061,7 +26775,7 @@ begin item 1143
   height_lock 1
 end item
 
-begin item 1144
+begin item 1088
   type_id 6003
   id 1103
   position 297507 -14307057 1998848 
@@ -28086,7 +26800,7 @@ begin item 1144
   height_lock 1
 end item
 
-begin item 1145
+begin item 1089
   type_id 6003
   id 1104
   position 3930362 -12701291 1971478 
@@ -28111,7 +26825,7 @@ begin item 1145
   height_lock 1
 end item
 
-begin item 1146
+begin item 1090
   type_id 6003
   id 1075
   position -1316109 -14317119 2031616 
@@ -28136,7 +26850,7 @@ begin item 1146
   height_lock 1
 end item
 
-begin item 1147
+begin item 1091
   type_id 6003
   id 1076
   position -2348322 -16757694 2065350 
@@ -28161,7 +26875,7 @@ begin item 1147
   height_lock 1
 end item
 
-begin item 1148
+begin item 1092
   type_id 6003
   id 1077
   position 3316712 -13440503 1925342 
@@ -28186,7 +26900,7 @@ begin item 1148
   height_lock 1
 end item
 
-begin item 1149
+begin item 1093
   type_id 6003
   id 1078
   position 1162449 -14616529 1980142 
@@ -28211,7 +26925,7 @@ begin item 1149
   height_lock 1
 end item
 
-begin item 1150
+begin item 1094
   type_id 6003
   id 1079
   position -938349 -14317119 2022634 
@@ -28236,7 +26950,7 @@ begin item 1150
   height_lock 1
 end item
 
-begin item 1151
+begin item 1095
   type_id 6003
   id 1080
   position -938871 -15715609 1998848 
@@ -28261,7 +26975,7 @@ begin item 1151
   height_lock 1
 end item
 
-begin item 1152
+begin item 1096
   type_id 6003
   id 1081
   position 1949534 -13908154 1982717 
@@ -28286,7 +27000,7 @@ begin item 1152
   height_lock 1
 end item
 
-begin item 1153
+begin item 1097
   type_id 6003
   id 1082
   position 3431876 -12242158 2027956 
@@ -28311,7 +27025,7 @@ begin item 1153
   height_lock 1
 end item
 
-begin item 1154
+begin item 1098
   type_id 6003
   id 1083
   position -2243585 -15736507 2098956 
@@ -28336,7 +27050,7 @@ begin item 1154
   height_lock 1
 end item
 
-begin item 1155
+begin item 1099
   type_id 6004
   id 1115
   position -21931904 -4380146 1929292 
@@ -28361,7 +27075,7 @@ begin item 1155
   height_lock 1
 end item
 
-begin item 1156
+begin item 1100
   type_id 6004
   id 1116
   position -20245324 -4298538 1926602 
@@ -28386,7 +27100,7 @@ begin item 1156
   height_lock 1
 end item
 
-begin item 1157
+begin item 1101
   type_id 6004
   id 1190
   position -19804594 -2250184 1900544 
@@ -28411,7 +27125,7 @@ begin item 1157
   height_lock 1
 end item
 
-begin item 1158
+begin item 1102
   type_id 6004
   id 1117
   position -22570484 -3628296 1900544 
@@ -28436,7 +27150,7 @@ begin item 1158
   height_lock 1
 end item
 
-begin item 1159
+begin item 1103
   type_id 6004
   id 1118
   position -22852552 -4739350 1948561 
@@ -28461,7 +27175,7 @@ begin item 1159
   height_lock 1
 end item
 
-begin item 1160
+begin item 1104
   type_id 6004
   id 1119
   position -19811655 -656911 1900544 
@@ -28486,7 +27200,7 @@ begin item 1160
   height_lock 1
 end item
 
-begin item 1161
+begin item 1105
   type_id 6004
   id 1120
   position -19594430 -3556358 1916393 
@@ -28511,7 +27225,7 @@ begin item 1161
   height_lock 1
 end item
 
-begin item 1162
+begin item 1106
   type_id 6004
   id 1121
   position -19811655 -1034671 1900544 
@@ -28536,7 +27250,7 @@ begin item 1162
   height_lock 1
 end item
 
-begin item 1163
+begin item 1107
   type_id 6004
   id 1122
   position -22177648 -1364825 1888912 
@@ -28561,7 +27275,7 @@ begin item 1163
   height_lock 1
 end item
 
-begin item 1164
+begin item 1108
   type_id 6004
   id 1123
   position -22126848 -2424353 1900544 
@@ -28586,7 +27300,7 @@ begin item 1164
   height_lock 1
 end item
 
-begin item 1165
+begin item 1109
   type_id 6004
   id 1124
   position -20196358 -854652 1900544 
@@ -28611,7 +27325,7 @@ begin item 1165
   height_lock 1
 end item
 
-begin item 1166
+begin item 1110
   type_id 6004
   id 1125
   position -21230068 -685994 1900544 
@@ -28636,7 +27350,7 @@ begin item 1166
   height_lock 1
 end item
 
-begin item 1167
+begin item 1111
   type_id 6004
   id 1126
   position -21240950 -1083156 1900544 
@@ -28661,7 +27375,7 @@ begin item 1167
   height_lock 1
 end item
 
-begin item 1168
+begin item 1112
   type_id 6004
   id 1127
   position -21257272 -1823075 1900544 
@@ -28686,7 +27400,7 @@ begin item 1168
   height_lock 1
 end item
 
-begin item 1169
+begin item 1113
   type_id 6004
   id 1128
   position -24071736 -2562237 1872834 
@@ -28711,7 +27425,7 @@ begin item 1169
   height_lock 1
 end item
 
-begin item 1170
+begin item 1114
   type_id 6004
   id 1129
   position -20112538 -2075222 1900544 
@@ -28736,7 +27450,7 @@ begin item 1170
   height_lock 1
 end item
 
-begin item 1171
+begin item 1115
   type_id 6004
   id 1130
   position -19801593 -1892766 1900544 
@@ -28761,7 +27475,7 @@ begin item 1171
   height_lock 1
 end item
 
-begin item 1172
+begin item 1116
   type_id 6004
   id 1131
   position -23774130 -1698304 1823115 
@@ -28786,7 +27500,7 @@ begin item 1172
   height_lock 1
 end item
 
-begin item 1173
+begin item 1117
   type_id 6004
   id 1132
   position -23953028 -5048566 1987181 
@@ -28811,7 +27525,7 @@ begin item 1173
   height_lock 1
 end item
 
-begin item 1174
+begin item 1118
   type_id 6004
   id 1134
   position -21256002 -2206642 1900544 
@@ -28836,7 +27550,7 @@ begin item 1174
   height_lock 1
 end item
 
-begin item 1175
+begin item 1119
   type_id 6004
   id 1105
   position -20547564 -3627057 1905105 
@@ -28861,7 +27575,7 @@ begin item 1175
   height_lock 1
 end item
 
-begin item 1176
+begin item 1120
   type_id 6004
   id 1106
   position -23012590 -2983491 1900544 
@@ -28886,7 +27600,7 @@ begin item 1176
   height_lock 1
 end item
 
-begin item 1177
+begin item 1121
   type_id 6004
   id 1107
   position -22882896 -2508914 1900544 
@@ -28911,7 +27625,7 @@ begin item 1177
   height_lock 1
 end item
 
-begin item 1178
+begin item 1122
   type_id 6004
   id 1108
   position -22147130 -3303721 1900569 
@@ -28936,7 +27650,7 @@ begin item 1178
   height_lock 1
 end item
 
-begin item 1179
+begin item 1123
   type_id 6004
   id 1109
   position -21320530 -3648895 1901057 
@@ -28961,7 +27675,7 @@ begin item 1179
   height_lock 1
 end item
 
-begin item 1180
+begin item 1124
   type_id 6004
   id 1110
   position -22733016 -1691397 1890151 
@@ -28986,7 +27700,7 @@ begin item 1180
   height_lock 1
 end item
 
-begin item 1181
+begin item 1125
   type_id 6004
   id 1111
   position -22673974 -760337 1853471 
@@ -29011,7 +27725,7 @@ begin item 1181
   height_lock 1
 end item
 
-begin item 1182
+begin item 1126
   type_id 6004
   id 1112
   position -23776258 -3972103 1890415 
@@ -29036,7 +27750,7 @@ begin item 1182
   height_lock 1
 end item
 
-begin item 1183
+begin item 1127
   type_id 6004
   id 1113
   position -21168918 -2997659 1900544 
@@ -29061,7 +27775,7 @@ begin item 1183
   height_lock 1
 end item
 
-begin item 1184
+begin item 1128
   type_id 6004
   id 1114
   position -21154404 -4935290 2055931 
@@ -29086,7 +27800,7 @@ begin item 1184
   height_lock 1
 end item
 
-begin item 1185
+begin item 1129
   type_id 6005
   id 1379
   position -9708911 -2998069 1998848 
@@ -29112,7 +27826,7 @@ begin item 1185
   height_lock 1
 end item
 
-begin item 1186
+begin item 1130
   type_id 6005
   id 1380
   position -12627556 4901633 1835147 
@@ -29139,7 +27853,7 @@ begin item 1186
   height_lock 1
 end item
 
-begin item 1187
+begin item 1131
   type_id 6005
   id 1381
   position -12412476 5597813 1881060 
@@ -29166,7 +27880,7 @@ begin item 1187
   height_lock 1
 end item
 
-begin item 1188
+begin item 1132
   type_id 6005
   id 1382
   position -11829495 5773274 1909527 
@@ -29193,7 +27907,7 @@ begin item 1188
   height_lock 1
 end item
 
-begin item 1189
+begin item 1133
   type_id 6005
   id 1383
   position -11172935 5529893 1980228 
@@ -29220,7 +27934,7 @@ begin item 1189
   height_lock 1
 end item
 
-begin item 1190
+begin item 1134
   type_id 6005
   id 1384
   position -10997475 5043133 2001205 
@@ -29247,7 +27961,7 @@ begin item 1190
   height_lock 1
 end item
 
-begin item 1191
+begin item 1135
   type_id 6005
   id 1385
   position -10974835 4131872 1958775 
@@ -29275,7 +27989,7 @@ begin item 1191
   height_lock 1
 end item
 
-begin item 1192
+begin item 1136
   type_id 6005
   id 1387
   position -9339149 -177431 1998848 
@@ -29303,7 +28017,7 @@ begin item 1192
   height_lock 1
 end item
 
-begin item 1193
+begin item 1137
   type_id 6005
   id 1390
   position -6995812 -600288 2170552 
@@ -29330,7 +28044,7 @@ begin item 1193
   height_lock 1
 end item
 
-begin item 1194
+begin item 1138
   type_id 6005
   id 1391
   position -5193182 -1228892 2188078 
@@ -29357,7 +28071,7 @@ begin item 1194
   height_lock 1
 end item
 
-begin item 1195
+begin item 1139
   type_id 6005
   id 1392
   position -3374195 -889371 2000436 
@@ -29384,7 +28098,7 @@ begin item 1195
   height_lock 1
 end item
 
-begin item 1196
+begin item 1140
   type_id 6005
   id 1393
   position 100949 -906387 1998848 
@@ -29411,7 +28125,7 @@ begin item 1196
   height_lock 1
 end item
 
-begin item 1197
+begin item 1141
   type_id 6005
   id 1394
   position 660378 -1050152 1998848 
@@ -29438,7 +28152,7 @@ begin item 1197
   height_lock 1
 end item
 
-begin item 1198
+begin item 1142
   type_id 6005
   id 1395
   position 912177 -1570260 1998848 
@@ -29466,7 +28180,7 @@ begin item 1198
   height_lock 1
 end item
 
-begin item 1199
+begin item 1143
   type_id 6005
   id 1396
   position 895586 -4492948 1998848 
@@ -29494,7 +28208,7 @@ begin item 1199
   height_lock 1
 end item
 
-begin item 1200
+begin item 1144
   type_id 6005
   id 1397
   position 652043 -5165786 1998848 
@@ -29521,7 +28235,7 @@ begin item 1200
   height_lock 1
 end item
 
-begin item 1201
+begin item 1145
   type_id 6005
   id 1398
   position 67974 -5340869 1998848 
@@ -29548,7 +28262,7 @@ begin item 1201
   height_lock 1
 end item
 
-begin item 1202
+begin item 1146
   type_id 6005
   id 1400
   position -1744889 -4699043 1998848 
@@ -29575,7 +28289,7 @@ begin item 1202
   height_lock 1
 end item
 
-begin item 1203
+begin item 1147
   type_id 6005
   id 1401
   position -3873241 -4693516 2111502 
@@ -29602,7 +28316,7 @@ begin item 1203
   height_lock 1
 end item
 
-begin item 1204
+begin item 1148
   type_id 6005
   id 1402
   position -6629774 -5627560 2155459 
@@ -29629,7 +28343,7 @@ begin item 1204
   height_lock 1
 end item
 
-begin item 1205
+begin item 1149
   type_id 6005
   id 1403
   position -7512784 -5622016 1992324 
@@ -29656,7 +28370,7 @@ begin item 1205
   height_lock 1
 end item
 
-begin item 1206
+begin item 1150
   type_id 6005
   id 1404
   position -7999545 -5746536 1986619 
@@ -29683,7 +28397,7 @@ begin item 1206
   height_lock 1
 end item
 
-begin item 1207
+begin item 1151
   type_id 6005
   id 1405
   position -8356125 -6397437 1966080 
@@ -29710,7 +28424,7 @@ begin item 1207
   height_lock 1
 end item
 
-begin item 1208
+begin item 1152
   type_id 6005
   id 1406
   position -9607349 -9935361 2002411 
@@ -29737,7 +28451,7 @@ begin item 1208
   height_lock 1
 end item
 
-begin item 1209
+begin item 1153
   type_id 6005
   id 1408
   position -9605734 -12951473 2063640 
@@ -29765,7 +28479,7 @@ begin item 1209
   height_lock 1
 end item
 
-begin item 1210
+begin item 1154
   type_id 6005
   id 1409
   position -9799544 -13509410 2002705 
@@ -29793,7 +28507,7 @@ begin item 1210
   height_lock 1
 end item
 
-begin item 1211
+begin item 1155
   type_id 6005
   id 1410
   position -10557164 -13779569 1998848 
@@ -29821,7 +28535,7 @@ begin item 1211
   height_lock 1
 end item
 
-begin item 1212
+begin item 1156
   type_id 6005
   id 1411
   position -11291292 -13350838 1998848 
@@ -29849,7 +28563,7 @@ begin item 1212
   height_lock 1
 end item
 
-begin item 1213
+begin item 1157
   type_id 6005
   id 1412
   position -11181214 -12550368 1998848 
@@ -29876,7 +28590,7 @@ begin item 1213
   height_lock 1
 end item
 
-begin item 1214
+begin item 1158
   type_id 6005
   id 1413
   position -10643513 -11124047 1970329 
@@ -29903,7 +28617,7 @@ begin item 1214
   height_lock 1
 end item
 
-begin item 1215
+begin item 1159
   type_id 6005
   id 1414
   position -10643513 -9182665 1966080 
@@ -29930,7 +28644,7 @@ begin item 1215
   height_lock 1
 end item
 
-begin item 1216
+begin item 1160
   type_id 6005
   id 1415
   position -9695273 -6520023 1997727 
@@ -29957,7 +28671,7 @@ begin item 1216
   height_lock 1
 end item
 
-begin item 1217
+begin item 1161
   type_id 6026
   id 1153
   position -6532231 -3148986 1998848 
@@ -29981,7 +28695,7 @@ begin item 1217
   height_lock 1
 end item
 
-begin item 1218
+begin item 1162
   type_id 6027
   id 1464
   position -20659272 -1441402 1900544 
@@ -30006,7 +28720,7 @@ begin item 1218
   height_lock 1
 end item
 
-begin item 1219
+begin item 1163
   type_id 6028
   id 1463
   position -522475 -15152879 1998848 
@@ -30031,7 +28745,7 @@ begin item 1219
   height_lock 1
 end item
 
-begin item 1220
+begin item 1164
   type_id 6013
   id 1962
   position -10231091 -5488109 1998848
@@ -30054,7 +28768,7 @@ begin item 1220
   height_lock 1
 end item
 
-begin item 1221
+begin item 1165
   type_id 6013
   id 1963
   position -9184525 -4372661 1998848
@@ -30077,7 +28791,7 @@ begin item 1221
   height_lock 1
 end item
 
-begin item 1222
+begin item 1166
   type_id 6013
   id 1964
   position 408702 -3895930 1998848
@@ -30100,7 +28814,7 @@ begin item 1222
   height_lock 1
 end item
 
-begin item 1223
+begin item 1167
   type_id 6013
   id 1965
   position 1455268 -2780482 1998848
