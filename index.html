@@ -2712,6 +2712,7 @@ end group
       insertPreviewIndex: null,
       insertPreviewWorld: null,
       pendingOverlayRebuild: 0,
+      selectionOutlineCache: new Map(),
       dirty: false,
     },
     threeOverlays: {
@@ -10736,7 +10737,7 @@ end group
     state.mapTiles.overlayTexture?.dispose?.();
     disposeMapTileRenderMesh();
     disposeMapTileBorders();
-    Object.assign(state.mapTiles,{filename:"",sourceFilename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,dirty:false});
+    Object.assign(state.mapTiles,{filename:"",sourceFilename:"",atlasName:"",atlasImage:null,overlayTexture:null,renderMesh:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:1,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,selectionOutlineCache:new Map(),dirty:false});
     state.tilOnlyItems=[];
     state.threeTerrain.dirty=true;
     state.collapsedTileGroups.clear();state.knownTileGroupIndices.clear();
@@ -10775,6 +10776,7 @@ end group
       x:worldToRaw(rawToWorld(record.x,"x")+half,"x"),y:worldToRaw(rawToWorld(record.y,"y")-half,"y"),z:0,heading:0,pitch:0,
       kv:{name:"MapTile",extra_val2:String(record.recordIndex)},lines:[]
     }));
+    state.mapTiles.selectionOutlineCache.clear();
     rebuildLookupIndexes();
   }
 
@@ -10785,6 +10787,7 @@ end group
     record.x=worldToRaw(rawToWorld(item.x,"x")-half,"x");record.y=worldToRaw(rawToWorld(item.y,"y")+half,"y");
     state.mapTiles.byPosition=new Map(state.mapTiles.records.map(entry=>[mapTilePositionKey(entry.x,entry.y),entry]));
     state.mapTiles.dirty=true;
+    state.mapTiles.selectionOutlineCache.delete(item.id);
   }
 
   async function promptForTilCompanion(tilName){
@@ -14259,23 +14262,33 @@ end group
     gizmoCtx.save();gizmoCtx.strokeStyle='#fff';gizmoCtx.fillStyle='#fff';gizmoCtx.lineWidth=2;gizmoCtx.beginPath();gizmoCtx.moveTo(c.sx,c.sy);gizmoCtx.lineTo(a.sx,a.sy);gizmoCtx.moveTo(c.sx,c.sy);gizmoCtx.lineTo(b.sx,b.sy);gizmoCtx.stroke();
     const screenRadius=Math.max(12,Math.hypot(a.sx-c.sx,a.sy-c.sy)),startAngle=Math.atan2(a.sy-c.sy,a.sx-c.sx),endAngle=Math.atan2(b.sy-c.sy,b.sx-c.sx);gizmoCtx.globalAlpha=.8;gizmoCtx.beginPath();gizmoCtx.arc(c.sx,c.sy,screenRadius,startAngle,endAngle,drag.appliedAngle<0);gizmoCtx.stroke();gizmoCtx.globalAlpha=1;gizmoCtx.font='12px sans-serif';gizmoCtx.fillText(drag.label,c.sx+14,c.sy-14);gizmoCtx.restore();
   }
+  function selectedMapTileOutlinePoints(it,footprint,anchor,segments=12){
+    const cache=state.mapTiles.selectionOutlineCache,terrainRevision=`${state.terrainLoad.generation}:${state.terrainLoad.revision}`;
+    const signature=`${terrainRevision}:${footprint.left}:${footprint.right}:${footprint.bottom}:${footprint.top}:${anchor.z}:${segments}`;
+    const cached=cache.get(it.id);
+    if(cached?.signature===signature)return cached.points;
+    const corners=[[footprint.left,footprint.bottom],[footprint.right,footprint.bottom],[footprint.right,footprint.top],[footprint.left,footprint.top],[footprint.left,footprint.bottom]],points=[];
+    for(let edge=0;edge<4;edge++)for(let step=0;step<=segments;step++){
+      if(edge>0&&step===0)continue;
+      const t=step/segments,x=corners[edge][0]+(corners[edge+1][0]-corners[edge][0])*t,y=corners[edge][1]+(corners[edge+1][1]-corners[edge][1])*t;
+      const terrainZ=heightAtWorld(x,y,1.0),z=Number.isFinite(terrainZ)&&terrainZ>-1e8?terrainZ+.06:anchor.z;
+      points.push({x,y,z});
+    }
+    cache.set(it.id,{signature,points});
+    return points;
+  }
   function drawSelectedMapTileOutlines(){
     if(!gizmoCtx)return;
     const ids=state.multiSelectedIds.size?Array.from(state.multiSelectedIds):(state.selectedId!=null?[state.selectedId]:[]);
-    const rect=cv.getBoundingClientRect(),projection=getCameraProjection(),segments=12;
+    const segments=12,selectedIds=new Set(ids);
+    for(const id of state.mapTiles.selectionOutlineCache.keys())if(!selectedIds.has(id))state.mapTiles.selectionOutlineCache.delete(id);
     gizmoCtx.save();gizmoCtx.strokeStyle='#ffad00';gizmoCtx.lineWidth=2;gizmoCtx.lineJoin='round';gizmoCtx.lineCap='round';
     for(const id of ids){
       const it=getItemByIdFast(id),f=getMapTileFootprint(it);if(!f)continue;
-      const anchor=getItemInteractionAnchor(it),distance=Math.max(.01,Math.hypot(anchor.x-cam.pos.x,anchor.y-cam.pos.y,anchor.z-cam.pos.z));
-      const worldPerPixel=projection.orthographic?(2*projection.orthographicHalfHeight/Math.max(1,rect.height)):(2*distance*projection.tanHalfVerticalFov/Math.max(1,rect.height));
-      const inset=Math.min(f.size*.45,4*worldPerPixel),left=f.left+inset,right=f.right-inset,bottom=f.bottom+inset,top=f.top-inset;
-      const corners=[[left,bottom],[right,bottom],[right,top],[left,top],[left,bottom]];
+      const anchor=getItemInteractionAnchor(it);
       gizmoCtx.beginPath();let started=false;
-      for(let edge=0;edge<4;edge++)for(let step=0;step<=segments;step++){
-        if(edge>0&&step===0)continue;
-        const t=step/segments,x=corners[edge][0]+(corners[edge+1][0]-corners[edge][0])*t,y=corners[edge][1]+(corners[edge+1][1]-corners[edge][1])*t;
-        const terrainZ=heightAtWorld(x,y,1.0),z=Number.isFinite(terrainZ)&&terrainZ>-1e8?terrainZ+.06:anchor.z;
-        const p=worldToScreen(x,y,z);if(!p.visible){started=false;continue;}if(!started){gizmoCtx.moveTo(p.sx,p.sy);started=true;}else gizmoCtx.lineTo(p.sx,p.sy);
+      for(const point of selectedMapTileOutlinePoints(it,f,anchor,segments)){
+        const p=worldToScreen(point.x,point.y,point.z);if(!p.visible){started=false;continue;}if(!started){gizmoCtx.moveTo(p.sx,p.sy);started=true;}else gizmoCtx.lineTo(p.sx,p.sy);
       }
       gizmoCtx.stroke();
     }
@@ -15086,7 +15099,22 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }
     state.lastMouse = { sx, sy };
   });
-  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; boxSelectionEl.style.display='none'; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const {pickedId,additive}=state.pendingLeftClick; selectById(pickedId != null ? pickedId : null,{additive}); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)))) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); renderTileInstances(); refreshLiveMisWindow(false, { force: true }); } flushTransformDragUi(); }
+  function boxSelectionIds(x0,y0,x1,y1){
+    const worldA=screenToWorld(x0,y0,0),worldB=screenToWorld(x1,y1,0),minX=Math.min(worldA.x,worldB.x),maxX=Math.max(worldA.x,worldB.x),minY=Math.min(worldA.y,worldB.y),maxY=Math.max(worldA.y,worldB.y);
+    const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY),filteredSet=new Set(getFilteredItems().map(it=>it.id)),ids=[];
+    for(const it of candidates){
+      if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it))))continue;
+      const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it));
+      if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1)ids.push(it.id);
+    }
+    for(const it of state.tilOnlyItems){
+      if(isMapTileLocked(it)||isMapTileHidden(it)||!isItemShowCategoryVisible(it))continue;
+      const f=getMapTileFootprint(it);
+      if(f&&f.right>=minX&&f.left<=maxX&&f.top>=minY&&f.bottom<=maxY)ids.push(it.id);
+    }
+    return ids;
+  }
+  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; boxSelectionEl.style.display='none'; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const {pickedId,additive}=state.pendingLeftClick; selectById(pickedId != null ? pickedId : null,{additive}); } state.pendingLeftClick=null; if(had){ const ids=boxSelectionIds(x0,y0,x1,y1); if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); renderTileInstances(); refreshLiveMisWindow(false, { force: true }); } flushTransformDragUi(); }
   cv.addEventListener('mouseup', e => {
     if (state.insertModeActive && state.insertDragStart){
       const rect = cv.getBoundingClientRect();
