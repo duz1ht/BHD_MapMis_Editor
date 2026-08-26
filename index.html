@@ -12564,20 +12564,104 @@ end group
     return { entries: out, stats };
   }
 
+  function glbExternalResourceUris(buffer, label){
+    if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 20) return [];
+    const view = new DataView(buffer);
+    if (view.getUint32(0, true) !== 0x46546c67) return [];
+    let offset = 12, json = null;
+    while (offset + 8 <= buffer.byteLength){
+      const length = view.getUint32(offset, true), type = view.getUint32(offset + 4, true);
+      offset += 8;
+      if (offset + length > buffer.byteLength) throw new Error(`Invalid GLB chunk in ${label}`);
+      if (type === 0x4e4f534a){
+        const raw = new TextDecoder().decode(new Uint8Array(buffer, offset, length)).replace(/\0+$/g, "").trim();
+        json = JSON.parse(raw);
+        break;
+      }
+      offset += length;
+    }
+    if (!json) return [];
+    const uris = [];
+    for (const entry of [...(json.buffers || []), ...(json.images || [])]){
+      if (!Object.prototype.hasOwnProperty.call(entry || {}, "uri")) continue;
+      const uri = String(entry.uri ?? "").trim();
+      if (!uri) throw new Error(`Empty external resource URI in ${label}`);
+      if (/^(?:data:|blob:)/i.test(uri)) continue;
+      uris.push(uri);
+    }
+    return [...new Set(uris)];
+  }
+
+  function resolveSafeEditorResourcePath(basePath, uri, label){
+    let decoded;
+    try { decoded = decodeURIComponent(String(uri)); }
+    catch { throw new Error(`Invalid encoded resource URI in ${label}: ${uri}`); }
+    decoded = decoded.split(/[?#]/, 1)[0].replace(/\\/g, "/");
+    if (!decoded || /^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(decoded)){
+      throw new Error(`Blocked absolute resource URI in ${label}: ${uri}`);
+    }
+    const parts = String(basePath || "").replace(/\\/g, "/").split("/").filter(Boolean);
+    for (const part of decoded.split("/")){
+      if (!part || part === ".") continue;
+      if (part === ".."){
+        if (!parts.length) throw new Error(`Resource URI escapes the editor folder in ${label}: ${uri}`);
+        parts.pop();
+      } else parts.push(part);
+    }
+    if (!parts.length) throw new Error(`Invalid resource path in ${label}: ${uri}`);
+    return parts.join("/");
+  }
+
+  async function createLocalGlbLoader(glbData, basePath, label){
+    const uris = glbExternalResourceUris(glbData, label);
+    if (!uris.length) return { loader: state.glb.loader, revoke(){} };
+    if (!state.editorFolderHandle) throw new Error(`Set Editor Folder before loading external resources for ${label}`);
+    const objectUrls = new Map();
+    try {
+      for (const uri of uris){
+        if (/^https?:/i.test(uri)) throw new Error(`Blocked remote resource URI in local GLB ${label}: ${uri}`);
+        const logicalPath = resolveSafeEditorResourcePath(basePath, uri, label);
+        const file = await readFileFromEditorFolder(logicalPath, `GLB dependency for ${label}`);
+        if (!file) throw new Error(`Missing external GLB dependency: ${logicalPath}`);
+        objectUrls.set(uri, URL.createObjectURL(file));
+        addLog(`[3d_items] dependency resolved via editor folder: ${label} -> ${logicalPath}`);
+      }
+    } catch (err){
+      for (const objectUrl of objectUrls.values()) URL.revokeObjectURL(objectUrl);
+      throw err;
+    }
+    const manager = new state.glb.THREE.LoadingManager();
+    manager.setURLModifier((requestedUrl) => {
+      for (const [uri, objectUrl] of objectUrls){
+        if (requestedUrl === uri || requestedUrl.endsWith(`/${uri}`)) return objectUrl;
+      }
+      throw new Error(`GLB requested an undeclared local dependency in ${label}: ${requestedUrl || "<empty URI>"}`);
+    });
+    return {
+      loader: new state.glb.GLTFLoader(manager),
+      revoke(){ for (const objectUrl of objectUrls.values()) URL.revokeObjectURL(objectUrl); },
+    };
+  }
+
   async function loadGraphicTemplate(graphic){
     const key = String(graphic || "").trim();
     if (!key) return null;
     if (state.glb.templateByGraphic.has(key)) return state.glb.templateByGraphic.get(key);
 
     const path = `resources/BHD/3d_items/${key}.glb`;
+    let localLoader = null;
     try {
       const glbData = await loadBinaryResource(path);
       if (!glbData) throw new Error(`Failed to read GLB: ${path}`);
 
-      const gltf = state.glb.loader.parseAsync
-        ? await state.glb.loader.parseAsync(glbData, "")
+      const basePath = path.slice(0, path.lastIndexOf("/") + 1);
+      localLoader = state.isLocalRuntime ? await createLocalGlbLoader(glbData, basePath, `${key}.glb`) : null;
+      const loader = localLoader?.loader || state.glb.loader;
+      const parseBasePath = state.isLocalRuntime ? "" : basePath;
+      const gltf = loader.parseAsync
+        ? await loader.parseAsync(glbData, parseBasePath)
         : await new Promise((resolve, reject) => {
-            state.glb.loader.parse(glbData, "", resolve, reject);
+            loader.parse(glbData, parseBasePath, resolve, reject);
           });
       const root = gltf.scene || gltf.scenes?.[0] || null;
       if (!root) return null;
@@ -12637,6 +12721,8 @@ end group
         addLog(`[3d_items] GLB missing or invalid: ${path}`);
       }
       return placeholder;
+    } finally {
+      localLoader?.revoke();
     }
   }
 
@@ -13347,6 +13433,12 @@ end group
     }
     try{
       const data = await file.arrayBuffer();
+      if (state.isLocalRuntime){
+        const externalUris = glbExternalResourceUris(data, file.name);
+        if (externalUris.length){
+          throw new Error(`Reference GLB has external resources (${externalUris.join(", ")}). Use a self-contained GLB when running from file://.`);
+        }
+      }
       const gltf = state.glb.loader.parseAsync
         ? await state.glb.loader.parseAsync(data, "")
         : await new Promise((resolve, reject) => state.glb.loader.parse(data, "", resolve, reject));
