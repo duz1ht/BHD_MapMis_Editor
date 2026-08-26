@@ -13843,6 +13843,10 @@ end group
         }
       }
 
+      // A structural sync can replace a batched selected item with a newly
+      // created individual instance. Reapply the current selection only after
+      // those instances exist so the next frame does not request another sync.
+      reconcileGlbSelectionVisuals();
       state.glb.structureDirty = false;
       state.glb.transformDirtyIds.clear();
       state.glb.syncCount += 1;
@@ -13966,13 +13970,26 @@ end group
     else clearGlbSelectionOutline(instance);
   }
 
-  function updateSelectedGlbVisual(){
-    if (!state.glb.ready) return;
-    const nextIds = new Set(
+  function getSelectedGlbVisualIds(){
+    return new Set(
       state.multiSelectedIds.size
         ? Array.from(state.multiSelectedIds)
         : (state.selectedId != null ? [state.selectedId] : [])
     );
+  }
+
+  function reconcileGlbSelectionVisuals(nextIds = getSelectedGlbVisualIds()){
+    for (const [itemId, instance] of state.glb.itemInstances){
+      const selected = nextIds.has(itemId);
+      if (instance.userData?._selectedGlbVisual === selected) continue;
+      setGlbInstanceSelected(instance, selected);
+    }
+    state.glb.lastSelectedVisualIds = new Set(nextIds);
+  }
+
+  function updateSelectedGlbVisual(){
+    if (!state.glb.ready) return;
+    const nextIds = getSelectedGlbVisualIds();
     const prevIds = state.glb.lastSelectedVisualIds || new Set();
 
     let changed = nextIds.size !== prevIds.size;
@@ -13994,23 +14011,12 @@ end group
       }
     }
     if (!changed) return;
+    if (state.glb.syncPromise) return;
     // Selected instances leave their render batch so outlines and editing keep
     // the exact existing behavior; deselected compatible instances rejoin it.
     state.glb.structureDirty=true;
     syncGlbItems();
-
-    for (const prevId of prevIds){
-      if (nextIds.has(prevId)) continue;
-      const prevInstance = state.glb.itemInstances.get(prevId);
-      setGlbInstanceSelected(prevInstance, false);
-    }
-    for (const nextId of nextIds){
-      if (prevIds.has(nextId)) continue;
-      const nextInstance = state.glb.itemInstances.get(nextId);
-      setGlbInstanceSelected(nextInstance, true);
-    }
-
-    state.glb.lastSelectedVisualIds = nextIds;
+    reconcileGlbSelectionVisuals(nextIds);
   }
 
   function getItemIdFromObject3D(obj){
