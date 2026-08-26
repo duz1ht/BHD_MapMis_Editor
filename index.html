@@ -14043,7 +14043,7 @@ end group
     }
   }
 
-  const EDITOR_HELPER_TYPES = new Set(["vertical_line", "circle_volume", "triangle_volume"]);
+  const EDITOR_HELPER_TYPES = new Set(["vertical_line", "circle_volume", "pyramid_volume"]);
   const EDITOR_HELPER_FALLBACK_COLOR = 0xffffff;
   const EDITOR_HELPER_SPHERE_SEGMENTS = 32;
 
@@ -14085,19 +14085,16 @@ end group
         side: THREE.DoubleSide,
         toneMapped: false,
       }));
-    } else if (type === "triangle_volume"){
-      // A unit triangular prism starts at the item anchor and extends upward.
+    } else if (type === "pyramid_volume"){
+      // A unit square pyramid starts at the item anchor and extends upward.
       // Scaling it uniformly makes editor_helper_size its width and height in metres.
-      const h = Math.sqrt(3) / 2;
       const positions = [
-        -0.5, -h / 3, 0,  0.5, -h / 3, 0,  0, h * 2 / 3, 0,
-        -0.5, -h / 3, 1,  0, h * 2 / 3, 1,  0.5, -h / 3, 1,
-        -0.5, -h / 3, 0, -0.5, -h / 3, 1,  0.5, -h / 3, 1,
-        -0.5, -h / 3, 0,  0.5, -h / 3, 1,  0.5, -h / 3, 0,
-         0.5, -h / 3, 0,  0.5, -h / 3, 1,  0, h * 2 / 3, 1,
-         0.5, -h / 3, 0,  0, h * 2 / 3, 1,  0, h * 2 / 3, 0,
-         0, h * 2 / 3, 0,  0, h * 2 / 3, 1, -0.5, -h / 3, 1,
-         0, h * 2 / 3, 0, -0.5, -h / 3, 1, -0.5, -h / 3, 0,
+        -0.5, -0.5, 0,  0.5,  0.5, 0,  0.5, -0.5, 0,
+        -0.5, -0.5, 0, -0.5,  0.5, 0,  0.5,  0.5, 0,
+        -0.5, -0.5, 0,  0.5, -0.5, 0,  0, 0, 1,
+         0.5, -0.5, 0,  0.5,  0.5, 0,  0, 0, 1,
+         0.5,  0.5, 0, -0.5,  0.5, 0,  0, 0, 1,
+        -0.5,  0.5, 0, -0.5, -0.5, 0,  0, 0, 1,
       ];
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
