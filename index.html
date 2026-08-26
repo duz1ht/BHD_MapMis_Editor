@@ -5026,14 +5026,11 @@ end group
 
   function buildWaypointList(){
     const candidates = [];
-    for (const sec of state.sectionBlocks){
-      if (sec.kind !== "waypoint") continue;
-      const n = parseWaypointNumber(sec);
-      if (!Number.isInteger(n) || n < 1 || n > 127) continue;
+    for (const n of getKnownWaypointIds()){
+      const sec = getWaypointSectionByNumber(n);
       const desc = getWaypointDescription(sec);
       candidates.push({ id: String(n), label: `${n} - ${desc || `Waypoint ${n}`}` });
     }
-    candidates.sort((a,b) => Number(a.id) - Number(b.id));
     ui.wpList.innerHTML = `<option value="">None</option>` + candidates.map(c => {
       return `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label)}</option>`;
     }).join("");
@@ -5724,6 +5721,35 @@ end group
 
   function getWaypointSectionByNumber(n){
     return state.sectionBlocks.find(s => s.kind === "waypoint" && parseWaypointNumber(s) === n) || null;
+  }
+
+  function getKnownWaypointIds(){
+    const ids = new Set();
+    for (const sec of state.sectionBlocks || []){
+      if (sec.kind !== "waypoint") continue;
+      const waypointId = parseWaypointNumber(sec);
+      if (Number.isInteger(waypointId) && waypointId >= 1 && waypointId <= 127) ids.add(waypointId);
+    }
+    for (const it of state.items || []){
+      const waypointId = getItemWaypointId(it);
+      if (waypointId != null && waypointId <= 127) ids.add(waypointId);
+    }
+    return [...ids].sort((a, b) => a - b);
+  }
+
+  function reportWaypointMetadataMismatches(){
+    const referencedIds = new Set((state.items || []).map(getItemWaypointId).filter(id => id != null && id <= 127));
+    const invalidSections = (state.sectionBlocks || [])
+      .filter(sec => sec.kind === "waypoint")
+      .map(sec => parseWaypointNumber(sec))
+      .filter(id => Number.isInteger(id) && (id < 1 || id > 127));
+    if (invalidSections.length){
+      addLog(`[waypoints] metadata block(s) outside the supported 1-127 range: ${[...new Set(invalidSections)].join(", ")}. Marker references were left unchanged.`);
+    }
+    const missingMetadata = [...referencedIds].filter(id => !getWaypointSectionByNumber(id));
+    if (missingMetadata.length){
+      addLog(`[waypoints] list(s) inferred from marker references without metadata blocks: ${missingMetadata.sort((a, b) => a - b).join(", ")}.`);
+    }
   }
 
   function parseAreaTrigNumber(sec){
@@ -8424,7 +8450,7 @@ end group
     const wpDistanceKey = kvFindKey(it, ["wpdistance", "waypoint_distance"]);
     const wpAdvKey = kvFindKey(it, ["wp_adv_trigger", "adv_event"]);
     const wpEnabled = kvHas(it, "waypoint_id") || kvHas(it, "wpnumber") || kvHas(it, "ttoolindex") || !!wpAdvKey || kvHas(it, "nav_wp") || !!wpDistanceKey;
-    const hasWaypointChoices = state.sectionBlocks.some(s => s.kind === "waypoint");
+    const hasWaypointChoices = getKnownWaypointIds().length > 0;
     setEnabled(ui.wpList, hasWaypointChoices || (wpEnabled && kvHas(it, "waypoint_id")));
     setEnabled(ui.wpNumber, hasWaypointChoices || wpEnabled || kvHas(it, "wpnumber"));
     setEnabled(ui.wpDistance, hasWaypointChoices || wpEnabled);
@@ -10484,6 +10510,7 @@ end group
     const parsed = parseMIS(text);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
+    reportWaypointMetadataMismatches();
     state.sectionSelectedId = null;
     state.eventSelectedId = null;
     eventUi.selectedTrigger = -1;
@@ -12589,9 +12616,10 @@ end group
     const waypointId = getItemWaypointId(it);
     if (waypointId == null) return null;
     const sec = getWaypointSectionByNumber(waypointId);
-    if (!sec) return null;
-    const colorIndex = Number(sec.kv?.color ?? 0);
-    if (!Number.isInteger(colorIndex) || colorIndex < 0 || colorIndex >= WAYPOINT_COLOR_HEX.length) return null;
+    const configuredColor = Number(sec?.kv?.color);
+    const colorIndex = Number.isInteger(configuredColor) && configuredColor >= 0 && configuredColor < WAYPOINT_COLOR_HEX.length
+      ? configuredColor
+      : (waypointId - 1) % WAYPOINT_COLOR_HEX.length;
     return WAYPOINT_COLOR_HEX[colorIndex];
   }
 
