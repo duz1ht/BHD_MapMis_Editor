@@ -306,22 +306,6 @@
       pointer-events:none;
       display:none;
     }
-    /* Temporary attachment calibration UI: remove this block with the matching HTML/JS section when calibration is complete. */
-    #attachmentCalibrator{
-      position:absolute;left:10px;top:44px;z-index:30;width:330px;
-      display:none;padding:10px;border:1px solid var(--line);border-radius:8px;
-      background:color-mix(in srgb,var(--surface) 94%,transparent);color:var(--text);
-      box-shadow:0 8px 24px rgba(0,0,0,.28);font-size:12px;
-    }
-    #attachmentCalibrator.open{display:block}
-    #attachmentCalibrator header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-weight:700}
-    #attachmentCalibratorFields{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:8px 0}
-    #attachmentCalibratorFields label{display:grid;gap:3px;color:var(--text-muted)}
-    #attachmentCalibratorFields input{width:100%;box-sizing:border-box;padding:4px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:4px}
-    #attachmentCalibratorLine{display:block;margin:8px 0;padding:6px;overflow:auto;white-space:nowrap;background:var(--surface-2);border:1px solid var(--line);border-radius:4px;user-select:all}
-    #attachmentCalibratorActions{display:flex;align-items:center;gap:6px}
-    #attachmentCalibratorMessage{color:var(--text-muted);line-height:1.35}
-
     #sceneInfoHint{
       position:absolute;
       right:10px;
@@ -623,34 +607,6 @@
     .cameraOptionRange input[type="range"]{ grid-column:1 / -1; width:100%; }
     .cameraOptionValue{ color:var(--text-subtle); font-variant-numeric:tabular-nums; }
     .shortcutHint{ margin-left:auto; color:var(--text-subtle); font-size:10px; }
-    #debugFogPanel{
-      position:absolute;
-      top:42px;
-      left:246px;
-      z-index:26;
-      min-width:330px;
-      max-width:min(56vw, 520px);
-      max-height:min(72vh, 640px);
-      display:none;
-      background:var(--panel);
-      border:1px solid var(--line-strong);
-      border-radius:var(--radius-md);
-      box-shadow:var(--shadow-md);
-      padding:10px;
-      overflow:auto;
-      font-size:12px;
-    }
-    #debugFogPanel.open{ display:block; }
-    #debugFogPresetBtns{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin-bottom:8px; }
-    #debugFogPresetBtns button{ min-height:24px; padding:2px 6px; font-size:11px; }
-    #debugFogPresetBtns button.active{ border-color:var(--accent); box-shadow:var(--focus-ring); }
-    .debugFogGroup{ border:1px solid var(--line); border-radius:8px; padding:8px; margin-bottom:8px; }
-    .debugFogGroup h4{ margin:0 0 8px; font-size:12px; }
-    .debugFogRow{ display:grid; grid-template-columns:92px 1fr auto; gap:8px; align-items:center; margin-bottom:6px; }
-    .debugFogRow:last-child{ margin-bottom:0; }
-    .debugFogRow input[type="range"]{ width:100%; }
-    .fogSwatch{ width:22px; height:14px; border:1px solid var(--line-strong); border-radius:3px; display:inline-block; vertical-align:middle; }
-    .fogRgbReadout{ display:flex; align-items:center; gap:8px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
     #misRealtimePanel{
       margin-top:12px;
       border:1px solid var(--line);
@@ -1717,10 +1673,8 @@
         <button id="showGroupsBtn" type="button" class="modeBtn">Groups</button>
         <button id="showWaypointsBtn" type="button" class="modeBtn">Waypoints</button>
         <button id="showAreaTriggersBtn" type="button" class="modeBtn">Area Triggers</button>
-        <button id="attachmentCalibratorToggle" type="button" class="modeBtn" aria-pressed="false" title="Temporary tool for positioning attached items">Adjust attachments</button>
       </div>
       <div id="canvasViewToolbar" class="canvasFloatingToolbar">
-        <button id="debugFogBtn" type="button" class="modeBtn">Debug Fog</button>
         <button id="transformSpaceBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Transformation Mode: World" title="Transformation Mode: World (X)"><img class="toolbarIcon" src="resources/BHD/editor_icons/space_world.svg" alt="" /></button>
         <div class="toolbarSplit">
           <button id="rotationSnapToggleBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Rotation Snap" title="Enable or disable rotation snapping"><img class="toolbarIcon" src="resources/BHD/editor_icons/snap_to_angle.svg" alt="" /></button>
@@ -1735,21 +1689,6 @@
         </div>
       </div>
       <canvas id="cv"></canvas>
-      <!-- Temporary attachment calibration UI. It only edits the in-memory editor catalog and can be removed after addeweap.def is finalized. -->
-      <section id="attachmentCalibrator" aria-label="Attachment position calibrator">
-        <header><span>Attachment position</span><button id="attachmentCalibratorClose" type="button" class="modeBtn" aria-label="Close">×</button></header>
-        <div id="attachmentCalibratorMessage">Select a parent item that has attached weapons.</div>
-        <select id="attachmentCalibratorSlot" aria-label="Attached item"></select>
-        <div id="attachmentCalibratorFields">
-          <label>X<input data-attachment-field="x" type="number" step="1"></label>
-          <label>Y<input data-attachment-field="y" type="number" step="1"></label>
-          <label>Z<input data-attachment-field="z" type="number" step="1"></label>
-          <label>Yaw<input data-attachment-field="yaw" type="number" step="1"></label>
-          <label>Pitch<input data-attachment-field="pitch" type="number" step="1"></label>
-        </div>
-        <code id="attachmentCalibratorLine"></code>
-        <div id="attachmentCalibratorActions"><button id="attachmentCalibratorCopy" type="button" class="modeBtn">Copy line</button><span>Use ↑/↓ in a field for fine adjustment.</span></div>
-      </section>
       <div id="boxSelection" aria-hidden="true"></div>
       <div id="insertPreviewLabel" aria-hidden="true"></div>
       <div id="camDebug"></div>
@@ -1898,33 +1837,6 @@
             <label>Gizmo Pivot <select id="transformPivot" title="Selection pivot"><option value="center">Selection center</option><option value="active">Active item</option><option value="individual">Individual origins</option></select></label>
           </div>
         </section>
-      </div>
-
-      <div id="debugFogPanel" aria-hidden="true">
-        <div id="debugFogPresetBtns">
-          <button type="button" data-fog-preset="0">0 Fog</button>
-          <button type="button" data-fog-preset="1">1 Haze</button>
-          <button type="button" data-fog-preset="2">2 Haze wall</button>
-          <button type="button" data-fog-preset="3">3 Mild haze wall</button>
-        </div>
-        <div class="debugFogGroup">
-          <h4>Preset tuning (proporção)</h4>
-          <div class="debugFogRow"><label for="fogDbgNearDist">Near start</label><input id="fogDbgNearDist" type="range" min="0" max="1" step="0.001" /><span id="fogDbgNearDistVal">-</span></div>
-          <div class="debugFogRow"><label for="fogDbgMidDist">Mid start</label><input id="fogDbgMidDist" type="range" min="0" max="1" step="0.001" /><span id="fogDbgMidDistVal">-</span></div>
-          <div class="debugFogRow"><label for="fogDbgFarDist">Far ref</label><input id="fogDbgFarDist" type="range" min="0.05" max="1" step="0.001" /><span id="fogDbgFarDistVal">-</span></div>
-        </div>
-        <div class="debugFogGroup">
-          <h4>Força do fog</h4>
-          <div class="debugFogRow"><label for="fogDbgNearStrength">Near strength</label><input id="fogDbgNearStrength" type="range" min="0" max="1" step="0.01" /><span id="fogDbgNearStrengthVal">-</span></div>
-          <div class="debugFogRow"><label for="fogDbgMidStrength">Mid strength</label><input id="fogDbgMidStrength" type="range" min="0" max="1" step="0.01" /><span id="fogDbgMidStrengthVal">-</span></div>
-        </div>
-        <div class="debugFogGroup">
-          <h4>Fog color (read-only)</h4>
-          <div class="fogRgbReadout">
-            <span id="fogDbgRgbText">RGB(0,0,0)</span>
-            <span id="fogDbgColorSwatch" class="fogSwatch" aria-hidden="true"></span>
-          </div>
-        </div>
       </div>
 
       <div id="sectionOverlay" aria-hidden="true">
@@ -2679,8 +2591,6 @@ end group
     missionGameStrings: new Map(),
     weaponDefs: new Map(),
     attachedWeaponsByParentId: new Map(),
-    attachmentCalibratorOpen: false,
-    attachmentCalibratorSelection: null,
     wpNames: [],
     defaultWpNames: [],
     aiTextfileNames: [],
@@ -2712,6 +2622,7 @@ end group
     },
     pendingUiRenderRaf: 0,
     pendingLiveMisRaf: 0,
+    dragUiDirty: false,
     undoStack: [],
     redoStack: [],
     undoCurrentText: "",
@@ -2756,6 +2667,8 @@ end group
       waypointLines: null,
       pointDataSignature: "",
       waypointDataSignature: "",
+      pointOffsetsByItemId: new Map(),
+      pointTransformDirtyIds: new Set(),
       ready: false,
     },
     areaTriggerVolumes: {
@@ -2863,12 +2776,6 @@ end group
     referenceGlb: null,
     referenceGlbRestore: null,
     currentReferenceSidecarHandle: null,
-    debugFog: {
-      selectedPreset: 0,
-      presetValues: new Map(),
-      suppressUiHandlers: false,
-      lastEnvFogType: null,
-    },
   };
 
   const RENDER_BACKENDS = Object.freeze({ THREE_ONLY: 'three-only' });
@@ -2877,15 +2784,8 @@ end group
     return RENDER_BACKENDS.THREE_ONLY;
   }
 
-  function parseRenderBackend(value){
-    if (value === RENDER_BACKENDS.THREE_ONLY) return value;
-    return null;
-  }
-
   function resolveInitialRenderBackend(){
-    const qsBackend = parseRenderBackend(new URLSearchParams(location.search).get('renderBackend'));
-    const storedBackend = parseRenderBackend(localStorage.getItem('dz.renderBackend'));
-    return qsBackend || storedBackend || RENDER_BACKENDS.THREE_ONLY;
+    return RENDER_BACKENDS.THREE_ONLY;
   }
 
   function setRenderBackend(nextBackend, options = {}){
@@ -2993,7 +2893,6 @@ end group
   const cameraGroundDistanceEl = document.getElementById("cameraGroundDistance");
   const cameraGroundDistanceValueEl = document.getElementById("cameraGroundDistanceValue");
   const viewModeBtn = document.getElementById("viewModeBtn");
-  const debugFogBtn = document.getElementById("debugFogBtn");
   const hideAllShowOptionsBtn = document.getElementById("hideAllShowOptionsBtn");
   const showAllShowOptionsBtn = document.getElementById("showAllShowOptionsBtn");
   const showReferenceGlbEl = document.getElementById("showReferenceGlb");
@@ -3014,20 +2913,6 @@ end group
   const viewportToolsPanelEl = document.getElementById("viewportToolsPanel");
   const viewModePanelEl = document.getElementById("viewModePanel");
   const viewModeListEl = document.getElementById("viewModeList");
-  const debugFogPanelEl = document.getElementById("debugFogPanel");
-  const debugFogPresetBtnsEl = document.getElementById("debugFogPresetBtns");
-  const fogDbgNearDistEl = document.getElementById("fogDbgNearDist");
-  const fogDbgMidDistEl = document.getElementById("fogDbgMidDist");
-  const fogDbgFarDistEl = document.getElementById("fogDbgFarDist");
-  const fogDbgNearStrengthEl = document.getElementById("fogDbgNearStrength");
-  const fogDbgMidStrengthEl = document.getElementById("fogDbgMidStrength");
-  const fogDbgNearDistValEl = document.getElementById("fogDbgNearDistVal");
-  const fogDbgMidDistValEl = document.getElementById("fogDbgMidDistVal");
-  const fogDbgFarDistValEl = document.getElementById("fogDbgFarDistVal");
-  const fogDbgNearStrengthValEl = document.getElementById("fogDbgNearStrengthVal");
-  const fogDbgMidStrengthValEl = document.getElementById("fogDbgMidStrengthVal");
-  const fogDbgRgbTextEl = document.getElementById("fogDbgRgbText");
-  const fogDbgColorSwatchEl = document.getElementById("fogDbgColorSwatch");
   const layerVisibilityListEl = document.getElementById("layerVisibilityList");
   const groupVisibilityListEl = document.getElementById("groupVisibilityList");
   const waypointVisibilityListEl = document.getElementById("waypointVisibilityList");
@@ -3411,9 +3296,9 @@ end group
 
   function markItemTransformDirty(itemId){
     if (itemId == null) return;
-    state.itemGeometryRevision += 1;
     if(state.glb.batchedItemLookup.has(itemId))state.glb.structureDirty=true;
     state.glb.transformDirtyIds.add(itemId);
+    if (renderUiState.showAnchorPoints) state.threeItems.pointTransformDirtyIds.add(itemId);
     if (state.spatialIndex.enabled){
       const it = getItemByIdFast(itemId);
       if (it) upsertItemInSpatialIndex(it);
@@ -3424,7 +3309,13 @@ end group
     for (const it of state.items || []){
       if (it?.id == null) continue;
       state.glb.transformDirtyIds.add(it.id);
+      if (renderUiState.showAnchorPoints) state.threeItems.pointTransformDirtyIds.add(it.id);
     }
+  }
+
+  function markItemTransformsChanged(items){
+    state.liveMisDirty = true;
+    for (const it of items || []) if (it?.id != null) markItemTransformDirty(it.id);
   }
 
   function scheduleRenderList(){
@@ -8315,7 +8206,6 @@ end group
   }
 
   function renderList(){
-    renderAttachmentCalibrator();
     renderTilePaletteSelection();
     renderSelectedInfoPanel();
     if (!listEl) return;
@@ -8843,7 +8733,6 @@ end group
       setAreaTriggerVisibilityPanelOpen(false);
       setViewportToolsPanelOpen(false);
       setViewModePanelOpen(false);
-      setDebugFogPanelOpen(false);
     }
     if (e.key === "Escape" && state.pastePlacementActive){
       state.pastePlacementActive = false;
@@ -9196,25 +9085,6 @@ end group
   let initialSidebarOpen=true;
   try{ initialSidebarOpen=localStorage.getItem("dz.sidebarOpen")!=="0"; }catch(_){ }
 
-  function positionDebugFogPanel(){
-    if (!debugFogPanelEl || !debugFogBtn || !canvasWrapEl) return;
-    const wrapRect = canvasWrapEl.getBoundingClientRect();
-    const btnRect = debugFogBtn.getBoundingClientRect();
-    const top = Math.max(8, (btnRect.bottom - wrapRect.top) + 6);
-    const panelWidth = debugFogPanelEl.offsetWidth || 330;
-    const left = Math.max(8, btnRect.right - wrapRect.left - panelWidth);
-    debugFogPanelEl.style.top = `${Math.round(top)}px`;
-    debugFogPanelEl.style.left = `${Math.round(left)}px`;
-  }
-
-  function setDebugFogPanelOpen(open){
-    const visible = !!open;
-    if (visible) positionDebugFogPanel();
-    debugFogPanelEl?.classList.toggle("open", visible);
-    debugFogPanelEl?.setAttribute("aria-hidden", visible ? "false" : "true");
-    debugFogBtn?.classList.toggle("active", visible);
-  }
-
   // Events/Groups references use one quarter of the regular framing distance:
   // half of the previous reference distance, while other focus flows stay unchanged.
   const MAP_REFERENCE_FOCUS_DISTANCE_SCALE=0.25;
@@ -9303,7 +9173,6 @@ end group
       setAreaTriggerVisibilityPanelOpen(false);
       setViewportToolsPanelOpen(false);
       setViewModePanelOpen(false);
-      setDebugFogPanelOpen(false);
     }
     setCanvasShowPanelOpen(next);
   });
@@ -9318,7 +9187,6 @@ end group
       setAreaTriggerVisibilityPanelOpen(false);
       setViewportToolsPanelOpen(false);
       setViewModePanelOpen(false);
-      setDebugFogPanelOpen(false);
     }
     setLayerVisibilityPanelOpen(next);
   });
@@ -9333,7 +9201,6 @@ end group
       setAreaTriggerVisibilityPanelOpen(false);
       setViewportToolsPanelOpen(false);
       setViewModePanelOpen(false);
-      setDebugFogPanelOpen(false);
     }
     setGroupVisibilityPanelOpen(next);
   });
@@ -9348,7 +9215,6 @@ end group
       setAreaTriggerVisibilityPanelOpen(false);
       setViewportToolsPanelOpen(false);
       setViewModePanelOpen(false);
-      setDebugFogPanelOpen(false);
     }
     setWaypointVisibilityPanelOpen(next);
   });
@@ -9363,7 +9229,6 @@ end group
       setWaypointVisibilityPanelOpen(false);
       setViewportToolsPanelOpen(false);
       setViewModePanelOpen(false);
-      setDebugFogPanelOpen(false);
     }
     setAreaTriggerVisibilityPanelOpen(next);
   });
@@ -9381,7 +9246,7 @@ end group
   syncTransformSpaceButton();
   rotationSnapMenuBtn?.addEventListener('click',event=>{
     event.stopPropagation();const next=!rotationSnapPanelEl?.classList.contains('open');
-    if(next){setCanvasShowPanelOpen(false);setLayerVisibilityPanelOpen(false);setGroupVisibilityPanelOpen(false);setWaypointVisibilityPanelOpen(false);setAreaTriggerVisibilityPanelOpen(false);setViewportToolsPanelOpen(false);setViewModePanelOpen(false);setDebugFogPanelOpen(false);}
+    if(next){setCanvasShowPanelOpen(false);setLayerVisibilityPanelOpen(false);setGroupVisibilityPanelOpen(false);setWaypointVisibilityPanelOpen(false);setAreaTriggerVisibilityPanelOpen(false);setViewportToolsPanelOpen(false);setViewModePanelOpen(false);}
     setRotationSnapPanelOpen(next);
   });
   rotationSnapPanelEl?.addEventListener('click',event=>event.stopPropagation());
@@ -9398,7 +9263,6 @@ end group
       setWaypointVisibilityPanelOpen(false);
       setAreaTriggerVisibilityPanelOpen(false);
       setViewModePanelOpen(false);
-      setDebugFogPanelOpen(false);
       setRotationSnapPanelOpen(false);
     }
     setViewportToolsPanelOpen(next);
@@ -9445,7 +9309,6 @@ end group
       setWaypointVisibilityPanelOpen(false);
       setAreaTriggerVisibilityPanelOpen(false);
       setViewportToolsPanelOpen(false);
-      setDebugFogPanelOpen(false);
     }
     setViewModePanelOpen(next);
   });
@@ -9454,21 +9317,6 @@ end group
   viewModeListEl?.addEventListener("change", (event) => {
     if (!(event.target instanceof HTMLInputElement) || event.target.name !== "glbViewMode") return;
     setGlbViewMode(event.target.value);
-  });
-
-  debugFogBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const next = !debugFogPanelEl?.classList.contains("open");
-    if (next){
-      setCanvasShowPanelOpen(false);
-      setLayerVisibilityPanelOpen(false);
-      setGroupVisibilityPanelOpen(false);
-      setWaypointVisibilityPanelOpen(false);
-      setAreaTriggerVisibilityPanelOpen(false);
-      setViewportToolsPanelOpen(false);
-      setViewModePanelOpen(false);
-    }
-    setDebugFogPanelOpen(next);
   });
 
   hideAllLayersBtn?.addEventListener("click", (event) => {
@@ -9647,10 +9495,6 @@ end group
     if (!event.target.closest("[data-show-category], [data-show-count-source]")) return;
     applyShowVisibilityChanges(event.target.id === "showMisMapTiles" || event.target.id === "showTilOnlyMapTiles");
   });
-  debugFogPanelEl?.addEventListener("click", (event) => {
-    event.stopPropagation();
-  });
-
   document.addEventListener("mousedown", (event) => {
     if (canvasShowPanelEl?.classList.contains("open")){
       if (!(canvasShowPanelEl.contains(event.target) || showPanelBtn?.contains(event.target))) setCanvasShowPanelOpen(false);
@@ -9666,9 +9510,6 @@ end group
     }
     if (areaTriggerVisibilityPanelEl?.classList.contains("open")){
       if (!(areaTriggerVisibilityPanelEl.contains(event.target) || showAreaTriggersBtn?.contains(event.target))) setAreaTriggerVisibilityPanelOpen(false);
-    }
-    if (debugFogPanelEl?.classList.contains("open")){
-      if (!(debugFogPanelEl.contains(event.target) || debugFogBtn?.contains(event.target))) setDebugFogPanelOpen(false);
     }
     if (viewModePanelEl?.classList.contains("open")){
       if (!(viewModePanelEl.contains(event.target) || viewModeBtn?.contains(event.target))) setViewModePanelOpen(false);
@@ -9687,7 +9528,6 @@ end group
     if (groupVisibilityPanelEl?.classList.contains("open")) positionGroupVisibilityPanel();
     if (waypointVisibilityPanelEl?.classList.contains("open")) positionWaypointVisibilityPanel();
     if (areaTriggerVisibilityPanelEl?.classList.contains("open")) positionAreaTriggerVisibilityPanel();
-    if (debugFogPanelEl?.classList.contains("open")) positionDebugFogPanel();
     if (viewModePanelEl?.classList.contains("open")) positionViewModePanel();
     if (viewportToolsPanelEl?.classList.contains("open")) positionViewportToolsPanel();
     if(rotationSnapPanelEl?.classList.contains('open'))positionRotationSnapPanel();
@@ -10725,8 +10565,6 @@ end group
   }
 
   function mat4Identity(){ return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]); }
-  function mat4MulInto(out,a,b){ for(let c=0;c<4;c++) for(let r=0;r<4;r++) out[c*4+r]=a[0*4+r]*b[c*4+0]+a[1*4+r]*b[c*4+1]+a[2*4+r]*b[c*4+2]+a[3*4+r]*b[c*4+3]; return out; }
-  function mat4TranslateInto(out,x,y,z){ out[0]=1; out[1]=0; out[2]=0; out[3]=0; out[4]=0; out[5]=1; out[6]=0; out[7]=0; out[8]=0; out[9]=0; out[10]=1; out[11]=0; out[12]=x; out[13]=y; out[14]=z; out[15]=1; return out; }
   function mat4Mul(a,b){ const o=new Float32Array(16); for(let c=0;c<4;c++) for(let r=0;r<4;r++) o[c*4+r]=a[0*4+r]*b[c*4+0]+a[1*4+r]*b[c*4+1]+a[2*4+r]*b[c*4+2]+a[3*4+r]*b[c*4+3]; return o; }
   function mat4Perspective(fovy,aspect,near,far){ const f=1/Math.tan(fovy/2), nf=1/(near-far); const o=new Float32Array(16); o[0]=f/aspect;o[5]=f;o[10]=(far+near)*nf;o[11]=-1;o[14]=(2*far*near)*nf; return o; }
   function mat4Orthographic(left,right,bottom,top,near,far){ const lr=1/(left-right),bt=1/(bottom-top),nf=1/(near-far); const o=mat4Identity(); o[0]=-2*lr;o[5]=-2*bt;o[10]=2*nf;o[12]=(left+right)*lr;o[13]=(top+bottom)*bt;o[14]=(far+near)*nf; return o; }
@@ -12223,11 +12061,11 @@ end group
 
   function collectItemPointGroups(){
     if (!renderUiState.showAnchorPoints){
-      return { enabled: false, normalBuf: null, normalLen: 0, waypointBuf: null, waypointLen: 0, selectedBuf: null, selectedLen: 0, pasteBuf: null, pasteLen: 0 };
+      return { enabled: false, normalBuf: null, normalLen: 0, waypointBuf: null, waypointLen: 0, selectedBuf: null, selectedLen: 0, pasteBuf: null, pasteLen: 0, offsetsByItemId: new Map() };
     }
     const items = getFilteredItems().filter((it) => isItemVisibilityFilterMatch(it));
     if (!items.length && !(state.pastePlacementActive && state.pastePreviewWorld && state.itemClipboardItems.length)){
-      return { enabled: true, normalBuf: null, normalLen: 0, waypointBuf: null, waypointLen: 0, selectedBuf: null, selectedLen: 0, pasteBuf: null, pasteLen: 0 };
+      return { enabled: true, normalBuf: null, normalLen: 0, waypointBuf: null, waypointLen: 0, selectedBuf: null, selectedLen: 0, pasteBuf: null, pasteLen: 0, offsetsByItemId: new Map() };
     }
 
     const normalCount = 3 * items.length;
@@ -12239,6 +12077,7 @@ end group
     let normalLen = 0;
     let waypointLen = 0;
     let selectedLen = 0;
+    const offsetsByItemId = new Map();
 
     for (const it of items){
       const x = rawToWorld(it.x,'x');
@@ -12249,10 +12088,13 @@ end group
         continue;
       }
       if (it.id===state.selectedId||state.multiSelectedIds.has(it.id)){
+        offsetsByItemId.set(it.id, { group: 'selected', offset: selectedLen });
         selectedBuf[selectedLen++]=x; selectedBuf[selectedLen++]=y; selectedBuf[selectedLen++]=z;
       } else if (state.selectedWaypointMarkerIds.has(it.id)){
+        offsetsByItemId.set(it.id, { group: 'waypoint', offset: waypointLen });
         waypointBuf[waypointLen++]=x; waypointBuf[waypointLen++]=y; waypointBuf[waypointLen++]=z;
       } else {
+        offsetsByItemId.set(it.id, { group: 'normal', offset: normalLen });
         normalBuf[normalLen++]=x; normalBuf[normalLen++]=y; normalBuf[normalLen++]=z;
       }
     }
@@ -12272,7 +12114,7 @@ end group
       }
     }
 
-    return { enabled: true, normalBuf, normalLen, waypointBuf, waypointLen, selectedBuf, selectedLen, pasteBuf, pasteLen };
+    return { enabled: true, normalBuf, normalLen, waypointBuf, waypointLen, selectedBuf, selectedLen, pasteBuf, pasteLen, offsetsByItemId };
   }
 
   function getItemWaypointNumber(it){
@@ -12433,6 +12275,36 @@ end group
   function invalidateThreeItemGeometryCaches(){
     state.threeItems.pointDataSignature="";
     state.threeItems.waypointDataSignature="";
+    state.threeItems.pointOffsetsByItemId.clear();
+    state.threeItems.pointTransformDirtyIds.clear();
+  }
+
+  function updateDirtyThreeItemPoints(){
+    if (!renderUiState.showAnchorPoints){
+      state.threeItems.pointTransformDirtyIds.clear();
+      return;
+    }
+    const updateRanges = new Map();
+    for (const itemId of state.threeItems.pointTransformDirtyIds){
+      const location = state.threeItems.pointOffsetsByItemId.get(itemId);
+      const item = getItemByIdFast(itemId);
+      const points = location ? state.threeItems.pointsByGroup.get(location.group) : null;
+      const attribute = points?.geometry?.getAttribute('position');
+      if (!item || !attribute || location.offset + 2 >= attribute.array.length) continue;
+      attribute.array[location.offset] = rawToWorld(item.x, 'x');
+      attribute.array[location.offset + 1] = rawToWorld(item.y, 'y');
+      attribute.array[location.offset + 2] = getItemWorldZ(item);
+      const range = updateRanges.get(attribute) || { min: location.offset, max: location.offset + 3 };
+      range.min = Math.min(range.min, location.offset);
+      range.max = Math.max(range.max, location.offset + 3);
+      updateRanges.set(attribute, range);
+    }
+    for (const [attribute, range] of updateRanges){
+      attribute.updateRange.offset = range.min;
+      attribute.updateRange.count = range.max - range.min;
+      attribute.needsUpdate = true;
+    }
+    state.threeItems.pointTransformDirtyIds.clear();
   }
 
   function drawItemsThree(P, V){
@@ -12445,13 +12317,18 @@ end group
         updateThreeItemGroup('waypoint', null, 0);
         updateThreeItemGroup('selected', null, 0);
         updateThreeItemGroup('paste', null, 0);
+        state.threeItems.pointOffsetsByItemId.clear();
       } else {
         updateThreeItemGroup('normal', groups.normalBuf, groups.normalLen);
         updateThreeItemGroup('waypoint', groups.waypointBuf, groups.waypointLen);
         updateThreeItemGroup('selected', groups.selectedBuf, groups.selectedLen);
         updateThreeItemGroup('paste', groups.pasteBuf, groups.pasteLen);
+        state.threeItems.pointOffsetsByItemId = groups.offsetsByItemId;
       }
+      state.threeItems.pointTransformDirtyIds.clear();
       state.threeItems.pointDataSignature=signature;
+    } else {
+      updateDirtyThreeItemPoints();
     }
 
     applyThreeCameraFromPV(P, V);
@@ -13357,100 +13234,6 @@ end group
     return true;
   }
 
-  // Temporary attachment calibration UI. This section is intentionally self-contained for easy removal.
-  const attachmentCalibratorEl = document.getElementById("attachmentCalibrator");
-  const attachmentCalibratorToggleEl = document.getElementById("attachmentCalibratorToggle");
-  const attachmentCalibratorSlotEl = document.getElementById("attachmentCalibratorSlot");
-  const attachmentCalibratorMessageEl = document.getElementById("attachmentCalibratorMessage");
-  const attachmentCalibratorLineEl = document.getElementById("attachmentCalibratorLine");
-  const attachmentCalibratorFieldEls = Array.from(document.querySelectorAll("[data-attachment-field]"));
-
-  function getAttachmentCalibratorContext(){
-    const parentItem = getSelected();
-    if (!parentItem) return null;
-    const parentTypeId = toDefIdFromMisTypeId(String(parentItem.kv?.type_id || ""));
-    const attachments = state.attachedWeaponsByParentId.get(parentTypeId) || [];
-    if (!attachments.length) return null;
-    let slot = Number(state.attachmentCalibratorSelection?.parentItemId === parentItem.id
-      ? state.attachmentCalibratorSelection.slot : attachments[0].slot);
-    let attachment = attachments.find(entry => entry.slot === slot) || attachments[0];
-    state.attachmentCalibratorSelection = { parentItemId: parentItem.id, slot: attachment.slot };
-    return { parentItem, parentTypeId, attachments, attachment };
-  }
-
-  function formatAttachedWeaponLine(attachment){
-    if (!attachment) return "";
-    return `attached_weapon${attachment.slot} ${attachment.itemId} ${attachment.x} ${attachment.y} ${attachment.z} ${attachment.yaw} ${attachment.pitch}`;
-  }
-
-  function renderAttachmentCalibrator(){
-    attachmentCalibratorEl?.classList.toggle("open", state.attachmentCalibratorOpen);
-    attachmentCalibratorToggleEl?.classList.toggle("active", state.attachmentCalibratorOpen);
-    attachmentCalibratorToggleEl?.setAttribute("aria-pressed", String(state.attachmentCalibratorOpen));
-    if (!state.attachmentCalibratorOpen || !attachmentCalibratorEl) return;
-    const context = getAttachmentCalibratorContext();
-    attachmentCalibratorSlotEl.hidden = !context;
-    attachmentCalibratorFieldEls.forEach(input => { input.disabled = !context; });
-    document.getElementById("attachmentCalibratorCopy").disabled = !context;
-    if (!context){
-      attachmentCalibratorMessageEl.textContent = "Select a parent item that has attached weapons.";
-      attachmentCalibratorLineEl.textContent = "";
-      attachmentCalibratorSlotEl.replaceChildren();
-      return;
-    }
-    attachmentCalibratorMessageEl.textContent = `Parent ${context.parentTypeId}. Changes are visual only until you copy the line into addeweap.def.`;
-    const selectedSlot = String(context.attachment.slot);
-    attachmentCalibratorSlotEl.innerHTML = context.attachments.map(entry => `<option value="${entry.slot}">attached_weapon${entry.slot} — ${escapeHtml(entry.itemId)}</option>`).join("");
-    attachmentCalibratorSlotEl.value = selectedSlot;
-    for (const input of attachmentCalibratorFieldEls) input.value = String(context.attachment[input.dataset.attachmentField]);
-    attachmentCalibratorLineEl.textContent = formatAttachedWeaponLine(context.attachment);
-  }
-
-  function updateAttachedWeaponVisual(parentItem, attachment){
-    const parentInstance = state.glb.itemInstances.get(parentItem.id);
-    const anchor = parentInstance?.children?.find(child => child.userData?.isAttachedWeapon && child.userData?.attachmentSlot === attachment.slot);
-    if (!anchor) return;
-    applyAttachedWeaponAnchorTransform(anchor, attachment);
-    requestRender();
-  }
-
-  function selectAttachedWeaponForCalibration(parentItemId, slot){
-    state.attachmentCalibratorOpen = true;
-    state.attachmentCalibratorSelection = { parentItemId, slot };
-    if (state.selectedId !== parentItemId) selectById(parentItemId);
-    renderAttachmentCalibrator();
-  }
-
-  attachmentCalibratorToggleEl?.addEventListener("click", () => {
-    state.attachmentCalibratorOpen = !state.attachmentCalibratorOpen;
-    renderAttachmentCalibrator();
-  });
-  document.getElementById("attachmentCalibratorClose")?.addEventListener("click", () => {
-    state.attachmentCalibratorOpen = false;
-    renderAttachmentCalibrator();
-  });
-  attachmentCalibratorSlotEl?.addEventListener("change", () => {
-    const parentItem = getSelected();
-    if (parentItem) state.attachmentCalibratorSelection = { parentItemId: parentItem.id, slot: Number(attachmentCalibratorSlotEl.value) };
-    renderAttachmentCalibrator();
-  });
-  for (const input of attachmentCalibratorFieldEls){
-    input.addEventListener("input", () => {
-      const context = getAttachmentCalibratorContext();
-      const value = Number(input.value);
-      if (!context || !Number.isFinite(value)) return;
-      context.attachment[input.dataset.attachmentField] = value;
-      updateAttachedWeaponVisual(context.parentItem, context.attachment);
-      attachmentCalibratorLineEl.textContent = formatAttachedWeaponLine(context.attachment);
-    });
-  }
-  document.getElementById("attachmentCalibratorCopy")?.addEventListener("click", async () => {
-    const line = attachmentCalibratorLineEl.textContent || "";
-    if (!line) return;
-    try { await navigator.clipboard.writeText(line); statusEl.textContent = "Attached weapon line copied."; }
-    catch { statusEl.textContent = "Clipboard unavailable; select and copy the displayed line."; }
-  });
-
   function getGlbItemVisualSignature(it, graphic){
     const rawTypeId = String(it?.kv?.type_id || it?.typeId || "");
     const typeId = toDefIdFromMisTypeId(rawTypeId);
@@ -14108,6 +13891,10 @@ end group
         }
       }
 
+      // A structural sync can replace a batched selected item with a newly
+      // created individual instance. Reapply the current selection only after
+      // those instances exist so the next frame does not request another sync.
+      reconcileGlbSelectionVisuals();
       state.glb.structureDirty = false;
       state.glb.transformDirtyIds.clear();
       state.glb.syncCount += 1;
@@ -14129,14 +13916,16 @@ end group
     }
     if (!state.glb.transformDirtyIds.size) return;
 
-    const byId = new Map((state.items || []).map((it) => [it.id, it]));
     for (const itemId of Array.from(state.glb.transformDirtyIds.values())){
-      const it = byId.get(itemId);
+      const it = getItemByIdFast(itemId);
       const instance = state.glb.itemInstances.get(itemId);
-      if (!it || !instance) continue;
+      if (!it || !instance){
+        if (!state.glb.structureDirty && !state.glb.syncPromise) state.glb.transformDirtyIds.delete(itemId);
+        continue;
+      }
       applyItemTransformToObject(instance, it);
+      state.glb.transformDirtyIds.delete(itemId);
     }
-    state.glb.transformDirtyIds.clear();
   }
 
 
@@ -14231,13 +14020,26 @@ end group
     else clearGlbSelectionOutline(instance);
   }
 
-  function updateSelectedGlbVisual(){
-    if (!state.glb.ready) return;
-    const nextIds = new Set(
+  function getSelectedGlbVisualIds(){
+    return new Set(
       state.multiSelectedIds.size
         ? Array.from(state.multiSelectedIds)
         : (state.selectedId != null ? [state.selectedId] : [])
     );
+  }
+
+  function reconcileGlbSelectionVisuals(nextIds = getSelectedGlbVisualIds()){
+    for (const [itemId, instance] of state.glb.itemInstances){
+      const selected = nextIds.has(itemId);
+      if (instance.userData?._selectedGlbVisual === selected) continue;
+      setGlbInstanceSelected(instance, selected);
+    }
+    state.glb.lastSelectedVisualIds = new Set(nextIds);
+  }
+
+  function updateSelectedGlbVisual(){
+    if (!state.glb.ready) return;
+    const nextIds = getSelectedGlbVisualIds();
     const prevIds = state.glb.lastSelectedVisualIds || new Set();
 
     let changed = nextIds.size !== prevIds.size;
@@ -14259,40 +14061,18 @@ end group
       }
     }
     if (!changed) return;
+    if (state.glb.syncPromise) return;
     // Selected instances leave their render batch so outlines and editing keep
     // the exact existing behavior; deselected compatible instances rejoin it.
     state.glb.structureDirty=true;
     syncGlbItems();
-
-    for (const prevId of prevIds){
-      if (nextIds.has(prevId)) continue;
-      const prevInstance = state.glb.itemInstances.get(prevId);
-      setGlbInstanceSelected(prevInstance, false);
-    }
-    for (const nextId of nextIds){
-      if (prevIds.has(nextId)) continue;
-      const nextInstance = state.glb.itemInstances.get(nextId);
-      setGlbInstanceSelected(nextInstance, true);
-    }
-
-    state.glb.lastSelectedVisualIds = nextIds;
+    reconcileGlbSelectionVisuals(nextIds);
   }
 
   function getItemIdFromObject3D(obj){
     let cur = obj;
     while (cur){
       if (Object.prototype.hasOwnProperty.call(cur.userData || {}, "itemId")) return cur.userData.itemId;
-      cur = cur.parent;
-    }
-    return null;
-  }
-
-  function getAttachedWeaponPickFromObject3D(obj){
-    let cur = obj;
-    let slot = null;
-    while (cur){
-      if (slot == null && cur.userData?.isAttachedWeapon && Number.isFinite(Number(cur.userData?.attachmentSlot))) slot = Number(cur.userData.attachmentSlot);
-      if (slot != null && Object.prototype.hasOwnProperty.call(cur.userData || {}, "itemId")) return { parentItemId: cur.userData.itemId, slot };
       cur = cur.parent;
     }
     return null;
@@ -14340,7 +14120,6 @@ end group
       && state.referenceGlb.root.visible !== false;
     if (referencePickEnabled) roots.push(state.referenceGlb.root);
     const hits = raycaster.intersectObjects(roots, true);
-    state.glb.lastAttachmentPick = null;
 
     // intersectObjects is sorted nearest-first. Resolving both reference and map
     // objects in this single hit list prevents the reference from stealing clicks
@@ -14348,16 +14127,6 @@ end group
     for (const hit of hits){
       if (referencePickEnabled && isReferenceGlbObject3D(hit.object)){
         return { kind: "reference", reference: state.referenceGlb, distance: hit.distance, hit };
-      }
-      if (state.attachmentCalibratorOpen){
-        const attachmentPick = getAttachedWeaponPickFromObject3D(hit.object);
-        if (attachmentPick){
-          const parentItem = getItemByIdFast(attachmentPick.parentItemId);
-          if (parentItem){
-            state.glb.lastAttachmentPick = attachmentPick;
-            return { kind: "item", item: parentItem, distance: hit.distance, hit, attachmentPick };
-          }
-        }
       }
       const batchedIds=hit.object?.userData?.instanceItemIds;
       const itemId = Array.isArray(batchedIds)&&Number.isInteger(hit.instanceId)
@@ -14539,21 +14308,16 @@ end group
     const renderer=state.glb.renderer;renderer.clearDepth();renderer.resetState();renderer.render(state.glb.gizmoScene,state.glb.camera);renderer.resetState();
   }
 
-  function commitGizmoUpdate(it){
-    if (!it) return;
-    if(isTilOnlyMapTile(it))syncTilOnlyItemRecord(it);
-    if (kvHas(it, "position")) it.kv.position = `${it.x} ${it.y} ${it.z}`;
-    applyItemOrientationToKv(it);
-    const sec = getItemSectionByStartFast(it.start);
-    if (sec) sec.kv = { ...it.kv };
-    markItemsChanged({ structure: false });
-    markItemTransformDirty(it.id);
+  function flushTransformDragUi(){
+    if (!state.dragUiDirty) return;
+    state.dragUiDirty = false;
+    renderList();
+    renderItemWindow();
+    if (state.tilePaletteView === "instances") renderTileInstances();
     scheduleLiveMisRefresh();
-    scheduleRenderList();
-    if(isMapTileItem(it))buildMapTileOverlay();
   }
 
-  function commitGizmoUpdates(items){
+  function commitGizmoUpdates(items, { deferUi = false } = {}){
     const valid = (items || []).filter(Boolean);
     if (!valid.length) return;
     for (const it of valid){
@@ -14562,217 +14326,16 @@ end group
       applyItemOrientationToKv(it);
       const sec = getItemSectionByStartFast(it.start);
       if (sec) sec.kv = { ...it.kv };
-      markItemTransformDirty(it.id);
     }
-    markItemsChanged({ structure: false });
-    scheduleLiveMisRefresh();
-    scheduleRenderList();
+    markItemTransformsChanged(valid);
+    if (deferUi) state.dragUiDirty = true;
+    else {
+      scheduleLiveMisRefresh();
+      scheduleRenderList();
+    }
   }
 
   function pickItemAt(sx,sy){ const world=screenToWorld(sx,sy,0); const size=Math.max(64, Number(state.spatialIndex.cellSize)||2048); const candidates=getSpatialCandidatesByWorldRect(world.x-size,world.y-size,world.x+size,world.y+size); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); let best=null,bestD2=Infinity; for(const it of candidates){ if(!filteredSet.has(it.id)) continue; if(!isItemVisibilityFilterMatch(it)) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(!p.visible) continue; const dx=p.sx-sx,dy=p.sy-sy,d2=dx*dx+dy*dy; if(d2<bestD2){bestD2=d2;best=it;} } return (best&&bestD2<14*14)?best:null; }
-
-  const FOG_PRESET_BASE_DISTANCE = 128;
-  const FOG_PRESET_DEFAULTS = {
-    0: { nearDistance: 1.275392, midDistance: 35.325952, farDistance: 24.064, nearStrength: 0.24, midStrength: 0.86 },
-    1: { nearDistance: 10.233984, midDistance: 102.457472, farDistance: 117.632, nearStrength: 0.06, midStrength: 0.59 },
-    2: { nearDistance: 48.3616, midDistance: 77.05344, farDistance: 81.28, nearStrength: 0.06, midStrength: 0.69 },
-    3: { nearDistance: 40.192, midDistance: 90.368, farDistance: 128, nearStrength: 0.0, midStrength: 0.34 },
-  };
-
-  function makeFogPresetRatios(preset){
-    return {
-      nearStartRatio: Math.max(0, Math.min(1, (Number(preset?.nearDistance) || 0) / FOG_PRESET_BASE_DISTANCE)),
-      midStartRatio: Math.max(0, Math.min(1, (Number(preset?.midDistance) || 0) / FOG_PRESET_BASE_DISTANCE)),
-      farRefRatio: Math.max(0.05, Math.min(1, (Number(preset?.farDistance) || 0) / FOG_PRESET_BASE_DISTANCE)),
-      nearStrength: Math.max(0, Math.min(1, Number(preset?.nearStrength) || 0)),
-      midStrength: Math.max(0, Math.min(1, Number(preset?.midStrength) || 0)),
-    };
-  }
-
-  function ensureDebugFogPresetValues(){
-    for (const key of [0,1,2,3]){
-      if (!state.debugFog.presetValues.has(key)){
-        state.debugFog.presetValues.set(key, makeFogPresetRatios(FOG_PRESET_DEFAULTS[key]));
-      }
-    }
-  }
-
-  function getFogPresetConfig(fogType){
-    ensureDebugFogPresetValues();
-    return state.debugFog.presetValues.get(fogType) || state.debugFog.presetValues.get(0);
-  }
-
-  function normalizeFogRamp(fogDistance, fogType){
-    const safeFar = Math.max(0, Number(fogDistance) || 0);
-    if (!(safeFar > 0)) return { near: 0, mid: 0, far: 0, nearStrength: 0, midStrength: 0 };
-
-    const preset = getFogPresetConfig(fogType);
-    const farRefRatio = Math.max(0.05, Number(preset.farRefRatio) || 0.05);
-    const nearStartRatio = Math.max(0, Math.min(1, Number(preset.nearStartRatio) || 0));
-    const midStartRatio = Math.max(0, Math.min(1, Number(preset.midStartRatio) || 0));
-
-    const near = safeFar * (nearStartRatio / farRefRatio);
-    const mid = safeFar * (midStartRatio / farRefRatio);
-
-    return {
-      near: Math.max(0, Math.min(safeFar, near)),
-      mid: Math.max(0, Math.min(safeFar, mid)),
-      far: safeFar,
-      nearStrength: Math.max(0, Math.min(1, Number(preset.nearStrength) || 0)),
-      midStrength: Math.max(0, Math.min(1, Number(preset.midStrength) || 0)),
-      farRefRatio,
-    };
-  }
-
-  function getActiveFogDistanceValue(){
-    const gi = state.sectionBlocks.find(sec => sec.kind === 'general_information');
-    if (!(gi && gi.kv)) return 0;
-    const attrib = Number(gi.kv.attrib || 0);
-    const attribInt = Number.isFinite(attrib) ? Math.trunc(attrib) : 0;
-    const fogDistanceEnabled = (attribInt & GENERAL_ATTRIB_BITS.fogDistanceOverride) !== 0;
-    const envName = String(gi.kv.sunset || giEnvironment?.value || '').trim().toLowerCase();
-    const envData = envName ? GENERAL_ENV_DATA.get(envName) : null;
-    const fogDistance = fogDistanceEnabled
-      ? fixed16ToNumber(gi.kv.fog_level || 0)
-      : Math.max(0, Math.trunc(Number(envData?.fogLevel) || 0));
-    return Number.isFinite(fogDistance) ? Math.max(0, fogDistance) : 0;
-  }
-
-  function syncDebugFogPresetSelection(fogType){
-    const next = [0,1,2,3].includes(fogType) ? fogType : 0;
-    state.debugFog.selectedPreset = next;
-    if (debugFogPresetBtnsEl){
-      debugFogPresetBtnsEl.querySelectorAll('button[data-fog-preset]').forEach((btn) => {
-        const value = Math.trunc(Number(btn.dataset.fogPreset) || 0);
-        btn.classList.toggle('active', value === next);
-      });
-    }
-    updateDebugFogPanelUi();
-  }
-
-  function updateDebugFogColorReadout(color){
-    if (!fogDbgRgbTextEl || !fogDbgColorSwatchEl || !color) return;
-    const rr = Math.max(0, Math.min(255, Math.round((Number(color.r) || 0) * 255)));
-    const gg = Math.max(0, Math.min(255, Math.round((Number(color.g) || 0) * 255)));
-    const bb = Math.max(0, Math.min(255, Math.round((Number(color.b) || 0) * 255)));
-    fogDbgRgbTextEl.textContent = `RGB(${rr}, ${gg}, ${bb})`;
-    fogDbgColorSwatchEl.style.background = `rgb(${rr}, ${gg}, ${bb})`;
-  }
-
-  function updateDebugFogPanelUi(){
-    ensureDebugFogPresetValues();
-    const preset = getFogPresetConfig(state.debugFog.selectedPreset);
-    const farDistance = getActiveFogDistanceValue();
-    state.debugFog.suppressUiHandlers = true;
-    if (fogDbgNearDistEl) fogDbgNearDistEl.value = String(preset.nearStartRatio);
-    if (fogDbgMidDistEl) fogDbgMidDistEl.value = String(preset.midStartRatio);
-    if (fogDbgFarDistEl) fogDbgFarDistEl.value = String(preset.farRefRatio);
-    if (fogDbgNearStrengthEl) fogDbgNearStrengthEl.value = String(preset.nearStrength);
-    if (fogDbgMidStrengthEl) fogDbgMidStrengthEl.value = String(preset.midStrength);
-    state.debugFog.suppressUiHandlers = false;
-
-    const farRefRatio = Math.max(0.05, Number(preset.farRefRatio) || 0.05);
-    const nearScaledRatio = (Number(preset.nearStartRatio) || 0) / farRefRatio;
-    const midScaledRatio = (Number(preset.midStartRatio) || 0) / farRefRatio;
-    const nearM = farDistance * nearScaledRatio;
-    const midM = farDistance * midScaledRatio;
-    if (fogDbgNearDistValEl) fogDbgNearDistValEl.textContent = `${(nearScaledRatio*100).toFixed(1)}% do far (${nearM.toFixed(1)}m)`;
-    if (fogDbgMidDistValEl) fogDbgMidDistValEl.textContent = `${(midScaledRatio*100).toFixed(1)}% do far (${midM.toFixed(1)}m)`;
-    if (fogDbgFarDistValEl) fogDbgFarDistValEl.textContent = `${((Number(preset.farRefRatio) || 0)*100).toFixed(1)}% de 128m (referência preset)`;
-    if (fogDbgNearStrengthValEl) fogDbgNearStrengthValEl.textContent = `${((Number(preset.nearStrength) || 0)*100).toFixed(0)}%`;
-    if (fogDbgMidStrengthValEl) fogDbgMidStrengthValEl.textContent = `${((Number(preset.midStrength) || 0)*100).toFixed(0)}%`;
-  }
-
-  function updateSelectedFogPresetFromUi(nextPreset){
-    const presetId = [0,1,2,3].includes(nextPreset) ? nextPreset : 0;
-    state.debugFog.selectedPreset = presetId;
-    syncDebugFogPresetSelection(presetId);
-    requestRender();
-  }
-
-  function bindDebugFogSlider(inputEl, applyValue){
-    if (!inputEl) return;
-    inputEl.addEventListener('input', () => {
-      if (state.debugFog.suppressUiHandlers) return;
-      ensureDebugFogPresetValues();
-      const preset = getFogPresetConfig(state.debugFog.selectedPreset);
-      applyValue(preset, Number(inputEl.value));
-      updateDebugFogPanelUi();
-      requestRender();
-    });
-  }
-
-  function initDebugFogPanel(){
-    ensureDebugFogPresetValues();
-    if (debugFogPresetBtnsEl){
-      debugFogPresetBtnsEl.querySelectorAll('button[data-fog-preset]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          updateSelectedFogPresetFromUi(Math.trunc(Number(btn.dataset.fogPreset) || 0));
-        });
-      });
-    }
-
-    bindDebugFogSlider(fogDbgNearDistEl, (preset, value) => { preset.nearStartRatio = Math.max(0, Math.min(1, value || 0)); });
-    bindDebugFogSlider(fogDbgMidDistEl, (preset, value) => { preset.midStartRatio = Math.max(0, Math.min(1, value || 0)); });
-    bindDebugFogSlider(fogDbgFarDistEl, (preset, value) => { preset.farRefRatio = Math.max(0.05, Math.min(1, value || 0.05)); });
-    bindDebugFogSlider(fogDbgNearStrengthEl, (preset, value) => { preset.nearStrength = Math.max(0, Math.min(1, value || 0)); });
-    bindDebugFogSlider(fogDbgMidStrengthEl, (preset, value) => { preset.midStrength = Math.max(0, Math.min(1, value || 0)); });
-
-    syncDebugFogPresetSelection(0);
-    updateDebugFogColorReadout({ r: 0.65, g: 0.7, b: 0.75 });
-  }
-
-  initDebugFogPanel();
-
-  function getRenderFogSettings(){
-    const fallback = { enabled: false, distance: 0, color: { r: 0.65, g: 0.7, b: 0.75 }, source: 'disabled', fogType: 0, ramp: { near: 0, mid: 0, far: 0, nearStrength: 0, midStrength: 0 } };
-    const gi = state.sectionBlocks.find(s => s.kind === 'general_information');
-    if (!(gi && gi.kv)){
-      updateDebugFogColorReadout(fallback.color);
-      return fallback;
-    }
-
-    const attrib = Number(gi.kv.attrib || 0);
-    const attribInt = Number.isFinite(attrib) ? Math.trunc(attrib) : 0;
-    const fogDistanceEnabled = (attribInt & GENERAL_ATTRIB_BITS.fogDistanceOverride) !== 0;
-    const fogColorEnabled = (attribInt & GENERAL_ATTRIB_BITS.fogColorOverride) !== 0;
-
-    const envName = String(gi.kv.sunset || giEnvironment?.value || '').trim().toLowerCase();
-    const envData = envName ? GENERAL_ENV_DATA.get(envName) : null;
-
-    const fogDistance = fogDistanceEnabled
-      ? fixed16ToNumber(gi.kv.fog_level || 0)
-      : Math.max(0, Math.trunc(Number(envData?.fogLevel) || 0));
-    if (!(Number.isFinite(fogDistance) && fogDistance > 0)){
-      updateDebugFogColorReadout(fallback.color);
-      return fallback;
-    }
-
-    let fogColorRgb = null;
-    if (fogColorEnabled) fogColorRgb = decodeFogColor(gi.kv.fog_color || 0);
-    if (!fogColorRgb && envData?.fogRgb) fogColorRgb = envData.fogRgb;
-
-    const rgb = fogColorRgb || { r: 166, g: 179, b: 191 };
-    const fogType = Math.max(0, Math.trunc(Number(envData?.fogType) || 0));
-    const colorNormalized = {
-      r: Math.max(0, Math.min(255, Number(rgb.r) || 0)) / 255,
-      g: Math.max(0, Math.min(255, Number(rgb.g) || 0)) / 255,
-      b: Math.max(0, Math.min(255, Number(rgb.b) || 0)) / 255,
-    };
-    if (state.debugFog.lastEnvFogType !== fogType){
-      state.debugFog.lastEnvFogType = fogType;
-      syncDebugFogPresetSelection(fogType);
-    }
-    updateDebugFogColorReadout(colorNormalized);
-    return {
-      enabled: true,
-      distance: fogDistance,
-      color: colorNormalized,
-      fogType,
-      ramp: normalizeFogRamp(fogDistance, fogType),
-      source: `${fogDistanceEnabled ? 'MIS fog distance' : 'ENV fog level'} + ${fogColorEnabled ? 'MIS fog color' : 'ENV fog rgb'} + fog_type=${fogType}`,
-    };
-  }
 
   function extractTerrainNameFromMis(){ const gi=state.sectionBlocks.find(s=>s.kind==='general_information'); return gi&&gi.kv&&gi.kv.terrain?String(gi.kv.terrain).trim():''; }
   function getRenderWaterHeightRaw(){
@@ -15386,13 +14949,6 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }
     if (state.referenceGlb?.selected) selectReferenceGlb(false);
     const picked = scenePick?.kind === "item" ? scenePick.item : pickItemAtCanvas(sx,sy);
-    const attachedPick = scenePick?.attachmentPick || state.glb.lastAttachmentPick;
-    if (attachedPick && picked?.id === attachedPick.parentItemId){
-      selectAttachedWeaponForCalibration(attachedPick.parentItemId, attachedPick.slot);
-      state.glb.lastAttachmentPick = null;
-      e.preventDefault();
-      return;
-    }
 
     state.draggingItem = false;
     state.boxSelecting = false;
@@ -15523,16 +15079,14 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
         it.x = worldToRaw(rawToWorld(it.x, 'x') + dx, 'x');
         it.y = worldToRaw(rawToWorld(it.y, 'y') + dy, 'y');
         it.kv.position = `${it.x} ${it.y} ${it.z}`;
-        markItemTransformDirty(it.id);
       }
-      markItemsChanged({ structure: false });
+      markItemTransformsChanged(active);
       state.dragAnchor = nowW;
-      scheduleRenderList();
-      scheduleLiveMisRefresh();
+      state.dragUiDirty = true;
     }
     state.lastMouse = { sx, sy };
   });
-  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; boxSelectionEl.style.display='none'; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const {pickedId,additive}=state.pendingLeftClick; selectById(pickedId != null ? pickedId : null,{additive}); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)))) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); renderTileInstances(); refreshLiveMisWindow(false, { force: true }); } }
+  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; boxSelectionEl.style.display='none'; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const {pickedId,additive}=state.pendingLeftClick; selectById(pickedId != null ? pickedId : null,{additive}); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)))) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); renderTileInstances(); refreshLiveMisWindow(false, { force: true }); } flushTransformDragUi(); }
   cv.addEventListener('mouseup', e => {
     if (state.insertModeActive && state.insertDragStart){
       const rect = cv.getBoundingClientRect();
@@ -15689,9 +15243,9 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       for(const start of d.snapshots){const it=getGizmoTransformTarget(start.id);if(!it)continue;let itemDegrees=valueDegrees;if(state.rotationSnapEnabled&&state.rotationSnapMode==='absolute'&&state.transformPivot==='individual'){const initial=d.mode==='rotX'?start.pitch:start.heading,rawValueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);itemDegrees=snapValue(initial+rawValueDegrees,state.rotationSnap)-initial;}if(d.mode==='rotX')it.pitch=start.pitch+itemDegrees;else it.heading=start.heading+itemDegrees;if(state.transformPivot!=='individual'&&d.snapshots.length>1){const p=vec3Add(d.pivot,rotateAroundAxis(vec3Sub(start.world,d.pivot),d.handle.axis,angle));it.x=worldToRaw(p.x,'x');it.y=worldToRaw(p.y,'y');it.z=worldToRaw(p.z,'z');}}
     }
     if (state.referenceGlb?.selected) syncReferenceGlbTransform();
-    else commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean));updateMapTileDragPreview();updateItemGizmo();
+    else commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean), { deferUi: true });updateMapTileDragPreview();updateItemGizmo();
   });
-  window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();clearMapTileDragPreview();persistMapTileEditorState();renderTileInstances();updateItemGizmo();});
+  window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();clearMapTileDragPreview();persistMapTileEditorState();flushTransformDragUi();updateItemGizmo();});
 
   const _origLoadMisFile = loadMisFile;
   loadMisFile = async function(file, fileHandle = null){
