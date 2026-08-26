@@ -9046,38 +9046,38 @@ end group
       addLog(`[reference_glb] removed=${fileName}`);
       return;
     }
-    let selectedItems = getSelectedItems();
+    const selectedItems = getSelectedItems();
     if (!selectedItems.length) return;
     if(selectedItems.some(isMapTileLocked)){statusEl.textContent="Locked tiles cannot be deleted. Unlock the selection first.";return;}
     if(state.tileEditModeActive&&selectedItems.some(it=>!isMapTileItem(it))){statusEl.textContent="Tile Edit Mode only allows MapTiles to be deleted.";return;}
 
-    const tilOnly=selectedItems.filter(isTilOnlyMapTile);
-    if(tilOnly.length){
-      const removedIndices=tilOnly.map(it=>Math.trunc(Number(it.kv?.extra_val2))).filter(Number.isInteger).sort((a,b)=>b-a);
-      for(const removedIndex of removedIndices){
-        state.mapTiles.records.splice(removedIndex,1);
-        for(const item of state.items.filter(isMapTileItem)){
-          const index=Math.trunc(Number(item.kv?.extra_val2));
-          if(index>removedIndex)setItemKvLine(item,"extra_val2",index-1);
-        }
-      }
-      state.mapTiles.records.forEach((record,index)=>record.recordIndex=index);
-      state.mapTiles.byPosition=new Map(state.mapTiles.records.map(record=>[mapTilePositionKey(record.x,record.y),record]));
-      state.mapTiles.dirty=true;rebuildTilOnlyItems();selectedItems=selectedItems.filter(it=>!isTilOnlyMapTile(it));
-      scheduleUndoCapture();buildMapTileOverlay();renderTileInstances();renderTilePaletteSelection();
-    }
-    if(!selectedItems.length){state.selectedId=null;state.multiSelectedIds.clear();updateItemGizmo();requestRender();statusEl.textContent=tilOnly.length===1?"TIL tile deleted.":`${tilOnly.length} TIL tiles deleted.`;return;}
-
     const selectedIds=new Set(selectedItems.map(it=>it.id));
     const selectedStarts=new Set(selectedItems.map(it=>it.start));
     const deletingMapTile=selectedItems.some(isMapTileItem);
+    const removedRecordIndices=[...new Set(selectedItems.filter(isMapTileItem).map(item=>Math.trunc(Number(item.kv?.extra_val2))).filter(index=>Number.isInteger(index)&&index>=0&&index<state.mapTiles.records.length))].sort((a,b)=>b-a);
     if(selectedItems.some(it=>state.mapTiles.dragPreviewIds.has(it.id)))clearMapTileDragPreview(false);
     for(const id of selectedIds)removeItemFromSpatialIndex(id);
     state.items = state.items.filter(it => !selectedIds.has(it.id));
     state.sectionBlocks = state.sectionBlocks.filter(s => !(s.kind === "item" && selectedStarts.has(s.start)));
+    if(removedRecordIndices.length){
+      for(const removedIndex of removedRecordIndices)state.mapTiles.records.splice(removedIndex,1);
+      for(const item of state.items.filter(isMapTileItem)){
+        const oldIndex=Math.trunc(Number(item.kv?.extra_val2));
+        if(!Number.isInteger(oldIndex))continue;
+        const removedBefore=removedRecordIndices.filter(index=>index<oldIndex).length;
+        if(removedBefore){
+          setItemKvLine(item,"extra_val2",oldIndex-removedBefore);
+          const section=getItemSectionByStartFast(item.start);
+          if(section){section.kv={...item.kv};section.lines=item.lines.slice();}
+        }
+      }
+      state.mapTiles.records.forEach((record,index)=>record.recordIndex=index);
+      state.mapTiles.byPosition=new Map(state.mapTiles.records.map(record=>[mapTilePositionKey(record.x,record.y),record]));
+      state.mapTiles.dirty=true;
+    }
     normalizeItemBeginLineSequence();
     markItemsChanged({ structure: true });
-    if(deletingMapTile){rebuildTilOnlyItems();scheduleMapTileOverlayRebuild();renderTileInstances();}
+    if(deletingMapTile){rebuildTilOnlyItems();buildMapTileOverlay();renderTileInstances();renderTilePaletteSelection();}
     state.selectedId = null;
     state.multiSelectedIds.clear();
     closeItemContextMenu();
