@@ -1701,7 +1701,7 @@
         <button id="showAreaTriggersBtn" type="button" class="modeBtn">Area Triggers</button>
       </div>
       <div id="canvasViewToolbar" class="canvasFloatingToolbar">
-        <button id="measureDistanceBtn" type="button" class="modeBtn topViewTool" hidden aria-pressed="false" aria-label="Measure Distance (disabled)" data-tool-mode="off" title="Measure Distance (disabled)"><img id="measureDistanceIcon" class="toolbarIcon" src="resources/BHD/editor_icons/ruler_icon.svg" alt="" /> <span id="measureDistanceLabel">Measure Distance</span></button>
+        <button id="measureDistanceBtn" type="button" class="modeBtn iconBtn topViewTool" hidden aria-pressed="false" aria-label="Measure Distance (disabled)" data-tool-mode="off" title="Measure Distance (disabled)"><img id="measureDistanceIcon" class="toolbarIcon" src="resources/BHD/editor_icons/ruler_icon.svg" alt="" /></button>
         <button id="transformSpaceBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Transformation Mode: World" title="Transformation Mode: World (X)"><img class="toolbarIcon" src="resources/BHD/editor_icons/space_world.svg" alt="" /></button>
         <div class="toolbarSplit">
           <button id="rotationSnapToggleBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Rotation Snap" title="Enable or disable rotation snapping"><img class="toolbarIcon" src="resources/BHD/editor_icons/snap_to_angle.svg" alt="" /></button>
@@ -2910,7 +2910,6 @@ end group
   const transformSpaceBtn = document.getElementById("transformSpaceBtn");
   const measureDistanceBtn = document.getElementById("measureDistanceBtn");
   const measureDistanceIcon = document.getElementById("measureDistanceIcon");
-  const measureDistanceLabel = document.getElementById("measureDistanceLabel");
   const measurementOverlayEl = document.getElementById("measurementOverlay");
   const gridSnapToggleBtn = document.getElementById("gridSnapToggleBtn");
   const rotationSnapToggleBtn = document.getElementById("rotationSnapToggleBtn");
@@ -11644,7 +11643,6 @@ end group
     measureDistanceBtn?.setAttribute('aria-label',running?'Run Time':`Measure Distance${measuring?'':' (disabled)'}`);
     if(measureDistanceBtn)measureDistanceBtn.title=running?'Run Time':'Measure Distance'+(measuring?'':' (disabled)');
     if(measureDistanceIcon)measureDistanceIcon.src=running?'resources/BHD/editor_icons/footsteps_icon.svg':'resources/BHD/editor_icons/ruler_icon.svg';
-    if(measureDistanceLabel)measureDistanceLabel.textContent=running?'Run Time':'Measure Distance';
     if(wasMeasuring&&!measuring)clearMeasurement();
     cv.style.cursor=measuring?'crosshair':'';
     requestRender();
@@ -11652,6 +11650,15 @@ end group
   function cycleMeasurementToolMode(){
     const next={off:'measure',measure:'run',run:'off'}[state.measurement.mode]||'off';
     setMeasurementToolMode(next);
+  }
+  function undoMeasurementPoint(){
+    if(state.measurement.mode!=='measure'||!state.measurement.points.length)return false;
+    state.measurement.hover=null;
+    state.measurement.middleDown=null;
+    state.measurement.points.pop();
+    if(!state.measurement.points.length)clearMeasurement();
+    requestRender();
+    return true;
   }
   function updateMeasurementOverlay(){
     if(!measurementOverlayEl)return;
@@ -15032,7 +15039,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     camVel=vec3(0,0,0); requestRender();
   }
   function toggleTopView(){setTopView(!topViewLocked);}
-  addEventListener('keydown',e=>{ if(hasTypingFocus()||keyboardShortcutsOverlay.classList.contains('open')) return; const k=e.key.toLowerCase(); const lookActive=(document.pointerLockElement===cv&&state.cameraLookActive); if(k==='delete'){ e.preventDefault(); deleteSelectedItem(); return; } if(k==='c'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); setSidebarOpen(appLayoutEl?.classList.contains('sidebarClosed')); return; } if(k==='t'&&!e.repeat){ e.preventDefault(); toggleTopView(); } if(k==='g'&&!e.repeat){ e.preventDefault(); cycleGridMainAreaVisibility(); } if(k==='home'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleSceneInfo(); } if(k==='i'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleInsertMode(); } if(k==='h'&&!e.repeat){ toggleViewOption('showAnchorPoints'); } if(k==='f'){ e.preventDefault(); if(!e.repeat) cycleGlbViewMode(); } if(k==='x'&&!lookActive&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat){ toggleTransformSpace(); } if(k==='w'&&!lookActive){ state.transformMode='translate'; updateItemGizmo(); } if(k==='e'&&!lookActive){ state.transformMode='rotate'; updateItemGizmo(); } if(k==='w'&&lookActive) move.w=1; if(k==='a'&&lookActive) move.a=1; if(k==='s'&&lookActive) move.s=1; if(k==='d'&&lookActive) move.d=1; if(k==='q'&&lookActive) move.q=1; if(k==='e'&&lookActive) move.e=1; if(lookActive&&['w','a','s','d','q','e'].includes(k)) startRenderLoop(); if(k==='r') setRenderMode(renderMode==='C'?'H':(renderMode==='H'?'D':'C')); state.keysDown.add(e.code); });
+  addEventListener('keydown',e=>{ if(hasTypingFocus()||keyboardShortcutsOverlay.classList.contains('open')) return; const k=e.key.toLowerCase(); const lookActive=(document.pointerLockElement===cv&&state.cameraLookActive); if(k==='escape'&&undoMeasurementPoint()){e.preventDefault();return;} if(k==='delete'){ e.preventDefault(); deleteSelectedItem(); return; } if(k==='c'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); setSidebarOpen(appLayoutEl?.classList.contains('sidebarClosed')); return; } if(k==='t'&&!e.repeat){ e.preventDefault(); toggleTopView(); } if(k==='g'&&!e.repeat){ e.preventDefault(); cycleGridMainAreaVisibility(); } if(k==='home'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleSceneInfo(); } if(k==='i'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleInsertMode(); } if(k==='h'&&!e.repeat){ toggleViewOption('showAnchorPoints'); } if(k==='f'){ e.preventDefault(); if(!e.repeat) cycleGlbViewMode(); } if(k==='x'&&!lookActive&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat){ toggleTransformSpace(); } if(k==='w'&&!lookActive){ state.transformMode='translate'; updateItemGizmo(); } if(k==='e'&&!lookActive){ state.transformMode='rotate'; updateItemGizmo(); } if(k==='w'&&lookActive) move.w=1; if(k==='a'&&lookActive) move.a=1; if(k==='s'&&lookActive) move.s=1; if(k==='d'&&lookActive) move.d=1; if(k==='q'&&lookActive) move.q=1; if(k==='e'&&lookActive) move.e=1; if(lookActive&&['w','a','s','d','q','e'].includes(k)) startRenderLoop(); if(k==='r') setRenderMode(renderMode==='C'?'H':(renderMode==='H'?'D':'C')); state.keysDown.add(e.code); });
   addEventListener('keyup',e=>{ if(hasTypingFocus()) return; const k=e.key.toLowerCase(); if(k==='w') move.w=0; if(k==='a') move.a=0; if(k==='s') move.s=0; if(k==='d') move.d=0; if(k==='q') move.q=0; if(k==='e') move.e=0; state.keysDown.delete(e.code); });
   addEventListener('mousemove',e=>{
     if(document.pointerLockElement!==cv) return;
