@@ -2721,6 +2721,7 @@ end group
     renderDiagnostics: {
       lastBackendLogged: null,
       lastTickMs: 0,
+      invalidGeometryKeys: new Set(),
     },
     threeTerrain: {
       scene: null,
@@ -2890,15 +2891,15 @@ end group
   }
 
   function renderLayersByBackend(P, V, PV, forward){
-    const result = { drawCalls: 0 };
+    const result = { drawCalls: 0, timings: {} };
+    const measure=(name,callback)=>{const started=performance.now();const value=callback();result.timings[name]=performance.now()-started;return value;};
     if (!state.glb.ready) ensureGlbRendererReady();
-    result.drawCalls = drawTerrainThree(P, V, forward);
-    drawOverlaysThree(P, V, forward);
-    drawItemsThree(P, V);
-    drawGlbItems(P, V);
-    drawWaypointLinesThree(P, V);
-    updateItemGizmo();
-    drawThreeGizmo();
+    result.drawCalls = measure('terrain',()=>drawTerrainThree(P, V, forward));
+    measure('overlays',()=>drawOverlaysThree(P, V, forward));
+    measure('items',()=>{drawItemsThree(P,V);drawWaypointLinesThree(P,V);});
+    measure('glb',()=>drawGlbItems(P, V));
+    measure('gizmo',()=>{updateItemGizmo();drawThreeGizmo();});
+    state.renderDiagnostics.lastTimings=result.timings;
     return result;
   }
 
@@ -11857,29 +11858,55 @@ end group
 
   function updateThreeLineGeometry(lineSegments, positions, colors=null){
     if (!lineSegments?.geometry) return;
+    const finitePositions=[];
+    const finiteColors=colors?[]:null;
+    for(let offset=0;offset+5<positions.length;offset+=6){
+      let valid=true;
+      for(let i=0;i<6;i++)if(!Number.isFinite(positions[offset+i])){valid=false;break;}
+      if(!valid){
+        const key=`line:${lineSegments.name||lineSegments.uuid||'unknown'}`;
+        if(!state.renderDiagnostics.invalidGeometryKeys.has(key)){
+          state.renderDiagnostics.invalidGeometryKeys.add(key);
+          addLog(`[three_geometry] Ignored non-finite line segment in ${lineSegments.name||'unnamed geometry'}.`);
+        }
+        continue;
+      }
+      for(let i=0;i<6;i++)finitePositions.push(positions[offset+i]);
+      if(finiteColors)for(let i=0;i<6;i++)finiteColors.push(Number.isFinite(colors[offset+i])?colors[offset+i]:1);
+    }
+    positions=finitePositions;
+    colors=finiteColors;
     const g = lineSegments.geometry;
     let posAttr = g.getAttribute('position');
     if (!posAttr || posAttr.array.length < positions.length){
       let cap = Math.max(128, posAttr?.array?.length || 128);
       while (cap < positions.length) cap *= 2;
+      cap = Math.ceil(cap / 3) * 3;
       posAttr = new state.glb.THREE.BufferAttribute(new Float32Array(cap), 3);
       posAttr.setUsage(state.glb.THREE.DynamicDrawUsage);
       g.setAttribute('position', posAttr);
     }
-    if (positions.length) posAttr.array.set(positions, 0);
-    posAttr.needsUpdate = true;
+    let positionsChanged=posAttr.userData?.activeLength!==positions.length;
+    for(let i=0;!positionsChanged&&i<positions.length;i++)positionsChanged=posAttr.array[i]!==positions[i];
+    if(positionsChanged&&positions.length)posAttr.array.set(positions,0);
+    posAttr.userData={...(posAttr.userData||{}),activeLength:positions.length};
+    posAttr.needsUpdate=positionsChanged;
 
     if (colors){
       let colAttr = g.getAttribute('color');
       if (!colAttr || colAttr.array.length < colors.length){
         let cap = Math.max(128, colAttr?.array?.length || 128);
         while (cap < colors.length) cap *= 2;
+        cap = Math.ceil(cap / 3) * 3;
         colAttr = new state.glb.THREE.BufferAttribute(new Float32Array(cap), 3);
         colAttr.setUsage(state.glb.THREE.DynamicDrawUsage);
         g.setAttribute('color', colAttr);
       }
-      if (colors.length) colAttr.array.set(colors, 0);
-      colAttr.needsUpdate = true;
+      let colorsChanged=colAttr.userData?.activeLength!==colors.length;
+      for(let i=0;!colorsChanged&&i<colors.length;i++)colorsChanged=colAttr.array[i]!==colors[i];
+      if(colorsChanged&&colors.length)colAttr.array.set(colors,0);
+      colAttr.userData={...(colAttr.userData||{}),activeLength:colors.length};
+      colAttr.needsUpdate=colorsChanged;
     }
 
     g.setDrawRange(0, Math.floor(positions.length / 3));
@@ -12073,6 +12100,14 @@ end group
       const x = rawToWorld(it.x,'x');
       const y = rawToWorld(it.y,'y');
       const z = getItemWorldZ(it);
+      if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z)){
+        const key=`item:${it.id}`;
+        if(!state.renderDiagnostics.invalidGeometryKeys.has(key)){
+          state.renderDiagnostics.invalidGeometryKeys.add(key);
+          addLog(`[three_geometry] Ignored item ${it.id} with non-finite coordinates.`);
+        }
+        continue;
+      }
       if (it.id===state.selectedId||state.multiSelectedIds.has(it.id)){
         selectedBuf[selectedLen++]=x; selectedBuf[selectedLen++]=y; selectedBuf[selectedLen++]=z;
       } else if (state.selectedWaypointMarkerIds.has(it.id)){
@@ -12130,10 +12165,19 @@ end group
       for (let i = 1; i < entries.length; i++){
         const previous = entries[i - 1].it;
         const current = entries[i].it;
-        positions.push(
+        const segment=[
           rawToWorld(previous.x, 'x'), rawToWorld(previous.y, 'y'), getItemWorldZ(previous),
           rawToWorld(current.x, 'x'), rawToWorld(current.y, 'y'), getItemWorldZ(current),
-        );
+        ];
+        if(!segment.every(Number.isFinite)){
+          const key=`waypoint:${previous.id}:${current.id}`;
+          if(!state.renderDiagnostics.invalidGeometryKeys.has(key)){
+            state.renderDiagnostics.invalidGeometryKeys.add(key);
+            addLog(`[three_geometry] Ignored waypoint segment ${previous.id}-${current.id} with non-finite coordinates.`);
+          }
+          continue;
+        }
+        positions.push(...segment);
         colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
       }
     }
@@ -12208,14 +12252,18 @@ end group
     if (!attr || attr.array.length < needed){
       let cap = Math.max(64, attr?.array?.length || 64);
       while (cap < needed) cap *= 2;
+      cap = Math.ceil(cap / 3) * 3;
       attr = new state.glb.THREE.BufferAttribute(new Float32Array(cap), 3);
       attr.setUsage(state.glb.THREE.DynamicDrawUsage);
       points.geometry.setAttribute('position', attr);
     }
-    if (srcLen > 0 && srcBuf){
+    let changed=attr.userData?.activeLength!==srcLen;
+    for(let i=0;!changed&&i<srcLen;i++)changed=attr.array[i]!==srcBuf[i];
+    if (changed && srcLen > 0 && srcBuf){
       attr.array.set(srcBuf.subarray(0, srcLen), 0);
-      attr.needsUpdate = true;
     }
+    attr.userData={...(attr.userData||{}),activeLength:srcLen};
+    attr.needsUpdate=changed;
     points.geometry.setDrawRange(0, Math.floor(srcLen / 3));
     points.visible = srcLen > 0;
     state.threeItems.drawCountByGroup.set(group, Math.floor(srcLen / 3));
@@ -12543,7 +12591,6 @@ end group
             lightMapIntensity: Number.isFinite(m.lightMapIntensity) ? m.lightMapIntensity : 1,
             specularMap: m.specularMap || null,
             envMap: m.envMap || null,
-            envMapIntensity: Number.isFinite(m.envMapIntensity) ? m.envMapIntensity : 1,
             shininess: Number.isFinite(m.shininess) ? m.shininess : 24,
             transparent: !!m.transparent,
             opacity: Number.isFinite(m.opacity) ? m.opacity : 1,
@@ -14637,6 +14684,7 @@ end group
     if (pendingSingleRenderRaf) return;
     pendingSingleRenderRaf = requestAnimationFrame(() => {
       pendingSingleRenderRaf = 0;
+      renderLoopRunning = true;
       renderFrame();
     });
   }
@@ -14687,6 +14735,7 @@ Grid: ${renderUiState.showGrid ? formatGridValue(gridSizeMeters()) : 'off'}
 Top view lock: ${topViewLocked?'on':'off'}
 Top view span: ${topViewLocked?(topViewScale*2).toFixed(2):'-'}
 Draw calls: ${drawCalls}
+Frame phases: terrain=${renderStats.timings.terrain.toFixed(2)}ms overlays=${renderStats.timings.overlays.toFixed(2)}ms items=${renderStats.timings.items.toFixed(2)}ms glb=${renderStats.timings.glb.toFixed(2)}ms gizmo=${renderStats.timings.gizmo.toFixed(2)}ms
 Terrain cull (frustum/back): ${state.terrainPerf?.culledFrustum ?? '-'} / ${state.terrainPerf?.culledBackface ?? '-'}
 MapTile paint: ${state.mapTiles.paintedTiles} tiles, ${state.mapTiles.overlayResolution || '-'}px (${state.mapTiles.lastBuildMs.toFixed(2)} ms)
 GLB instances: ${state.glb.itemInstances.size}
@@ -14708,7 +14757,13 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       }
       statsHudAccumTime = 0;
     }
-    scheduleNextFrame();
+    const cameraStillMoving=dlen>0||vec3Len(camVel)>0.01;
+    if(cameraStillMoving) scheduleNextFrame();
+    else {
+      camVel=vec3(0,0,0);
+      renderLoopRunning=false;
+      renderLoopRafId=0;
+    }
   }
   startRenderLoop();
 
@@ -14778,7 +14833,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     camVel=vec3(0,0,0); requestRender();
   }
   function toggleTopView(){setTopView(!topViewLocked);}
-  addEventListener('keydown',e=>{ if(hasTypingFocus()||keyboardShortcutsOverlay.classList.contains('open')) return; const k=e.key.toLowerCase(); const lookActive=(document.pointerLockElement===cv&&state.cameraLookActive); if(k==='delete'){ e.preventDefault(); deleteSelectedItem(); return; } if(k==='c'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); setSidebarOpen(appLayoutEl?.classList.contains('sidebarClosed')); return; } if(k==='t'&&!e.repeat){ e.preventDefault(); toggleTopView(); } if(k==='g'&&!e.repeat){ e.preventDefault(); cycleGridMainAreaVisibility(); } if(k==='home'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleSceneInfo(); } if(k==='i'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleInsertMode(); } if(k==='h'&&!e.repeat){ toggleViewOption('showAnchorPoints'); } if(k==='f'){ e.preventDefault(); if(!e.repeat) cycleGlbViewMode(); } if(k==='x'&&!lookActive&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat){ toggleTransformSpace(); } if(k==='w'&&!lookActive){ state.transformMode='translate'; updateItemGizmo(); } if(k==='e'&&!lookActive){ state.transformMode='rotate'; updateItemGizmo(); } if(k==='w'&&lookActive) move.w=1; if(k==='a'&&lookActive) move.a=1; if(k==='s'&&lookActive) move.s=1; if(k==='d'&&lookActive) move.d=1; if(k==='q'&&lookActive) move.q=1; if(k==='e'&&lookActive) move.e=1; if(k==='r') setRenderMode(renderMode==='C'?'H':(renderMode==='H'?'D':'C')); state.keysDown.add(e.code); });
+  addEventListener('keydown',e=>{ if(hasTypingFocus()||keyboardShortcutsOverlay.classList.contains('open')) return; const k=e.key.toLowerCase(); const lookActive=(document.pointerLockElement===cv&&state.cameraLookActive); if(k==='delete'){ e.preventDefault(); deleteSelectedItem(); return; } if(k==='c'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); setSidebarOpen(appLayoutEl?.classList.contains('sidebarClosed')); return; } if(k==='t'&&!e.repeat){ e.preventDefault(); toggleTopView(); } if(k==='g'&&!e.repeat){ e.preventDefault(); cycleGridMainAreaVisibility(); } if(k==='home'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleSceneInfo(); } if(k==='i'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleInsertMode(); } if(k==='h'&&!e.repeat){ toggleViewOption('showAnchorPoints'); } if(k==='f'){ e.preventDefault(); if(!e.repeat) cycleGlbViewMode(); } if(k==='x'&&!lookActive&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat){ toggleTransformSpace(); } if(k==='w'&&!lookActive){ state.transformMode='translate'; updateItemGizmo(); } if(k==='e'&&!lookActive){ state.transformMode='rotate'; updateItemGizmo(); } if(k==='w'&&lookActive) move.w=1; if(k==='a'&&lookActive) move.a=1; if(k==='s'&&lookActive) move.s=1; if(k==='d'&&lookActive) move.d=1; if(k==='q'&&lookActive) move.q=1; if(k==='e'&&lookActive) move.e=1; if(k==='r') setRenderMode(renderMode==='C'?'H':(renderMode==='H'?'D':'C')); state.keysDown.add(e.code); if(lookActive)requestRender(); });
   addEventListener('keyup',e=>{ if(hasTypingFocus()) return; const k=e.key.toLowerCase(); if(k==='w') move.w=0; if(k==='a') move.a=0; if(k==='s') move.s=0; if(k==='d') move.d=0; if(k==='q') move.q=0; if(k==='e') move.e=0; state.keysDown.delete(e.code); });
   addEventListener('mousemove',e=>{
     if(document.pointerLockElement!==cv) return;
