@@ -2724,6 +2724,8 @@ end group
       lastTickMs: 0,
       layerMs: {},
       frameMs: 0,
+      glbMs: {},
+      glbRenderInfo: { calls: 0, triangles: 0, lines: 0, points: 0 },
     },
     threeTerrain: {
       scene: null,
@@ -2820,6 +2822,7 @@ end group
       itemInstances: new Map(),
       instanceBatches: new Map(),
       batchedItemLookup: new Map(),
+      batchedItemRecords: new Map(),
       batchStats: { batches: 0, meshes: 0, items: 0 },
       syncPromise: null,
       initPromise: null,
@@ -4095,7 +4098,8 @@ end group
     if (!item || !state.glb.ready || !state.glb.THREE) return null;
 
     const instance = state.glb.itemInstances.get(item.id) || null;
-    const graphicKey = String(instance?.userData?.graphic || "").trim().toLowerCase();
+    const batchRecord=state.glb.batchedItemRecords.get(item.id);
+    const graphicKey = String(instance?.userData?.graphic || batchRecord?.graphic || "").trim().toLowerCase();
     if (!graphicKey) return null;
 
     const cached = state.glb.dimensionsByGraphic.get(graphicKey);
@@ -13364,80 +13368,87 @@ end group
     disposeGlbInstanceMaterials(instance);
   }
 
-  function clearGlbInstanceBatches({ restoreInstances = true } = {}){
+  function clearGlbInstanceBatches({ clearRecords = false } = {}){
     for (const batch of state.glb.instanceBatches.values()){
       state.glb.scene?.remove?.(batch.group);
-      if (restoreInstances){
-        for (const itemId of batch.itemIds){
-          const instance=state.glb.itemInstances.get(itemId);
-          if(instance&&!instance.parent)state.glb.scene?.add?.(instance);
-        }
-      }
     }
     state.glb.instanceBatches.clear();
     state.glb.batchedItemLookup.clear();
+    if(clearRecords)state.glb.batchedItemRecords.clear();
     state.glb.batchStats={batches:0,meshes:0,items:0};
   }
 
-  function glbInstanceBatchKey(it, instance){
-    if (!it || !instance || state.glb.viewMode !== "default") return "";
+  function glbInstanceBatchKey(it, graphic){
+    if (!it || !graphic || state.glb.viewMode !== "default" || getItemTint(it)) return "";
     if (isAreaTriggerItem(it) || getItemWaypointId(it) != null) return "";
     const typeId=toDefIdFromMisTypeId(String(it?.kv?.type_id||it?.typeId||""));
     if (getAttachedWeaponSignature(typeId)) return "";
-    return `${instance.userData.visualSignature}|scale:${getItemGraphicScale(it)}`;
+    return `${graphic}|scale:${getItemGraphicScale(it)}`;
   }
 
-  function collectBatchableInstanceMeshes(instance){
-    const meshes=[];let invalid=false;
-    instance?.updateMatrixWorld?.(true);
-    instance?.traverse?.(obj=>{
+  function collectBatchableTemplateMeshes(template, graphicScale){
+    const meshes=[];let invalid=false;const {THREE}=state.glb;
+    template?.updateMatrixWorld?.(true);
+    const correction=new THREE.Object3D();applyGlbModelCorrection(correction,graphicScale);correction.updateMatrix();
+    template?.traverse?.(obj=>{
       if(obj.isLOD||obj.isSkinnedMesh)invalid=true;
       if(!obj.isMesh)return;
       if(!obj.geometry||!obj.material||Array.isArray(obj.material)||obj.material.transparent||obj.morphTargetInfluences?.length){invalid=true;return;}
-      meshes.push(obj);
+      meshes.push({geometry:obj.geometry,material:obj.material,baseMatrix:new THREE.Matrix4().multiplyMatrices(correction.matrix,obj.matrixWorld),castShadow:obj.castShadow,receiveShadow:obj.receiveShadow});
     });
     return invalid||!meshes.length?null:meshes;
   }
 
-  function rebuildGlbInstanceBatches(entries){
+  function composeGlbItemInstanceMatrix(it,baseMatrix){
+    const {THREE}=state.glb,pose=new THREE.Object3D();
+    applyItemPoseTransform(pose,it);pose.updateMatrix();
+    return new THREE.Matrix4().multiplyMatrices(pose.matrix,baseMatrix);
+  }
+
+  async function rebuildGlbInstanceBatches(entries,generation){
     clearGlbInstanceBatches();
-    if(!state.glb.ready||!state.glb.THREE)return;
+    state.glb.batchedItemRecords.clear();
+    const handledIds=new Set();
+    if(!state.glb.ready||!state.glb.THREE)return handledIds;
     const selectedIds=new Set(state.multiSelectedIds.size?[...state.multiSelectedIds]:(state.selectedId!=null?[state.selectedId]:[]));
     const groups=new Map();
-    for(const {it} of entries){
+    for(const {it,graphic} of entries){
       if(selectedIds.has(it.id))continue;
-      const instance=state.glb.itemInstances.get(it.id),key=glbInstanceBatchKey(it,instance);
+      const key=glbInstanceBatchKey(it,graphic);
       if(!key)continue;
       if(!groups.has(key))groups.set(key,[]);
-      groups.get(key).push({it,instance});
+      groups.get(key).push({it,graphic});
     }
     const {THREE}=state.glb;
     for(const [key,members] of groups){
       if(members.length<2)continue;
-      const meshLists=members.map(({instance})=>collectBatchableInstanceMeshes(instance));
-      if(meshLists.some(list=>!list||list.length!==meshLists[0].length))continue;
-      const geometrySignature=meshLists[0].map(mesh=>mesh.geometry.uuid).join("|");
-      if(meshLists.some(list=>list.map(mesh=>mesh.geometry.uuid).join("|")!==geometrySignature))continue;
+      const template=await loadGraphicTemplate(members[0].graphic);
+      if(generation!==state.glb.documentGeneration)return handledIds;
+      const meshes=collectBatchableTemplateMeshes(template,getItemGraphicScale(members[0].it));
+      if(!meshes)continue;
       const group=new THREE.Group();group.name=`GLB_INSTANCE_BATCH:${key}`;
       const itemIds=members.map(({it})=>it.id);
-      for(let meshIndex=0;meshIndex<meshLists[0].length;meshIndex++){
-        const source=meshLists[0][meshIndex];
+      for(let meshIndex=0;meshIndex<meshes.length;meshIndex++){
+        const source=meshes[meshIndex];
         const instanced=new THREE.InstancedMesh(source.geometry,source.material,members.length);
         instanced.name=`GLB_INSTANCE_BATCH_MESH:${meshIndex}`;
         instanced.userData.instanceItemIds=itemIds;
         instanced.castShadow=source.castShadow;instanced.receiveShadow=source.receiveShadow;
-        for(let instanceIndex=0;instanceIndex<members.length;instanceIndex++)instanced.setMatrixAt(instanceIndex,meshLists[instanceIndex][meshIndex].matrixWorld);
+        for(let instanceIndex=0;instanceIndex<members.length;instanceIndex++)instanced.setMatrixAt(instanceIndex,composeGlbItemInstanceMatrix(members[instanceIndex].it,source.baseMatrix));
         instanced.instanceMatrix.needsUpdate=true;group.add(instanced);
       }
       state.glb.scene.add(group);
       for(let index=0;index<members.length;index++){
-        const {it,instance}=members[index];
-        state.glb.scene.remove(instance);
+        const {it,graphic}=members[index],instance=state.glb.itemInstances.get(it.id);
+        if(instance){removeGlbItemInstance(instance);state.glb.itemInstances.delete(it.id);}
         state.glb.batchedItemLookup.set(it.id,{batchKey:key,index,group});
+        state.glb.batchedItemRecords.set(it.id,{itemId:it.id,graphic,visualSignature:getGlbItemVisualSignature(it,graphic),batchKey:key,index});
+        handledIds.add(it.id);
       }
       state.glb.instanceBatches.set(key,{group,itemIds});
-      state.glb.batchStats.batches+=1;state.glb.batchStats.meshes+=meshLists[0].length;state.glb.batchStats.items+=members.length;
+      state.glb.batchStats.batches+=1;state.glb.batchStats.meshes+=meshes.length;state.glb.batchStats.items+=members.length;
     }
+    return handledIds;
   }
 
   function disposeReferenceGlb(){
@@ -13623,7 +13634,7 @@ end group
     // Invalidates async sync work before replacing the current mission document.
     state.glb.documentGeneration += 1;
     disposeReferenceGlb();
-    clearGlbInstanceBatches({restoreInstances:false});
+    clearGlbInstanceBatches({clearRecords:true});
     for (const instance of state.glb.itemInstances.values()) removeGlbItemInstance(instance);
     state.glb.itemInstances.clear();
     clearItemArrows();
@@ -13855,7 +13866,9 @@ end group
       if (generation !== state.glb.documentGeneration) return;
       clearGlbInstanceBatches();
       const { entries, stats } = getRenderableGlbEntries();
-      const wantedIds = new Set(entries.map(x => x.it.id));
+      const batchedIds=await rebuildGlbInstanceBatches(entries,generation);
+      if(generation!==state.glb.documentGeneration)return;
+      const wantedIds = new Set(entries.filter(x=>!batchedIds.has(x.it.id)).map(x => x.it.id));
 
       for (const [itemId, obj] of state.glb.itemInstances.entries()){
         if (wantedIds.has(itemId)) continue;
@@ -13864,6 +13877,7 @@ end group
       }
 
       for (const { it, graphic } of entries){
+        if(batchedIds.has(it.id))continue;
         const visualSignature = getGlbItemVisualSignature(it, graphic);
         let instance = state.glb.itemInstances.get(it.id) || null;
         if (instance && instance.userData.visualSignature !== visualSignature){
@@ -13905,14 +13919,12 @@ end group
         applyItemTransformToObject(instance, it);
       }
 
-      rebuildGlbInstanceBatches(entries);
-
       const topGraphics = Array.from(stats.graphicsFrequency.entries())
         .sort((a,b) => b[1] - a[1])
         .slice(0, 10)
         .map(([graphic, count]) => `${graphic}:${count}`);
       const nonRenderable = stats.totalItems - stats.renderableItems;
-      const finalInstances = state.glb.itemInstances.size;
+      const finalInstances = state.glb.itemInstances.size + state.glb.batchedItemRecords.size;
       const syncReport = {
         totalItems: stats.totalItems,
         renderableItems: stats.renderableItems,
@@ -13984,18 +13996,23 @@ end group
       });
       return;
     }
-    updateGlbTransformsFromState();
-    syncItemArrows();
-    syncItemCircles();
+    const samples={},measure=(name,callback)=>{const started=performance.now();callback();samples[name]=performance.now()-started;};
+    measure('transforms',updateGlbTransformsFromState);
+    measure('arrows',syncItemArrows);
+    measure('circles',syncItemCircles);
 
     const { renderer, scene } = state.glb;
     applyThreeCameraFromPV(P, V);
-    updateAreaTriggerVolumes();
-    updateSelectedGlbVisual();
+    measure('areas',updateAreaTriggerVolumes);
+    measure('selection',updateSelectedGlbVisual);
 
     renderer.resetState();
-    renderer.render(scene, state.glb.camera);
+    measure('submit',()=>renderer.render(scene, state.glb.camera));
     renderer.resetState();
+    const previous=state.renderDiagnostics.glbMs||{};
+    state.renderDiagnostics.glbMs=Object.fromEntries(Object.entries(samples).map(([name,value])=>[name,previous[name]==null?value:previous[name]*0.9+value*0.1]));
+    const info=renderer.info?.render||{};
+    state.renderDiagnostics.glbRenderInfo={calls:info.calls||0,triangles:info.triangles||0,lines:info.lines||0,points:info.points||0};
   }
 
   function applyThreeCameraFromPV(P, V){
@@ -14989,6 +15006,8 @@ Terrain cull (frustum/back): ${state.terrainPerf?.culledFrustum ?? '-'} / ${stat
 MapTile paint: ${state.mapTiles.paintedTiles} tiles, ${state.mapTiles.overlayResolution || '-'}px (${state.mapTiles.lastBuildMs.toFixed(2)} ms)
 GLB instances: ${state.glb.itemInstances.size}
 GLB batches/items/meshes: ${state.glb.batchStats.batches} / ${state.glb.batchStats.items} / ${state.glb.batchStats.meshes}
+GLB CPU: transforms=${(state.renderDiagnostics.glbMs.transforms||0).toFixed(2)} arrows=${(state.renderDiagnostics.glbMs.arrows||0).toFixed(2)} circles=${(state.renderDiagnostics.glbMs.circles||0).toFixed(2)} areas=${(state.renderDiagnostics.glbMs.areas||0).toFixed(2)} selection=${(state.renderDiagnostics.glbMs.selection||0).toFixed(2)} submit=${(state.renderDiagnostics.glbMs.submit||0).toFixed(2)}
+GLB calls/triangles/lines: ${state.renderDiagnostics.glbRenderInfo.calls} / ${state.renderDiagnostics.glbRenderInfo.triangles} / ${state.renderDiagnostics.glbRenderInfo.lines}
 GLB sync: #${state.glb.syncCount} (${state.glb.lastSyncMs.toFixed(2)} ms)
 GLB total/render: ${state.glb.lastStats?.totalItems ?? '-'} / ${state.glb.lastStats?.renderableItems ?? '-'}
 GLB missing graphic: ${state.glb.lastStats?.skippedMissingGraphic ?? '-'}
