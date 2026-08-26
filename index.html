@@ -6686,7 +6686,14 @@ end group
 
     const appendedSections = Array.from(liveByKey.values())
       .sort((a,b) => a.start - b.start);
-    const appendedItemSections = appendedSections.filter((sec) => sec.kind === "item");
+    const appendedItemSections = appendedSections.filter((sec) => sec.kind === "item").sort((a,b) => {
+      const itemNumber=sec=>{
+        const match=String(sec?.beginLine||"").trim().match(/^begin\s+item\s+(\d+)\b/i);
+        return match?Number(match[1]):Number.POSITIVE_INFINITY;
+      };
+      const aNumber=itemNumber(a),bNumber=itemNumber(b);
+      return aNumber!==bNumber?aNumber-bNumber:a.start-b.start;
+    });
     const appendedNonItemSections = appendedSections.filter((sec) => sec.kind !== "item");
 
     if (appendedItemSections.length){
