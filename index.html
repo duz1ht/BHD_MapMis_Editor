@@ -3690,7 +3690,7 @@ end group
     return indexed;
   }
 
-  async function readTextFromEditorFolder(path){
+  async function readFileFromEditorFolder(path, resourceType = "resource"){
     if (!state.editorFolderHandle) return null;
     try{
       const parts = String(path || "").split("/").filter(Boolean);
@@ -3700,32 +3700,22 @@ end group
       }
       const fileHandle = await dir.getFileHandle(parts[parts.length - 1]);
       const file = await fileHandle.getFile();
-      const text = await file.text();
-      addLog(`Loaded resource via editor folder: ${path}`);
-      return text;
+      addLog(`Loaded ${resourceType} via editor folder: ${path}`);
+      return file;
     } catch (err){
-      addLog(`ERROR loading resource via editor folder: ${path} (${err?.message || "read failed"})`);
+      addLog(`ERROR loading ${resourceType} via editor folder: ${path} (${err?.message || "read failed"})`);
       return null;
     }
   }
 
+  async function readTextFromEditorFolder(path){
+    const file = await readFileFromEditorFolder(path, "text resource");
+    return file ? file.text() : null;
+  }
+
   async function readArrayBufferFromEditorFolder(path){
-    if (!state.editorFolderHandle) return null;
-    try{
-      const parts = String(path || "").split("/").filter(Boolean);
-      let dir = state.editorFolderHandle;
-      for (let i = 0; i < parts.length - 1; i++){
-        dir = await dir.getDirectoryHandle(parts[i]);
-      }
-      const fileHandle = await dir.getFileHandle(parts[parts.length - 1]);
-      const file = await fileHandle.getFile();
-      const buf = await file.arrayBuffer();
-      addLog(`Loaded binary resource via editor folder: ${path} (${buf.byteLength} bytes)`);
-      return buf;
-    } catch (err){
-      addLog(`ERROR loading binary via editor folder: ${path} (${err?.message || "read failed"})`);
-      return null;
-    }
+    const file = await readFileFromEditorFolder(path, "binary resource");
+    return file ? file.arrayBuffer() : null;
   }
 
   async function loadBinaryResource(path){
@@ -4628,7 +4618,7 @@ end group
     if (!state.editorFolderHandle) return null;
     try{
       let dir = state.editorFolderHandle;
-      for (const part of ["resources", "3d_items"]) dir = await dir.getDirectoryHandle(part);
+      for (const part of ["resources", "BHD", "3d_items"]) dir = await dir.getDirectoryHandle(part);
       const files = new Set();
       for await (const [fileName, handle] of dir.entries()){
         if (handle.kind === "file" && /\.glb$/i.test(fileName)) files.add(fileName.toLowerCase());
@@ -4664,6 +4654,10 @@ end group
   }
 
   function runHttpGlbChecks(){
+    if (state.isLocalRuntime){
+      state.glbCheckQueue.length = 0;
+      return;
+    }
     while (state.glbChecksActive < 4 && state.glbCheckQueue.length){
       const { filename, requestFilename, def } = state.glbCheckQueue.shift();
       state.glbChecksActive += 1;
@@ -5329,15 +5323,11 @@ end group
     ];
 
     for (const path of candidates){
-      try {
-        const res = await fetch(path);
-        if (!res.ok) continue;
-        const value = parseTerrainWaterHeight(await res.text());
-        GENERAL_TERRAIN_WATER_HEIGHT.set(key, value);
-        return value;
-      } catch (_err) {
-        // ignore and keep trying paths
-      }
+      const text = await loadTextResource(path);
+      if (text === null) continue;
+      const value = parseTerrainWaterHeight(text);
+      GENERAL_TERRAIN_WATER_HEIGHT.set(key, value);
+      return value;
     }
 
     GENERAL_TERRAIN_WATER_HEIGHT.set(key, 0);
@@ -12508,6 +12498,79 @@ end group
     return { entries: out, stats };
   }
 
+  function normalizeLogicalResourcePath(path){
+    const parts = [];
+    for (const part of String(path || "").replace(/\\/g, "/").split("/")){
+      if (!part || part === ".") continue;
+      if (part === "..") parts.pop();
+      else parts.push(part);
+    }
+    return parts.join("/");
+  }
+
+  function externalUrisFromGlb(buffer){
+    if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 20) return [];
+    const view = new DataView(buffer);
+    if (view.getUint32(0, true) !== 0x46546c67) return [];
+    let offset = 12;
+    let json = null;
+    while (offset + 8 <= buffer.byteLength){
+      const length = view.getUint32(offset, true);
+      const type = view.getUint32(offset + 4, true);
+      offset += 8;
+      if (offset + length > buffer.byteLength) break;
+      if (type === 0x4e4f534a){
+        const raw = new TextDecoder().decode(new Uint8Array(buffer, offset, length)).replace(/\0+$/g, "").trim();
+        json = JSON.parse(raw);
+        break;
+      }
+      offset += length;
+    }
+    if (!json) return [];
+    const uris = [...(json.buffers || []), ...(json.images || [])]
+      .map(entry => String(entry?.uri || "").trim())
+      .filter(uri => uri && !/^(?:data:|blob:|https?:)/i.test(uri));
+    return [...new Set(uris)];
+  }
+
+  async function createLocalGltfDependencyResolver(glbData, basePath, graphic){
+    const uris = externalUrisFromGlb(glbData);
+    if (!uris.length) return null;
+    if (!state.editorFolderHandle) throw new Error(`Set Editor Folder before loading external resources for ${graphic}.glb`);
+
+    const objectUrls = new Map();
+    try {
+      for (const uri of uris){
+        let decodedUri = uri;
+        try { decodedUri = decodeURIComponent(uri); } catch (_) { /* Keep the original GLTF URI. */ }
+        decodedUri = decodedUri.split(/[?#]/, 1)[0];
+        const logicalPath = normalizeLogicalResourcePath(`${basePath}/${decodedUri}`);
+        const file = await readFileFromEditorFolder(logicalPath, `GLB dependency for ${graphic}.glb`);
+        if (!file) throw new Error(`Missing external GLB dependency: ${logicalPath}`);
+        objectUrls.set(normalizeLogicalResourcePath(decodedUri), URL.createObjectURL(file));
+        addLog(`[3d_items] dependency resolved via editor folder: ${graphic}.glb -> ${logicalPath}`);
+      }
+    } catch (err){
+      for (const objectUrl of objectUrls.values()) URL.revokeObjectURL(objectUrl);
+      throw err;
+    }
+
+    const manager = new state.glb.THREE.LoadingManager();
+    manager.setURLModifier((requestedUrl) => {
+      let decoded = requestedUrl;
+      try { decoded = decodeURIComponent(requestedUrl); } catch (_) { /* Keep loader URL unchanged. */ }
+      const normalized = normalizeLogicalResourcePath(decoded.replace(/^[a-z]+:\/\/[^/]+\//i, ""));
+      for (const [uri, objectUrl] of objectUrls){
+        if (normalized === uri || normalized.endsWith(`/${uri}`)) return objectUrl;
+      }
+      return requestedUrl;
+    });
+    return {
+      loader: new state.glb.GLTFLoader(manager),
+      revoke(){ for (const objectUrl of objectUrls.values()) URL.revokeObjectURL(objectUrl); },
+    };
+  }
+
 
   async function loadGraphicTemplate(graphic){
     const key = String(graphic || "").trim();
@@ -12515,15 +12578,20 @@ end group
     if (state.glb.templateByGraphic.has(key)) return state.glb.templateByGraphic.get(key);
 
     const path = `resources/BHD/3d_items/${key}.glb`;
+    let localDependencies = null;
     try {
       const glbData = await loadBinaryResource(path);
       if (!glbData) throw new Error(`Failed to read GLB: ${path}`);
 
       const basePath = path.slice(0, path.lastIndexOf("/") + 1);
-      const gltf = state.glb.loader.parseAsync
-        ? await state.glb.loader.parseAsync(glbData, basePath)
+      localDependencies = state.isLocalRuntime
+        ? await createLocalGltfDependencyResolver(glbData, basePath, key)
+        : null;
+      const loader = localDependencies?.loader || state.glb.loader;
+      const gltf = loader.parseAsync
+        ? await loader.parseAsync(glbData, basePath)
         : await new Promise((resolve, reject) => {
-            state.glb.loader.parse(glbData, basePath, resolve, reject);
+            loader.parse(glbData, basePath, resolve, reject);
           });
       const root = gltf.scene || gltf.scenes?.[0] || null;
       if (!root) return null;
@@ -12584,6 +12652,8 @@ end group
         addLog(`[3d_items] GLB missing or invalid: ${path}`);
       }
       return placeholder;
+    } finally {
+      localDependencies?.revoke();
     }
   }
 
@@ -15215,6 +15285,12 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
 
   const _origLoadMisFile = loadMisFile;
   loadMisFile = async function(file, fileHandle = null){
+    if (state.isLocalRuntime && !state.editorFolderHandle){
+      const message = "Set Editor Folder before opening a mission in local mode.";
+      addLog(`[local_resources] ${message}`);
+      statusEl.textContent = message;
+      return;
+    }
     await _origLoadMisFile(file, fileHandle);
     try{ await loadTerrainFromMis(); }catch(err){ addLog(`[terrain] load error: ${err?.message || err}`); camDebugEl.textContent = `Failed to load terrain: ${err.message||err}`; }
     await loadMapTilesForMission();
@@ -15254,15 +15330,12 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       addLog("ERROR: Failed to parse embedded ITEMS.DEF.");
     }
 
-    await preloadEnvironmentFiles();
-    await loadAiTextfileCatalog();
-
     if (state.isLocalRuntime){
-      addLog("Local runtime detected (file://). Waiting for 'Set Editor Folder'.");
-      statusEl.textContent = "Local mode detected: open File > Set Editor Folder to load catalogs.";
+      addLog("Local runtime detected (file://). Resource loading is paused until 'Set Editor Folder'.");
+      statusEl.textContent = "Local mode: open File > Set Editor Folder before loading maps and resources.";
       defStatusEl.textContent = "";
     } else {
-      await Promise.all([loadGameStrings(), loadWeaponDefs(), loadAttachedWeaponDefs(), loadWpNames()]);
+      await Promise.all([loadGameStrings(), loadWeaponDefs(), loadAttachedWeaponDefs(), loadWpNames(), loadAiTextfileCatalog(), preloadEnvironmentFiles()]);
     }
 
     const stringInfo = state.gameStrings.size
