@@ -392,6 +392,11 @@
       width:24px;
       padding:0;
     }
+    #measureDistanceBtn:disabled{
+      opacity:.42;
+      cursor:not-allowed;
+      filter:saturate(.35);
+    }
     .toolbarIcon{
       width:16px;
       height:16px;
@@ -1701,7 +1706,7 @@
         <button id="showAreaTriggersBtn" type="button" class="modeBtn">Area Triggers</button>
       </div>
       <div id="canvasViewToolbar" class="canvasFloatingToolbar">
-        <button id="measureDistanceBtn" type="button" class="modeBtn iconBtn topViewTool" hidden aria-pressed="false" aria-label="Measure Distance (disabled)" data-tool-mode="off" title="Measure Distance (disabled)"><img id="measureDistanceIcon" class="toolbarIcon" src="resources/BHD/editor_icons/ruler_icon.svg" alt="" /></button>
+        <button id="measureDistanceBtn" type="button" class="modeBtn iconBtn" disabled aria-disabled="true" aria-pressed="false" aria-label="Measure Distance (Top View only)" data-tool-mode="off" title="Measure Distance (Top View only)"><img id="measureDistanceIcon" class="toolbarIcon" src="resources/BHD/editor_icons/ruler_icon.svg" alt="" /></button>
         <button id="transformSpaceBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Transformation Mode: World" title="Transformation Mode: World (X)"><img class="toolbarIcon" src="resources/BHD/editor_icons/space_world.svg" alt="" /></button>
         <div class="toolbarSplit">
           <button id="rotationSnapToggleBtn" type="button" class="modeBtn iconBtn" aria-pressed="false" aria-label="Rotation Snap" title="Enable or disable rotation snapping"><img class="toolbarIcon" src="resources/BHD/editor_icons/snap_to_angle.svg" alt="" /></button>
@@ -15015,7 +15020,17 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     perspectiveViewBtn?.setAttribute('aria-pressed',topViewLocked?'false':'true');
     topViewBtn?.classList.toggle('active',topViewLocked);
     topViewBtn?.setAttribute('aria-pressed',topViewLocked?'true':'false');
-    document.querySelectorAll('.topViewTool').forEach(button=>{button.hidden=!topViewLocked;});
+    if(measureDistanceBtn){
+      measureDistanceBtn.disabled=!topViewLocked;
+      measureDistanceBtn.setAttribute('aria-disabled',topViewLocked?'false':'true');
+      if(!topViewLocked){
+        measureDistanceBtn.title='Measure Distance (Top View only)';
+        measureDistanceBtn.setAttribute('aria-label','Measure Distance (Top View only)');
+      } else if(state.measurement.mode==='off'){
+        measureDistanceBtn.title='Measure Distance (disabled)';
+        measureDistanceBtn.setAttribute('aria-label','Measure Distance (disabled)');
+      }
+    }
   }
   function setTopView(enabled){
     if(topViewLocked===enabled){syncViewportViewButtons();return;}
