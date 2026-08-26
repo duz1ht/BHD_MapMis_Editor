@@ -10685,6 +10685,13 @@ end group
   function isTilOnlyMapTile(it){return Boolean(it?._tilOnly);}
   function allMapTileItems(){return [...state.items.filter(isMapTileItem),...state.tilOnlyItems];}
   function mapTilePositionKey(x,y){return `${Math.trunc(Number(x))},${Math.trunc(Number(y))}`;}
+  function dfbhdmedTilCoordinate(value){
+    const raw=Number(value);
+    if(!Number.isFinite(raw))return 0;
+    // DFBHD MED places TIL records on whole world-unit boundaries. Keep the
+    // binary fixed-point representation, but discard cursor sub-unit noise.
+    return Math.round(raw/MIS_POS_SCALE)*MIS_POS_SCALE;
+  }
   function parseTil(buf){
     if(!(buf instanceof ArrayBuffer)||buf.byteLength<16)throw new Error("TIL header is truncated");
     const d=new DataView(buf),magic=String.fromCharCode(d.getUint8(0),d.getUint8(1),d.getUint8(2),d.getUint8(3));
@@ -10703,7 +10710,7 @@ end group
     const out=new ArrayBuffer(16+records.length*12),d=new DataView(out);
     for(const [i,ch] of Array.from("0lit").entries())d.setUint8(i,ch.charCodeAt(0));
     d.setUint32(4,records.length,true);d.setUint32(8,out.byteLength,true);d.setUint32(12,Number(state.mapTiles.headerReserved)||0,true);
-    for(let i=0,off=16;i<records.length;i++,off+=12){const record=records[i];d.setInt32(off,record.x,true);d.setInt32(off+4,record.y,true);d.setUint8(off+8,record.tileIndex);d.setUint8(off+9,record.flags);d.setUint16(off+10,record.reserved,true);}
+    for(let i=0,off=16;i<records.length;i++,off+=12){const record=records[i];d.setInt32(off,dfbhdmedTilCoordinate(record.x),true);d.setInt32(off+4,dfbhdmedTilCoordinate(record.y),true);d.setUint8(off+8,record.tileIndex);d.setUint8(off+9,record.flags);d.setUint16(off+10,record.reserved,true);}
     return out;
   }
 
