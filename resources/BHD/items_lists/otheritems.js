@@ -169,3 +169,12 @@ begin "Map Centerpoint, helps align commander map grid"
 	graphic
 end 
 
+
+begin "CTflag Change Team Flag (PSP)"
+	id 101884
+	editor_helper triangle_volume
+	editor_helper_opacity 20
+	editor_helper_size 8
+	tintteam 1
+	tint #00FF00
+end

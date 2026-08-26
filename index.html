@@ -4275,8 +4275,11 @@ end group
   }
 
   function getItemTint(it){
-    const tint = String(getDefForItem(it)?.tint || "").trim();
-    return /^#[0-9a-f]{6}$/i.test(tint) ? tint : "";
+    const def = getDefForItem(it);
+    const tint = String(def?.tint || "").trim();
+    const fallbackTint = /^#[0-9a-f]{6}$/i.test(tint) ? tint : "";
+    if (Number(def?.tintTeam) !== 1 || !kvHas(it, "team")) return fallbackTint;
+    return ITEM_TEAM_TINTS[String(it.kv.team).trim()] || fallbackTint;
   }
 
   function getItemEditorHelper(it){
@@ -4292,6 +4295,14 @@ end group
     const opacity = Number(getDefForItem(it)?.editorHelperOpacity);
     return Number.isFinite(opacity) ? Math.max(0, Math.min(100, opacity)) / 100 : 1;
   }
+
+  const ITEM_TEAM_TINTS = Object.freeze({
+    0: "#00FF00",
+    1: "#0066FF",
+    2: "#FF0000",
+    3: "#FFFF00",
+    4: "#8000FF",
+  });
 
   function getItemArrowSize(it){
     const arrow = Number(getDefForItem(it)?.arrow);
@@ -4376,6 +4387,7 @@ end group
           editorHelper: "",
           editorHelperSize: 0,
           editorHelperOpacity: 100,
+          tintTeam: 0,
           arrow: 0,
           drawCircle: 0,
           attrib: [],
@@ -4425,6 +4437,7 @@ end group
           const numericOpacity = Number(v);
           if (Number.isFinite(numericOpacity)) cur.editorHelperOpacity = Math.max(0, Math.min(100, numericOpacity));
         }
+        if (k === "tintteam") cur.tintTeam = Number(v) === 1 ? 1 : 0;
         if (k === "arrow"){
           const numericArrow = Number(v);
           if (Number.isFinite(numericArrow) && numericArrow > 0) cur.arrow = numericArrow;
@@ -4482,6 +4495,7 @@ end group
         editorHelper: Object.prototype.hasOwnProperty.call(supplementKv, "editor_helper") ? supplement.editorHelper : base.editorHelper,
         editorHelperSize: Object.prototype.hasOwnProperty.call(supplementKv, "editor_helper_size") ? supplement.editorHelperSize : base.editorHelperSize,
         editorHelperOpacity: Object.prototype.hasOwnProperty.call(supplementKv, "editor_helper_opacity") ? supplement.editorHelperOpacity : base.editorHelperOpacity,
+        tintTeam: Object.prototype.hasOwnProperty.call(supplementKv, "tintteam") ? supplement.tintTeam : base.tintTeam,
         arrow: Object.prototype.hasOwnProperty.call(supplementKv, "arrow") ? supplement.arrow : base.arrow,
         drawCircle: Object.prototype.hasOwnProperty.call(supplementKv, "draw_circle") ? supplement.drawCircle : base.drawCircle,
         attrib,
@@ -14029,7 +14043,7 @@ end group
     }
   }
 
-  const EDITOR_HELPER_TYPES = new Set(["vertical_line", "circle_volume"]);
+  const EDITOR_HELPER_TYPES = new Set(["vertical_line", "circle_volume", "triangle_volume"]);
   const EDITOR_HELPER_FALLBACK_COLOR = 0xffffff;
   const EDITOR_HELPER_SPHERE_SEGMENTS = 32;
 
@@ -14062,6 +14076,32 @@ end group
       }));
     } else if (type === "circle_volume"){
       const geometry = new THREE.SphereGeometry(1, EDITOR_HELPER_SPHERE_SEGMENTS, Math.floor(EDITOR_HELPER_SPHERE_SEGMENTS / 2));
+      helper = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+        color: EDITOR_HELPER_FALLBACK_COLOR,
+        transparent: true,
+        opacity: 1,
+        depthTest: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      }));
+    } else if (type === "triangle_volume"){
+      // A unit triangular prism starts at the item anchor and extends upward.
+      // Scaling it uniformly makes editor_helper_size its width and height in metres.
+      const h = Math.sqrt(3) / 2;
+      const positions = [
+        -0.5, -h / 3, 0,  0.5, -h / 3, 0,  0, h * 2 / 3, 0,
+        -0.5, -h / 3, 1,  0, h * 2 / 3, 1,  0.5, -h / 3, 1,
+        -0.5, -h / 3, 0, -0.5, -h / 3, 1,  0.5, -h / 3, 1,
+        -0.5, -h / 3, 0,  0.5, -h / 3, 1,  0.5, -h / 3, 0,
+         0.5, -h / 3, 0,  0.5, -h / 3, 1,  0, h * 2 / 3, 1,
+         0.5, -h / 3, 0,  0, h * 2 / 3, 1,  0, h * 2 / 3, 0,
+         0, h * 2 / 3, 0,  0, h * 2 / 3, 1, -0.5, -h / 3, 1,
+         0, h * 2 / 3, 0, -0.5, -h / 3, 1, -0.5, -h / 3, 0,
+      ];
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geometry.computeVertexNormals();
       helper = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
         color: EDITOR_HELPER_FALLBACK_COLOR,
         transparent: true,
