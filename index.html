@@ -2691,6 +2691,7 @@ end group
     glbChecksActive: 0,
 
     itemsVersion: 0,
+    itemGeometryRevision: 0,
     filteredItemsCache: null,
     filteredItemsKey: "",
     liveMisDirty: false,
@@ -2721,6 +2722,8 @@ end group
     renderDiagnostics: {
       lastBackendLogged: null,
       lastTickMs: 0,
+      layerMs: {},
+      frameMs: 0,
     },
     threeTerrain: {
       scene: null,
@@ -2740,6 +2743,8 @@ end group
       drawCountByGroup: new Map(),
       waypointLineScene: null,
       waypointLines: null,
+      pointDataSignature: "",
+      waypointDataSignature: "",
       ready: false,
     },
     areaTriggerVolumes: {
@@ -2891,14 +2896,21 @@ end group
 
   function renderLayersByBackend(P, V, PV, forward){
     const result = { drawCalls: 0 };
+    const layerMs = {};
+    const measure = (name, callback) => {
+      const started = performance.now();
+      const value = callback();
+      layerMs[name] = performance.now() - started;
+      return value;
+    };
     if (!state.glb.ready) ensureGlbRendererReady();
-    result.drawCalls = drawTerrainThree(P, V, forward);
-    drawOverlaysThree(P, V, forward);
-    drawItemsThree(P, V);
-    drawGlbItems(P, V);
-    drawWaypointLinesThree(P, V);
-    updateItemGizmo();
-    drawThreeGizmo();
+    result.drawCalls = measure('terrain', () => drawTerrainThree(P, V, forward));
+    measure('overlays', () => drawOverlaysThree(P, V, forward));
+    measure('points', () => drawItemsThree(P, V));
+    measure('glb', () => drawGlbItems(P, V));
+    measure('waypoints', () => drawWaypointLinesThree(P, V));
+    measure('gizmo', () => { updateItemGizmo(); drawThreeGizmo(); });
+    state.renderDiagnostics.layerMs = layerMs;
     return result;
   }
 
@@ -3362,6 +3374,7 @@ end group
     const structureChanged = options.structure !== false;
     const invalidateFilter = options.invalidateFilter !== undefined ? !!options.invalidateFilter : structureChanged;
     state.liveMisDirty = true;
+    state.itemGeometryRevision += 1;
     if (invalidateFilter){
       state.itemsVersion += 1;
       invalidateFilteredItemsCache();
@@ -3374,13 +3387,14 @@ end group
       const validIds=new Set(state.items.filter(isMapTileItem).map(it=>it.id));
       state.lockedMapTileIds=new Set([...state.lockedMapTileIds].filter(id=>validIds.has(id)));
       state.hiddenMapTileIds=new Set([...state.hiddenMapTileIds].filter(id=>validIds.has(id)));
-      if(state.tilePaletteView==="instances")requestAnimationFrame(renderTileInstances);
+      if(state.tilePaletteView==="instances")scheduleRenderTileInstances();
     }
     updateShowCategoryCounts();
   }
 
   function markItemTransformDirty(itemId){
     if (itemId == null) return;
+    state.itemGeometryRevision += 1;
     state.glb.transformDirtyIds.add(itemId);
     if (state.spatialIndex.enabled){
       const it = getItemByIdFast(itemId);
@@ -10947,15 +10961,29 @@ end group
     if(instances)renderTileInstances();else layoutTilePaletteGrid();
     try{localStorage.setItem("dz.tilePaletteView",state.tilePaletteView);}catch(_){ }
   }
+  let tileThumbnailAtlasSource=null,tileThumbnailAtlasCanvas=null,pendingTileInstancesRaf=0;
+  function mapTileThumbnailAtlasCanvas(){
+    const img=state.mapTiles.atlasImage;if(!img)return null;
+    if(tileThumbnailAtlasSource===img&&tileThumbnailAtlasCanvas)return tileThumbnailAtlasCanvas;
+    const atlas=document.createElement("canvas");atlas.width=img.w;atlas.height=img.h;
+    const ctx=atlas.getContext("2d"),data=ctx?.createImageData(img.w,img.h);
+    if(!ctx||!data)return null;
+    data.data.set(img.pixels);ctx.putImageData(data,0,0);
+    tileThumbnailAtlasSource=img;tileThumbnailAtlasCanvas=atlas;return atlas;
+  }
   function drawMapTileThumbnail(canvas,tileIndex){
-    const img=state.mapTiles.atlasImage,ctx=canvas?.getContext?.("2d");if(!img||!ctx||tileIndex===null)return;
-    const cellW=Math.floor(img.w/8),cellH=Math.floor(img.h/8),col=tileIndex%8,row=Math.floor(tileIndex/8),data=ctx.createImageData(cellW,cellH);
-    canvas.width=cellW;canvas.height=cellH;
-    for(let y=0;y<cellH;y++)for(let x=0;x<cellW;x++){const src=((row*cellH+y)*img.w+col*cellW+x)*4,dst=(y*cellW+x)*4;data.data[dst]=img.pixels[src];data.data[dst+1]=img.pixels[src+1];data.data[dst+2]=img.pixels[src+2];data.data[dst+3]=img.pixels[src+3];}ctx.putImageData(data,0,0);
+    const img=state.mapTiles.atlasImage,atlas=mapTileThumbnailAtlasCanvas(),ctx=canvas?.getContext?.("2d");if(!img||!atlas||!ctx||tileIndex===null)return;
+    const cellW=Math.floor(img.w/8),cellH=Math.floor(img.h/8),col=tileIndex%8,row=Math.floor(tileIndex/8);
+    canvas.width=cellW;canvas.height=cellH;ctx.drawImage(atlas,col*cellW,row*cellH,cellW,cellH,0,0,cellW,cellH);
   }
   function mapTileOverlapKey(it){const f=getMapTileFootprint(it);return f?`${f.centerX.toFixed(4)},${f.centerY.toFixed(4)}`:`${it.x},${it.y}`;}
   function mapTileDisplayNumber(it){if(isTilOnlyMapTile(it))return `TIL ${Number(it.kv?.extra_val2)+1}`;const match=String(it.beginLine||"").match(/^begin\s+item\s+(.+)$/i);return match?.[1]?.trim()||it.id;}
-  function renderTileInstances(){
+  function scheduleRenderTileInstances(){
+    if(pendingTileInstancesRaf)return;
+    pendingTileInstancesRaf=requestAnimationFrame(()=>{pendingTileInstancesRaf=0;renderTileInstancesNow();});
+  }
+  function renderTileInstances(){scheduleRenderTileInstances();}
+  function renderTileInstancesNow(){
     if(!tileInstancesListEl)return;tileInstancesListEl.replaceChildren();
     const all=allMapTileItems(),overlapCounts=new Map();for(const it of all){const key=mapTileOverlapKey(it);overlapCounts.set(key,(overlapCounts.get(key)||0)+1);}
     const term=state.tileInstancesSearch.trim().toLowerCase(),selected=state.multiSelectedIds.size?state.multiSelectedIds:new Set(state.selectedId==null?[]:[state.selectedId]);
@@ -10963,6 +10991,7 @@ end group
     const groups=new Map();for(const it of all.filter(matches)){const index=mapTileAtlasIndex(it);if(index===null)continue;if(!groups.has(index))groups.set(index,[]);groups.get(index).push(it);}
     if(!groups.size){const empty=document.createElement("div");empty.className="tileInstancesEmpty";empty.textContent=all.length?"No map tiles match this filter.":"This mission has no map tiles.";tileInstancesListEl.append(empty);return;}
     for(const index of groups.keys())if(!state.knownTileGroupIndices.has(index)){state.knownTileGroupIndices.add(index);state.collapsedTileGroups.add(index);}
+    const fragment=document.createDocumentFragment();
     for(const [index,items] of [...groups].sort((a,b)=>a[0]-b[0])){
       items.sort((a,b)=>String(mapTileDisplayNumber(a)).localeCompare(String(mapTileDisplayNumber(b)),undefined,{numeric:true}));
       const collapsed=state.collapsedTileGroups.has(index),rowsId=`tileInstanceRows-${index}`;
@@ -10977,13 +11006,14 @@ end group
       const eye=document.createElement("button");eye.type="button";eye.className="tileIconButton";eye.textContent=allHidden?"◉":"👁";eye.title=`${allHidden?"Show":"Hide"} every Tile ${index}`;eye.setAttribute("aria-pressed",String(!allHidden));eye.onclick=()=>updateMapTileEditorState(items.map(it=>it.id),"hide",!allHidden);
       header.append(disclosure,thumb,name,lock,eye);group.append(header);
       const rows=document.createElement("div");rows.className="tileInstanceRows";rows.id=rowsId;
-      for(const it of items){const row=document.createElement("div");row.className=`tileInstanceRow${selected.has(it.id)?" selected":""}${isMapTileLocked(it)?" locked":""}${isMapTileHidden(it)?" hiddenTile":""}`;row.dataset.itemId=String(it.id);row.tabIndex=0;row.setAttribute("role","button");
+      if(!collapsed)for(const it of items){const row=document.createElement("div");row.className=`tileInstanceRow${selected.has(it.id)?" selected":""}${isMapTileLocked(it)?" locked":""}${isMapTileHidden(it)?" hiddenTile":""}`;row.dataset.itemId=String(it.id);row.tabIndex=0;row.setAttribute("role","button");
         const mini=document.createElement("canvas");mini.className="tileInstanceThumb";drawMapTileThumbnail(mini,index);const meta=document.createElement("div");meta.className="tileInstanceMeta";const overlap=overlapCounts.get(mapTileOverlapKey(it))||0;meta.innerHTML=`<strong>Item #${escapeHtml(String(mapTileDisplayNumber(it)))}</strong><span>X ${escapeHtml(String(it.x))} · Y ${escapeHtml(String(it.y))}${overlap>1?` · ${overlap} overlapping`:""}</span>`;
         const itemLock=document.createElement("button");itemLock.type="button";itemLock.className="tileIconButton";itemLock.textContent=isMapTileLocked(it)?"🔒":"🔓";itemLock.title=`${isMapTileLocked(it)?"Unlock":"Lock"} item ${mapTileDisplayNumber(it)}`;itemLock.onclick=e=>{e.stopPropagation();updateMapTileEditorState([it.id],"lock",!isMapTileLocked(it));};
         const itemEye=document.createElement("button");itemEye.type="button";itemEye.className="tileIconButton";itemEye.textContent=isMapTileHidden(it)?"◉":"👁";itemEye.title=`${isMapTileHidden(it)?"Show":"Hide"} item ${mapTileDisplayNumber(it)}`;itemEye.onclick=e=>{e.stopPropagation();updateMapTileEditorState([it.id],"hide",!isMapTileHidden(it));};
         const choose=()=>{if(isMapTileHidden(it)){focusCameraNearItem(it);statusEl.textContent=`Tile item #${mapTileDisplayNumber(it)} is hidden. Use the eye button to show it before selecting.`;}else selectById(it.id);renderTileInstances();};row.onclick=choose;row.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();choose();}else if(e.key===" "){e.preventDefault();updateMapTileEditorState([it.id],"lock",!isMapTileLocked(it));}};row.append(mini,meta,itemLock,itemEye);rows.append(row);}
-      group.append(rows);tileInstancesListEl.append(group);
+      group.append(rows);fragment.append(group);
     }
+    tileInstancesListEl.append(fragment);
   }
 
   function selectedMapTileIndexCounts(){
@@ -12287,19 +12317,34 @@ end group
     state.threeItems.drawCountByGroup.set(group, Math.floor(srcLen / 3));
   }
 
+  function itemGeometryStateSignature(includeSelection=false){
+    const mapSignature = map => [...map.entries()].map(([key,value])=>`${key}:${value}`).sort().join(',');
+    const selection = includeSelection
+      ? `${state.selectedId ?? ''}|${[...state.multiSelectedIds].sort().join(',')}|${[...state.selectedWaypointMarkerIds].sort().join(',')}`
+      : '';
+    const paste = state.pastePlacementActive && state.pastePreviewWorld
+      ? `${state.pastePreviewWorld.x},${state.pastePreviewWorld.y},${state.pastePreviewWorld.z},${state.itemClipboardItems.length}`
+      : '';
+    return `${state.itemsVersion}|${state.itemGeometryRevision}|${searchEl?.value || ''}|${renderUiState.showAnchorPoints}|${mapSignature(state.layerVisibility)}|${mapSignature(state.groupVisibility)}|${mapSignature(state.waypointVisibility)}|${mapSignature(state.areaTriggerVisibility)}|${selection}|${paste}`;
+  }
+
   function drawItemsThree(P, V){
     if (!ensureThreeItemsReady()) return;
-    const groups = collectItemPointGroups();
-    if (!groups.enabled) {
-      updateThreeItemGroup('normal', null, 0);
-      updateThreeItemGroup('waypoint', null, 0);
-      updateThreeItemGroup('selected', null, 0);
-      updateThreeItemGroup('paste', null, 0);
-    } else {
-      updateThreeItemGroup('normal', groups.normalBuf, groups.normalLen);
-      updateThreeItemGroup('waypoint', groups.waypointBuf, groups.waypointLen);
-      updateThreeItemGroup('selected', groups.selectedBuf, groups.selectedLen);
-      updateThreeItemGroup('paste', groups.pasteBuf, groups.pasteLen);
+    const signature=itemGeometryStateSignature(true);
+    if(signature!==state.threeItems.pointDataSignature){
+      const groups = collectItemPointGroups();
+      if (!groups.enabled) {
+        updateThreeItemGroup('normal', null, 0);
+        updateThreeItemGroup('waypoint', null, 0);
+        updateThreeItemGroup('selected', null, 0);
+        updateThreeItemGroup('paste', null, 0);
+      } else {
+        updateThreeItemGroup('normal', groups.normalBuf, groups.normalLen);
+        updateThreeItemGroup('waypoint', groups.waypointBuf, groups.waypointLen);
+        updateThreeItemGroup('selected', groups.selectedBuf, groups.selectedLen);
+        updateThreeItemGroup('paste', groups.pasteBuf, groups.pasteLen);
+      }
+      state.threeItems.pointDataSignature=signature;
     }
 
     applyThreeCameraFromPV(P, V);
@@ -12310,8 +12355,12 @@ end group
 
   function drawWaypointLinesThree(P, V){
     if (!ensureThreeItemsReady()) return;
-    const waypointLines = collectWaypointLineData();
-    updateThreeLineGeometry(state.threeItems.waypointLines, waypointLines.positions, waypointLines.colors);
+    const signature=itemGeometryStateSignature(false);
+    if(signature!==state.threeItems.waypointDataSignature){
+      const waypointLines = collectWaypointLineData();
+      updateThreeLineGeometry(state.threeItems.waypointLines, waypointLines.positions, waypointLines.colors);
+      state.threeItems.waypointDataSignature=signature;
+    }
 
     applyThreeCameraFromPV(P, V);
     state.glb.renderer.resetState();
@@ -14813,7 +14862,7 @@ end group
   }
 
   function renderFrame(){
-    const now=performance.now(), dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
+    const frameStarted=performance.now(),now=frameStarted, dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
     const {forwardXY,right,forward}=cameraBasis(); const canMoveWithKeys=(document.pointerLockElement===cv && state.cameraLookActive); let dir=vec3(0,0,0); if(canMoveWithKeys&&move.w) dir=vec3Add(dir,forwardXY); if(canMoveWithKeys&&move.s) dir=vec3Sub(dir,forwardXY); if(canMoveWithKeys&&move.d) dir=vec3Add(dir,right); if(canMoveWithKeys&&move.a) dir=vec3Sub(dir,right); if(canMoveWithKeys&&move.e) dir=vec3Add(dir,vec3(0,0,1)); if(canMoveWithKeys&&move.q) dir=vec3Sub(dir,vec3(0,0,1)); const dlen=vec3Len(dir); const speedTable=[12.5,25,50,100,200,300,450,600]; const lvl=Math.max(1,Math.min(8,renderUiState.speedLevel|0)); const scalar=Math.max(0.1,renderUiState.speedScalar||1); const base=speedTable[lvl-1]*scalar; const spd=base; state.camera.speed=spd; const targetVel=dlen>0?vec3Scale(dir,spd/dlen):vec3(0,0,0); const smoothBoost=1.3; const accel=12.0/smoothBoost, decel=10.0/smoothBoost; const blend=Math.min(1, (dlen>0?accel:decel)*dt); camVel=vec3Add(camVel, vec3Scale(vec3Sub(targetVel,camVel), blend)); cam.pos=vec3Add(cam.pos,vec3Scale(camVel,dt));
     if(renderUiState.groundClamp && lastDepth){ const h=heightAtWorld(cam.pos.x,cam.pos.y,1.0); if(h>-1e8){ const clearance=renderUiState.clearance; if(cam.pos.z < h+clearance) cam.pos.z = h+clearance; } }
     updateKothZoneStatus();
@@ -14859,6 +14908,8 @@ GLB missing graphic: ${state.glb.lastStats?.skippedMissingGraphic ?? '-'}
 GLB missing type_id: ${state.glb.lastStats?.skippedMissingTypeId ?? '-'}
 GLB missing def(type_id): ${state.glb.lastStats?.skippedDefNotFoundForTypeId ?? '-'}
 GLB missing instance post-sync: ${state.glb.lastStats?.missingInstancesAfterSync ?? '-'}
+Frame CPU: ${state.renderDiagnostics.frameMs.toFixed(2)} ms
+Layers CPU: terrain=${(state.renderDiagnostics.layerMs.terrain||0).toFixed(2)} overlay=${(state.renderDiagnostics.layerMs.overlays||0).toFixed(2)} points=${(state.renderDiagnostics.layerMs.points||0).toFixed(2)} glb=${(state.renderDiagnostics.layerMs.glb||0).toFixed(2)} waypoints=${(state.renderDiagnostics.layerMs.waypoints||0).toFixed(2)} gizmo=${(state.renderDiagnostics.layerMs.gizmo||0).toFixed(2)}
 Wrap: x=${wrapX} y=${wrapY}
 Sectors: ${sectorCount}x${sectorCount} origin=${terrainOrigin.x},${terrainOrigin.y}
 Terrain size: ${terrainSpanX()} x ${terrainSpanY()}
@@ -14871,6 +14922,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       }
       statsHudAccumTime = 0;
     }
+    state.renderDiagnostics.frameMs = performance.now() - frameStarted;
     const cameraStillMoving = dlen > 0 || vec3Len(camVel) > 0.01;
     if (cameraStillMoving) scheduleNextFrame();
     else {
