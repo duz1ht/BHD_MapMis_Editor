@@ -2818,6 +2818,9 @@ end group
       dimensionsByGraphic: new Map(),
       missingGraphics: new Set(),
       itemInstances: new Map(),
+      instanceBatches: new Map(),
+      batchedItemLookup: new Map(),
+      batchStats: { batches: 0, meshes: 0, items: 0 },
       syncPromise: null,
       initPromise: null,
       documentGeneration: 0,
@@ -3395,6 +3398,7 @@ end group
   function markItemTransformDirty(itemId){
     if (itemId == null) return;
     state.itemGeometryRevision += 1;
+    if(state.glb.batchedItemLookup.has(itemId))state.glb.structureDirty=true;
     state.glb.transformDirtyIds.add(itemId);
     if (state.spatialIndex.enabled){
       const it = getItemByIdFast(itemId);
@@ -13173,12 +13177,15 @@ end group
     const next = GLB_VIEW_MODES.has(mode) ? mode : "default";
     if (state.glb.viewMode === next) return;
     state.glb.viewMode = next;
+    clearGlbInstanceBatches();
     for (const [itemId, instance] of state.glb.itemInstances){
       applyViewModeToGlbObject(instance, getItemByIdFast(itemId), true);
     }
     if (state.glb.ready){
       state.glb.lastSelectedVisualIds.clear();
       updateSelectedGlbVisual();
+      state.glb.structureDirty=true;
+      syncGlbItems();
     }
     viewModeListEl?.querySelectorAll('input[name="glbViewMode"]').forEach((input) => {
       input.checked = input.value === next;
@@ -13355,6 +13362,82 @@ end group
     cleanupGlbInstanceVisualState(instance);
     state.glb.scene?.remove?.(instance);
     disposeGlbInstanceMaterials(instance);
+  }
+
+  function clearGlbInstanceBatches({ restoreInstances = true } = {}){
+    for (const batch of state.glb.instanceBatches.values()){
+      state.glb.scene?.remove?.(batch.group);
+      if (restoreInstances){
+        for (const itemId of batch.itemIds){
+          const instance=state.glb.itemInstances.get(itemId);
+          if(instance&&!instance.parent)state.glb.scene?.add?.(instance);
+        }
+      }
+    }
+    state.glb.instanceBatches.clear();
+    state.glb.batchedItemLookup.clear();
+    state.glb.batchStats={batches:0,meshes:0,items:0};
+  }
+
+  function glbInstanceBatchKey(it, instance){
+    if (!it || !instance || state.glb.viewMode !== "default") return "";
+    if (isAreaTriggerItem(it) || getItemWaypointId(it) != null) return "";
+    const typeId=toDefIdFromMisTypeId(String(it?.kv?.type_id||it?.typeId||""));
+    if (getAttachedWeaponSignature(typeId)) return "";
+    return `${instance.userData.visualSignature}|scale:${getItemGraphicScale(it)}`;
+  }
+
+  function collectBatchableInstanceMeshes(instance){
+    const meshes=[];let invalid=false;
+    instance?.updateMatrixWorld?.(true);
+    instance?.traverse?.(obj=>{
+      if(obj.isLOD||obj.isSkinnedMesh)invalid=true;
+      if(!obj.isMesh)return;
+      if(!obj.geometry||!obj.material||Array.isArray(obj.material)||obj.material.transparent||obj.morphTargetInfluences?.length){invalid=true;return;}
+      meshes.push(obj);
+    });
+    return invalid||!meshes.length?null:meshes;
+  }
+
+  function rebuildGlbInstanceBatches(entries){
+    clearGlbInstanceBatches();
+    if(!state.glb.ready||!state.glb.THREE)return;
+    const selectedIds=new Set(state.multiSelectedIds.size?[...state.multiSelectedIds]:(state.selectedId!=null?[state.selectedId]:[]));
+    const groups=new Map();
+    for(const {it} of entries){
+      if(selectedIds.has(it.id))continue;
+      const instance=state.glb.itemInstances.get(it.id),key=glbInstanceBatchKey(it,instance);
+      if(!key)continue;
+      if(!groups.has(key))groups.set(key,[]);
+      groups.get(key).push({it,instance});
+    }
+    const {THREE}=state.glb;
+    for(const [key,members] of groups){
+      if(members.length<2)continue;
+      const meshLists=members.map(({instance})=>collectBatchableInstanceMeshes(instance));
+      if(meshLists.some(list=>!list||list.length!==meshLists[0].length))continue;
+      const geometrySignature=meshLists[0].map(mesh=>mesh.geometry.uuid).join("|");
+      if(meshLists.some(list=>list.map(mesh=>mesh.geometry.uuid).join("|")!==geometrySignature))continue;
+      const group=new THREE.Group();group.name=`GLB_INSTANCE_BATCH:${key}`;
+      const itemIds=members.map(({it})=>it.id);
+      for(let meshIndex=0;meshIndex<meshLists[0].length;meshIndex++){
+        const source=meshLists[0][meshIndex];
+        const instanced=new THREE.InstancedMesh(source.geometry,source.material,members.length);
+        instanced.name=`GLB_INSTANCE_BATCH_MESH:${meshIndex}`;
+        instanced.userData.instanceItemIds=itemIds;
+        instanced.castShadow=source.castShadow;instanced.receiveShadow=source.receiveShadow;
+        for(let instanceIndex=0;instanceIndex<members.length;instanceIndex++)instanced.setMatrixAt(instanceIndex,meshLists[instanceIndex][meshIndex].matrixWorld);
+        instanced.instanceMatrix.needsUpdate=true;group.add(instanced);
+      }
+      state.glb.scene.add(group);
+      for(let index=0;index<members.length;index++){
+        const {it,instance}=members[index];
+        state.glb.scene.remove(instance);
+        state.glb.batchedItemLookup.set(it.id,{batchKey:key,index,group});
+      }
+      state.glb.instanceBatches.set(key,{group,itemIds});
+      state.glb.batchStats.batches+=1;state.glb.batchStats.meshes+=meshLists[0].length;state.glb.batchStats.items+=members.length;
+    }
   }
 
   function disposeReferenceGlb(){
@@ -13540,6 +13623,7 @@ end group
     // Invalidates async sync work before replacing the current mission document.
     state.glb.documentGeneration += 1;
     disposeReferenceGlb();
+    clearGlbInstanceBatches({restoreInstances:false});
     for (const instance of state.glb.itemInstances.values()) removeGlbItemInstance(instance);
     state.glb.itemInstances.clear();
     clearItemArrows();
@@ -13769,6 +13853,7 @@ end group
     state.glb.syncPromise = (async () => {
       const started = performance.now();
       if (generation !== state.glb.documentGeneration) return;
+      clearGlbInstanceBatches();
       const { entries, stats } = getRenderableGlbEntries();
       const wantedIds = new Set(entries.map(x => x.it.id));
 
@@ -13819,6 +13904,8 @@ end group
         applyViewModeToGlbObject(instance, it);
         applyItemTransformToObject(instance, it);
       }
+
+      rebuildGlbInstanceBatches(entries);
 
       const topGraphics = Array.from(stats.graphicsFrequency.entries())
         .sort((a,b) => b[1] - a[1])
@@ -14003,6 +14090,10 @@ end group
       }
     }
     if (!changed) return;
+    // Selected instances leave their render batch so outlines and editing keep
+    // the exact existing behavior; deselected compatible instances rejoin it.
+    state.glb.structureDirty=true;
+    syncGlbItems();
 
     for (const prevId of prevIds){
       if (nextIds.has(prevId)) continue;
@@ -14072,7 +14163,8 @@ end group
   function pickNearestSceneObjectAt(sx, sy, { includeReference = true } = {}){
     const raycaster = configureGlbPickRay(sx, sy);
     if (!raycaster) return null;
-    const roots = Array.from(state.glb.itemInstances.values());
+    const roots = Array.from(state.glb.itemInstances.values()).filter(instance=>!!instance.parent);
+    for(const batch of state.glb.instanceBatches.values())roots.push(batch.group);
     const referencePickEnabled = includeReference
       && !!state.referenceGlb?.root
       && showReferenceGlbEl?.checked !== false
@@ -14098,7 +14190,10 @@ end group
           }
         }
       }
-      const itemId = getItemIdFromObject3D(hit.object);
+      const batchedIds=hit.object?.userData?.instanceItemIds;
+      const itemId = Array.isArray(batchedIds)&&Number.isInteger(hit.instanceId)
+        ? batchedIds[hit.instanceId]
+        : getItemIdFromObject3D(hit.object);
       if (itemId == null) continue;
       const item = getItemByIdFast(itemId);
       if (item && !(isMapTileItem(item) && (isMapTileLocked(item) || isMapTileHidden(item)))){
@@ -14893,6 +14988,7 @@ Draw calls: ${drawCalls}
 Terrain cull (frustum/back): ${state.terrainPerf?.culledFrustum ?? '-'} / ${state.terrainPerf?.culledBackface ?? '-'}
 MapTile paint: ${state.mapTiles.paintedTiles} tiles, ${state.mapTiles.overlayResolution || '-'}px (${state.mapTiles.lastBuildMs.toFixed(2)} ms)
 GLB instances: ${state.glb.itemInstances.size}
+GLB batches/items/meshes: ${state.glb.batchStats.batches} / ${state.glb.batchStats.items} / ${state.glb.batchStats.meshes}
 GLB sync: #${state.glb.syncCount} (${state.glb.lastSyncMs.toFixed(2)} ms)
 GLB total/render: ${state.glb.lastStats?.totalItems ?? '-'} / ${state.glb.lastStats?.renderableItems ?? '-'}
 GLB missing graphic: ${state.glb.lastStats?.skippedMissingGraphic ?? '-'}
