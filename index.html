@@ -7950,16 +7950,30 @@ end group
       const sec = state.sectionBlocks.find(s => s.id === state.sectionSelectedId);
       if (!sec) return;
       const prevTerrain = String(sec?.kv?.terrain || "").trim().toLowerCase();
+      const prevTiles = String(sec?.kv?.terrain_tile_tga || "").replace(/\.tga$/i,"").trim().toLowerCase();
       applyGeneralInfoSection(sec);
       renderSectionList();
       scheduleLiveMisRefresh();
       const nextTerrain = String(sec?.kv?.terrain || "").trim().toLowerCase();
+      const nextTiles = String(sec?.kv?.terrain_tile_tga || "").replace(/\.tga$/i,"").trim().toLowerCase();
       if (hasMisLoaded() && nextTerrain && nextTerrain !== prevTerrain){
         try{
           await loadTerrainFromMis(sec.kv.terrain);
         } catch (err){
           addLog(`[terrain] load error after General Information OK: ${err?.message || err}`);
           camDebugEl.textContent = `Failed to load terrain: ${err.message||err}`;
+        }
+      }
+      if(nextTiles!==prevTiles){
+        cancelTileInsertMode("");
+        const generation=++state.mapTiles.generation;
+        try{
+          await loadMapTileAtlas(sec.kv.terrain_tile_tga,generation);
+          buildMapTileOverlay();requestRender();
+        }catch(err){
+          state.mapTiles.error=err?.message||String(err);renderTilePalette();
+          addLog(`[map_tiles] atlas load error after General Information OK: ${state.mapTiles.error}`);
+          statusEl.textContent=state.mapTiles.error;
         }
       }
       closeSectionEditor();
@@ -10848,6 +10862,24 @@ end group
     }
   }
 
+  async function loadMapTileAtlas(atlasName,generation=state.mapTiles.generation){
+    const requested=String(atlasName||"").replace(/^"|"$/g,"").trim();
+    state.mapTiles.overlayTexture?.dispose?.();state.mapTiles.overlayTexture=null;disposeMapTileRenderMesh();disposeMapTileBorders();
+    state.mapTiles.atlasName="";state.mapTiles.atlasImage=null;state.mapTiles.error="";
+    tileThumbnailAtlasSource=null;tileThumbnailAtlasCanvas=null;
+    if(!requested){renderTilePalette();return false;}
+    const atlasBase=/\.tga$/i.test(requested)?requested:`${requested}.tga`;
+    const atlasFile=TERRAIN_TILE_FILE_INDEX.find(name=>name.toLowerCase()===atlasBase.toLowerCase());
+    if(!atlasFile)throw new Error(`Tile atlas '${atlasBase}' is not available`);
+    const atlasPath=`resources/BHD/terrain_tiles/${atlasFile}`,atlasBuf=await loadBinaryResource(atlasPath);
+    if(!atlasBuf)throw new Error(`Unable to load tile atlas '${atlasPath}'`);
+    if(generation!==state.mapTiles.generation)return false;
+    state.mapTiles.atlasName=atlasFile;state.mapTiles.atlasImage=decodeTGA(atlasBuf,true);
+    renderTilePalette();
+    addLog(`[map_tiles] loaded atlas ${atlasFile}`);
+    return true;
+  }
+
   async function loadMapTilesForMission(){
     resetMapTiles();
     const atlasName=generalTerrainTileName();if(!atlasName)return;
@@ -10855,6 +10887,13 @@ end group
     const generation=state.mapTiles.generation,base=String(state.filename||"").replace(/\.mis$/i,""),tilName=`${base}.til`;
     let tilParsed=false;
     try{
+      await loadMapTileAtlas(atlasName,generation);
+      if(generation!==state.mapTiles.generation)return;
+      if(!base&&!state.currentTilFileHandle&&!mapItems.length){
+        state.mapTiles.tileSize=16;state.undoCurrentTilFlags=[];state.undoCurrentTilRecords=[];
+        rebuildTilOnlyItems();restoreMapTileEditorState();renderTilePalette();requestRender();
+        addLog(`[map_tiles] initialized empty tile set, atlas=${state.mapTiles.atlasName}`);return;
+      }
       let tilBuf=null,tilSourceFilename="";
       if(state.currentTilFileHandle){
         try{const file=await state.currentTilFileHandle.getFile();tilBuf=await file.arrayBuffer();tilSourceFilename=file.name;}
@@ -10863,7 +10902,12 @@ end group
       if(!tilBuf){const selected=await promptForTilCompanion(tilName);if(selected){tilBuf=selected.buffer;tilSourceFilename=selected.filename;}}
       if(!tilBuf&&state.editorFolderHandle){tilBuf=await readArrayBufferFromEditorFolder(`resources/BHD/mis_examples/${tilName}`);if(tilBuf)tilSourceFilename=tilName;}
       if(!tilBuf&&!state.isLocalRuntime){tilBuf=await loadBinaryResource(`resources/BHD/mis_examples/${encodeURIComponent(tilName)}`);if(tilBuf)tilSourceFilename=tilName;}
-      if(!tilBuf)throw new Error(`Required companion file '${tilName}' was not selected or found in resources/BHD/mis_examples`);
+      if(!tilBuf&&mapItems.length)throw new Error(`Required companion file '${tilName}' was not selected or found in resources/BHD/mis_examples`);
+      if(!tilBuf){
+        state.mapTiles.tileSize=16;state.undoCurrentTilFlags=[];state.undoCurrentTilRecords=[];
+        rebuildTilOnlyItems();restoreMapTileEditorState();renderTilePalette();requestRender();
+        addLog(`[map_tiles] no companion TIL found; initialized empty tile set, atlas=${state.mapTiles.atlasName}`);return;
+      }
       if(generation!==state.mapTiles.generation)return;
       const parsed=parseTil(tilBuf);tilParsed=true;state.mapTiles.filename=tilName;state.mapTiles.sourceFilename=tilSourceFilename||tilName;state.mapTiles.records=parsed.records;state.mapTiles.headerReserved=parsed.headerReserved;state.mapTiles.byPosition=parsed.byPosition;updateLoadedMapFilesHint();
       state.undoCurrentTilFlags=parsed.records.map(record=>record.flags);
@@ -10871,13 +10915,9 @@ end group
       const sizes=mapItems.map(it=>{const r=parsed.records[Math.trunc(Number(it.kv?.extra_val2))];return r?Math.max(Math.abs(it.x-r.x),Math.abs(it.y-r.y))*2/65536:0;}).filter(v=>Number.isFinite(v)&&v>0).sort((a,b)=>a-b);
       state.mapTiles.tileSize=sizes.length?sizes[Math.floor(sizes.length/2)]:16;
       rebuildTilOnlyItems();
-      let atlasBase=atlasName;if(!/\.tga$/i.test(atlasBase))atlasBase+=".tga";
-      const atlasFile=TERRAIN_TILE_FILE_INDEX.find(n=>n.toLowerCase()===atlasBase.toLowerCase());if(!atlasFile)throw new Error(`Tile atlas '${atlasBase}' is not available`);
-      const atlasPath=`resources/BHD/terrain_tiles/${atlasFile}`,atlasBuf=await loadBinaryResource(atlasPath);if(!atlasBuf)throw new Error(`Unable to load tile atlas '${atlasPath}'`);
-      if(generation!==state.mapTiles.generation)return;
-      state.mapTiles.atlasName=atlasFile;state.mapTiles.atlasImage=decodeTGA(atlasBuf,true);restoreMapTileEditorState();
+      restoreMapTileEditorState();
       renderTilePalette();
-      addLog(`[map_tiles] loaded ${tilName}: ${parsed.records.length} records, atlas=${atlasFile}`);
+      addLog(`[map_tiles] loaded ${tilName}: ${parsed.records.length} records, atlas=${state.mapTiles.atlasName}`);
       buildMapTileOverlay();
       await syncGlbItems();requestRender();
     }catch(err){if(!tilParsed)state.mapTiles.sourceFilename="";state.mapTiles.error=err?.message||String(err);updateLoadedMapFilesHint();renderTilePalette();addLog(`[map_tiles] ERROR: ${state.mapTiles.error}`);statusEl.textContent=state.mapTiles.error;}
