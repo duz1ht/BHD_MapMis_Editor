@@ -139,6 +139,7 @@ begin "waypoint, mp, red base"
 	graphic 1_waypoint
 	tint #FF00AA
 	editor_helper circle_volume
+	editor_helper_opacity 20
 	editor_helper_size 20
 end  
 
@@ -149,6 +150,7 @@ begin "waypoint, mp, blue base"
 	graphic 1_waypoint
 	tint #00B7FF
 	editor_helper circle_volume
+	editor_helper_opacity 20
 	editor_helper_size 20
 end  
 
