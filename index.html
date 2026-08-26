@@ -12498,100 +12498,20 @@ end group
     return { entries: out, stats };
   }
 
-  function normalizeLogicalResourcePath(path){
-    const parts = [];
-    for (const part of String(path || "").replace(/\\/g, "/").split("/")){
-      if (!part || part === ".") continue;
-      if (part === "..") parts.pop();
-      else parts.push(part);
-    }
-    return parts.join("/");
-  }
-
-  function externalUrisFromGlb(buffer){
-    if (!(buffer instanceof ArrayBuffer) || buffer.byteLength < 20) return [];
-    const view = new DataView(buffer);
-    if (view.getUint32(0, true) !== 0x46546c67) return [];
-    let offset = 12;
-    let json = null;
-    while (offset + 8 <= buffer.byteLength){
-      const length = view.getUint32(offset, true);
-      const type = view.getUint32(offset + 4, true);
-      offset += 8;
-      if (offset + length > buffer.byteLength) break;
-      if (type === 0x4e4f534a){
-        const raw = new TextDecoder().decode(new Uint8Array(buffer, offset, length)).replace(/\0+$/g, "").trim();
-        json = JSON.parse(raw);
-        break;
-      }
-      offset += length;
-    }
-    if (!json) return [];
-    const uris = [...(json.buffers || []), ...(json.images || [])]
-      .map(entry => String(entry?.uri || "").trim())
-      .filter(uri => uri && !/^(?:data:|blob:|https?:)/i.test(uri));
-    return [...new Set(uris)];
-  }
-
-  async function createLocalGltfDependencyResolver(glbData, basePath, graphic){
-    const uris = externalUrisFromGlb(glbData);
-    if (!uris.length) return null;
-    if (!state.editorFolderHandle) throw new Error(`Set Editor Folder before loading external resources for ${graphic}.glb`);
-
-    const objectUrls = new Map();
-    try {
-      for (const uri of uris){
-        let decodedUri = uri;
-        try { decodedUri = decodeURIComponent(uri); } catch (_) { /* Keep the original GLTF URI. */ }
-        decodedUri = decodedUri.split(/[?#]/, 1)[0];
-        const logicalPath = normalizeLogicalResourcePath(`${basePath}/${decodedUri}`);
-        const file = await readFileFromEditorFolder(logicalPath, `GLB dependency for ${graphic}.glb`);
-        if (!file) throw new Error(`Missing external GLB dependency: ${logicalPath}`);
-        objectUrls.set(normalizeLogicalResourcePath(decodedUri), URL.createObjectURL(file));
-        addLog(`[3d_items] dependency resolved via editor folder: ${graphic}.glb -> ${logicalPath}`);
-      }
-    } catch (err){
-      for (const objectUrl of objectUrls.values()) URL.revokeObjectURL(objectUrl);
-      throw err;
-    }
-
-    const manager = new state.glb.THREE.LoadingManager();
-    manager.setURLModifier((requestedUrl) => {
-      let decoded = requestedUrl;
-      try { decoded = decodeURIComponent(requestedUrl); } catch (_) { /* Keep loader URL unchanged. */ }
-      const normalized = normalizeLogicalResourcePath(decoded.replace(/^[a-z]+:\/\/[^/]+\//i, ""));
-      for (const [uri, objectUrl] of objectUrls){
-        if (normalized === uri || normalized.endsWith(`/${uri}`)) return objectUrl;
-      }
-      return requestedUrl;
-    });
-    return {
-      loader: new state.glb.GLTFLoader(manager),
-      revoke(){ for (const objectUrl of objectUrls.values()) URL.revokeObjectURL(objectUrl); },
-    };
-  }
-
-
   async function loadGraphicTemplate(graphic){
     const key = String(graphic || "").trim();
     if (!key) return null;
     if (state.glb.templateByGraphic.has(key)) return state.glb.templateByGraphic.get(key);
 
     const path = `resources/BHD/3d_items/${key}.glb`;
-    let localDependencies = null;
     try {
       const glbData = await loadBinaryResource(path);
       if (!glbData) throw new Error(`Failed to read GLB: ${path}`);
 
-      const basePath = path.slice(0, path.lastIndexOf("/") + 1);
-      localDependencies = state.isLocalRuntime
-        ? await createLocalGltfDependencyResolver(glbData, basePath, key)
-        : null;
-      const loader = localDependencies?.loader || state.glb.loader;
-      const gltf = loader.parseAsync
-        ? await loader.parseAsync(glbData, basePath)
+      const gltf = state.glb.loader.parseAsync
+        ? await state.glb.loader.parseAsync(glbData, "")
         : await new Promise((resolve, reject) => {
-            loader.parse(glbData, basePath, resolve, reject);
+            state.glb.loader.parse(glbData, "", resolve, reject);
           });
       const root = gltf.scene || gltf.scenes?.[0] || null;
       if (!root) return null;
@@ -12652,8 +12572,6 @@ end group
         addLog(`[3d_items] GLB missing or invalid: ${path}`);
       }
       return placeholder;
-    } finally {
-      localDependencies?.revoke();
     }
   }
 
