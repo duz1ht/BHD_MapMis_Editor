@@ -2561,18 +2561,6 @@ begin weapon_availability
   WPN_AT4             ALWAYS_ON
 end weapon_availability
 
-begin waypoint 125
-  description "Goto SSN"
-end waypoint
-
-begin waypoint 126
-  description "Goto Group"
-end waypoint
-
-begin waypoint 127
-  description "Goto Player"
-end waypoint
-
 begin group 1
   description "Blue Players"
 end group
@@ -5028,7 +5016,7 @@ end group
     const candidates = [];
     for (const n of getKnownWaypointIds()){
       const sec = getWaypointSectionByNumber(n);
-      const desc = getWaypointDescription(sec);
+      const desc = getWaypointDisplayDescription(n, sec);
       candidates.push({ id: String(n), label: `${n} - ${desc || `Waypoint ${n}`}` });
     }
     ui.wpList.innerHTML = `<option value="">None</option>` + candidates.map(c => {
@@ -5709,6 +5697,23 @@ end group
   ];
   const AREA_TRIGGER_COLORS = WAYPOINT_COLORS.slice(0, 17);
   const AREA_TRIGGER_COLOR_HEX = WAYPOINT_COLOR_HEX.slice(0, 17);
+  const RESERVED_WAYPOINTS = Object.freeze({
+    125: "Goto SSN",
+    126: "Goto Group",
+    127: "Goto Player",
+  });
+
+  function getReservedWaypointDescription(waypointId){
+    return RESERVED_WAYPOINTS[Math.trunc(Number(waypointId))] || "";
+  }
+
+  function isReservedWaypoint(waypointId){
+    return !!getReservedWaypointDescription(waypointId);
+  }
+
+  function getWaypointDisplayDescription(waypointId, section = getWaypointSectionByNumber(waypointId)){
+    return getReservedWaypointDescription(waypointId) || getWaypointDescription(section);
+  }
 
   function parseWaypointNumber(sec){
     if (!sec || sec.kind !== "waypoint") return null;
@@ -5724,7 +5729,7 @@ end group
   }
 
   function getKnownWaypointIds(){
-    const ids = new Set();
+    const ids = new Set(Object.keys(RESERVED_WAYPOINTS).map(Number));
     for (const sec of state.sectionBlocks || []){
       if (sec.kind !== "waypoint") continue;
       const waypointId = parseWaypointNumber(sec);
@@ -5753,7 +5758,8 @@ end group
       id,
       section,
       markers,
-      description: getWaypointDescription(section),
+      description: getWaypointDisplayDescription(id, section),
+      reserved: isReservedWaypoint(id),
       attrib: parseWaypointAttrib(section?.kv?.attrib || "0"),
       hasExplicitColor,
       colorIndex: hasExplicitColor ? configuredColor : (id - 1) % WAYPOINT_COLOR_HEX.length,
@@ -6114,7 +6120,7 @@ end group
     ];
     for (let n = 1; n <= 127; n++){
       const sec = getWaypointSectionByNumber(n);
-      const desc = getWaypointDescription(sec);
+      const desc = getWaypointDisplayDescription(n, sec);
       const label = `${n} - ${desc || ""}`;
       const count = itemCountByWaypoint.get(n) || 0;
       const checked = getWaypointVisibility(String(n)) ? "checked" : "";
@@ -6479,11 +6485,16 @@ end group
     wpNoLoop.checked = model.attrib.noLoop;
     wpBlueTeam.checked = model.attrib.blue;
     wpRedTeam.checked = model.attrib.red;
+    [wpDesc, wpColor, wpNoLoop, wpBlueTeam, wpRedTeam].forEach((field) => {
+      field.disabled = model.reserved;
+      field.closest('.checkRow')?.classList.toggle('disabled', model.reserved);
+    });
     updateWaypointMarkerCount(model.markers.length);
   }
 
   function saveCurrentWaypoint(){
     const n = state.waypointSelectedNumber || 1;
+    if (isReservedWaypoint(n)) return;
     let sec = getWaypointSectionByNumber(n);
     const desc = String(wpDesc.value || "").trim();
     const colorVal = Number(wpColor.value || "0");
@@ -6881,7 +6892,7 @@ end group
     }
     if (sec.kind === "waypoint"){
       const n = parseWaypointNumber(sec) || sec.label || sec.id;
-      const desc = getWaypointDescription(sec);
+      const desc = getWaypointDisplayDescription(n, sec);
       return `${n} - ${desc || ""}`;
     }
     if (sec.kind === "weapon_availability"){
@@ -7308,10 +7319,8 @@ end group
     return `<label>${escapeHtml(label)}<select data-field="${field}">${options.join('')}</select></label>`;
   }
   function eventWaypointSelect(field,value,label){
-    const waypoints=getSectionsByKind("waypoint")
-      .map(sec=>({number:parseWaypointNumber(sec),description:getWaypointDescription(sec)}))
-      .filter(waypoint=>Number.isFinite(waypoint.number))
-      .sort((a,b)=>a.number-b.number);
+    const waypoints=getKnownWaypointIds()
+      .map(number=>({number,description:getWaypointDisplayDescription(number)}));
     const hasValue=value===0||waypoints.some(waypoint=>waypoint.number===value);
     const options=[`<option value="0" ${value===0?'selected':''}>0 - None</option>`,...waypoints.map(waypoint=>`<option value="${waypoint.number}" ${waypoint.number===value?'selected':''}>${escapeHtml(`${waypoint.number} - ${waypoint.description||`Waypoint ${waypoint.number}`}`)}</option>`)];
     if(!hasValue) options.unshift(`<option value="${value}" selected>${escapeHtml(`${value} - Unknown (preserved)`)}</option>`);
