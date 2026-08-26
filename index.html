@@ -2622,6 +2622,7 @@ end group
     },
     pendingUiRenderRaf: 0,
     pendingLiveMisRaf: 0,
+    dragUiDirty: false,
     undoStack: [],
     redoStack: [],
     undoCurrentText: "",
@@ -2666,6 +2667,8 @@ end group
       waypointLines: null,
       pointDataSignature: "",
       waypointDataSignature: "",
+      pointOffsetsByItemId: new Map(),
+      pointTransformDirtyIds: new Set(),
       ready: false,
     },
     areaTriggerVolumes: {
@@ -3293,9 +3296,9 @@ end group
 
   function markItemTransformDirty(itemId){
     if (itemId == null) return;
-    state.itemGeometryRevision += 1;
     if(state.glb.batchedItemLookup.has(itemId))state.glb.structureDirty=true;
     state.glb.transformDirtyIds.add(itemId);
+    if (renderUiState.showAnchorPoints) state.threeItems.pointTransformDirtyIds.add(itemId);
     if (state.spatialIndex.enabled){
       const it = getItemByIdFast(itemId);
       if (it) upsertItemInSpatialIndex(it);
@@ -3306,7 +3309,13 @@ end group
     for (const it of state.items || []){
       if (it?.id == null) continue;
       state.glb.transformDirtyIds.add(it.id);
+      if (renderUiState.showAnchorPoints) state.threeItems.pointTransformDirtyIds.add(it.id);
     }
+  }
+
+  function markItemTransformsChanged(items){
+    state.liveMisDirty = true;
+    for (const it of items || []) if (it?.id != null) markItemTransformDirty(it.id);
   }
 
   function scheduleRenderList(){
@@ -12052,11 +12061,11 @@ end group
 
   function collectItemPointGroups(){
     if (!renderUiState.showAnchorPoints){
-      return { enabled: false, normalBuf: null, normalLen: 0, waypointBuf: null, waypointLen: 0, selectedBuf: null, selectedLen: 0, pasteBuf: null, pasteLen: 0 };
+      return { enabled: false, normalBuf: null, normalLen: 0, waypointBuf: null, waypointLen: 0, selectedBuf: null, selectedLen: 0, pasteBuf: null, pasteLen: 0, offsetsByItemId: new Map() };
     }
     const items = getFilteredItems().filter((it) => isItemVisibilityFilterMatch(it));
     if (!items.length && !(state.pastePlacementActive && state.pastePreviewWorld && state.itemClipboardItems.length)){
-      return { enabled: true, normalBuf: null, normalLen: 0, waypointBuf: null, waypointLen: 0, selectedBuf: null, selectedLen: 0, pasteBuf: null, pasteLen: 0 };
+      return { enabled: true, normalBuf: null, normalLen: 0, waypointBuf: null, waypointLen: 0, selectedBuf: null, selectedLen: 0, pasteBuf: null, pasteLen: 0, offsetsByItemId: new Map() };
     }
 
     const normalCount = 3 * items.length;
@@ -12068,6 +12077,7 @@ end group
     let normalLen = 0;
     let waypointLen = 0;
     let selectedLen = 0;
+    const offsetsByItemId = new Map();
 
     for (const it of items){
       const x = rawToWorld(it.x,'x');
@@ -12078,10 +12088,13 @@ end group
         continue;
       }
       if (it.id===state.selectedId||state.multiSelectedIds.has(it.id)){
+        offsetsByItemId.set(it.id, { group: 'selected', offset: selectedLen });
         selectedBuf[selectedLen++]=x; selectedBuf[selectedLen++]=y; selectedBuf[selectedLen++]=z;
       } else if (state.selectedWaypointMarkerIds.has(it.id)){
+        offsetsByItemId.set(it.id, { group: 'waypoint', offset: waypointLen });
         waypointBuf[waypointLen++]=x; waypointBuf[waypointLen++]=y; waypointBuf[waypointLen++]=z;
       } else {
+        offsetsByItemId.set(it.id, { group: 'normal', offset: normalLen });
         normalBuf[normalLen++]=x; normalBuf[normalLen++]=y; normalBuf[normalLen++]=z;
       }
     }
@@ -12101,7 +12114,7 @@ end group
       }
     }
 
-    return { enabled: true, normalBuf, normalLen, waypointBuf, waypointLen, selectedBuf, selectedLen, pasteBuf, pasteLen };
+    return { enabled: true, normalBuf, normalLen, waypointBuf, waypointLen, selectedBuf, selectedLen, pasteBuf, pasteLen, offsetsByItemId };
   }
 
   function getItemWaypointNumber(it){
@@ -12262,6 +12275,36 @@ end group
   function invalidateThreeItemGeometryCaches(){
     state.threeItems.pointDataSignature="";
     state.threeItems.waypointDataSignature="";
+    state.threeItems.pointOffsetsByItemId.clear();
+    state.threeItems.pointTransformDirtyIds.clear();
+  }
+
+  function updateDirtyThreeItemPoints(){
+    if (!renderUiState.showAnchorPoints){
+      state.threeItems.pointTransformDirtyIds.clear();
+      return;
+    }
+    const updateRanges = new Map();
+    for (const itemId of state.threeItems.pointTransformDirtyIds){
+      const location = state.threeItems.pointOffsetsByItemId.get(itemId);
+      const item = getItemByIdFast(itemId);
+      const points = location ? state.threeItems.pointsByGroup.get(location.group) : null;
+      const attribute = points?.geometry?.getAttribute('position');
+      if (!item || !attribute || location.offset + 2 >= attribute.array.length) continue;
+      attribute.array[location.offset] = rawToWorld(item.x, 'x');
+      attribute.array[location.offset + 1] = rawToWorld(item.y, 'y');
+      attribute.array[location.offset + 2] = getItemWorldZ(item);
+      const range = updateRanges.get(attribute) || { min: location.offset, max: location.offset + 3 };
+      range.min = Math.min(range.min, location.offset);
+      range.max = Math.max(range.max, location.offset + 3);
+      updateRanges.set(attribute, range);
+    }
+    for (const [attribute, range] of updateRanges){
+      attribute.updateRange.offset = range.min;
+      attribute.updateRange.count = range.max - range.min;
+      attribute.needsUpdate = true;
+    }
+    state.threeItems.pointTransformDirtyIds.clear();
   }
 
   function drawItemsThree(P, V){
@@ -12274,13 +12317,18 @@ end group
         updateThreeItemGroup('waypoint', null, 0);
         updateThreeItemGroup('selected', null, 0);
         updateThreeItemGroup('paste', null, 0);
+        state.threeItems.pointOffsetsByItemId.clear();
       } else {
         updateThreeItemGroup('normal', groups.normalBuf, groups.normalLen);
         updateThreeItemGroup('waypoint', groups.waypointBuf, groups.waypointLen);
         updateThreeItemGroup('selected', groups.selectedBuf, groups.selectedLen);
         updateThreeItemGroup('paste', groups.pasteBuf, groups.pasteLen);
+        state.threeItems.pointOffsetsByItemId = groups.offsetsByItemId;
       }
+      state.threeItems.pointTransformDirtyIds.clear();
       state.threeItems.pointDataSignature=signature;
+    } else {
+      updateDirtyThreeItemPoints();
     }
 
     applyThreeCameraFromPV(P, V);
@@ -13868,14 +13916,16 @@ end group
     }
     if (!state.glb.transformDirtyIds.size) return;
 
-    const byId = new Map((state.items || []).map((it) => [it.id, it]));
     for (const itemId of Array.from(state.glb.transformDirtyIds.values())){
-      const it = byId.get(itemId);
+      const it = getItemByIdFast(itemId);
       const instance = state.glb.itemInstances.get(itemId);
-      if (!it || !instance) continue;
+      if (!it || !instance){
+        if (!state.glb.structureDirty && !state.glb.syncPromise) state.glb.transformDirtyIds.delete(itemId);
+        continue;
+      }
       applyItemTransformToObject(instance, it);
+      state.glb.transformDirtyIds.delete(itemId);
     }
-    state.glb.transformDirtyIds.clear();
   }
 
 
@@ -14258,7 +14308,16 @@ end group
     const renderer=state.glb.renderer;renderer.clearDepth();renderer.resetState();renderer.render(state.glb.gizmoScene,state.glb.camera);renderer.resetState();
   }
 
-  function commitGizmoUpdates(items){
+  function flushTransformDragUi(){
+    if (!state.dragUiDirty) return;
+    state.dragUiDirty = false;
+    renderList();
+    renderItemWindow();
+    if (state.tilePaletteView === "instances") renderTileInstances();
+    scheduleLiveMisRefresh();
+  }
+
+  function commitGizmoUpdates(items, { deferUi = false } = {}){
     const valid = (items || []).filter(Boolean);
     if (!valid.length) return;
     for (const it of valid){
@@ -14267,11 +14326,13 @@ end group
       applyItemOrientationToKv(it);
       const sec = getItemSectionByStartFast(it.start);
       if (sec) sec.kv = { ...it.kv };
-      markItemTransformDirty(it.id);
     }
-    markItemsChanged({ structure: false });
-    scheduleLiveMisRefresh();
-    scheduleRenderList();
+    markItemTransformsChanged(valid);
+    if (deferUi) state.dragUiDirty = true;
+    else {
+      scheduleLiveMisRefresh();
+      scheduleRenderList();
+    }
   }
 
   function pickItemAt(sx,sy){ const world=screenToWorld(sx,sy,0); const size=Math.max(64, Number(state.spatialIndex.cellSize)||2048); const candidates=getSpatialCandidatesByWorldRect(world.x-size,world.y-size,world.x+size,world.y+size); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); let best=null,bestD2=Infinity; for(const it of candidates){ if(!filteredSet.has(it.id)) continue; if(!isItemVisibilityFilterMatch(it)) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(!p.visible) continue; const dx=p.sx-sx,dy=p.sy-sy,d2=dx*dx+dy*dy; if(d2<bestD2){bestD2=d2;best=it;} } return (best&&bestD2<14*14)?best:null; }
@@ -15018,16 +15079,14 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
         it.x = worldToRaw(rawToWorld(it.x, 'x') + dx, 'x');
         it.y = worldToRaw(rawToWorld(it.y, 'y') + dy, 'y');
         it.kv.position = `${it.x} ${it.y} ${it.z}`;
-        markItemTransformDirty(it.id);
       }
-      markItemsChanged({ structure: false });
+      markItemTransformsChanged(active);
       state.dragAnchor = nowW;
-      scheduleRenderList();
-      scheduleLiveMisRefresh();
+      state.dragUiDirty = true;
     }
     state.lastMouse = { sx, sy };
   });
-  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; boxSelectionEl.style.display='none'; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const {pickedId,additive}=state.pendingLeftClick; selectById(pickedId != null ? pickedId : null,{additive}); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)))) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); renderTileInstances(); refreshLiveMisWindow(false, { force: true }); } }
+  function stopDrag(){ const had=state.boxSelecting&&state.boxStart&&state.boxCurrent; const shouldFinalizeClick=!!state.pendingLeftClick && !state.cameraLookActive && !state.gizmoDrag && !state.draggingItem && !had; const x0=had?Math.min(state.boxStart.sx,state.boxCurrent.sx):0, x1=had?Math.max(state.boxStart.sx,state.boxCurrent.sx):0, y0=had?Math.min(state.boxStart.sy,state.boxCurrent.sy):0, y1=had?Math.max(state.boxStart.sy,state.boxCurrent.sy):0, add=state.boxSelectAdditive; state.draggingItem=false; state.boxSelecting=false; state.boxSelectAdditive=false; state.boxStart=null; state.boxCurrent=null; boxSelectionEl.style.display='none'; state.lastMouse=null; state.dragAnchor=null; state.cameraLookActive=false; state.cameraLookPending=false; state.cameraLookStart=null; state.cameraLookButton=0; if(document.pointerLockElement===cv && document.exitPointerLock) document.exitPointerLock(); if(shouldFinalizeClick){ const {pickedId,additive}=state.pendingLeftClick; selectById(pickedId != null ? pickedId : null,{additive}); } state.pendingLeftClick=null; if(had){ const worldA=screenToWorld(x0,y0,0); const worldB=screenToWorld(x1,y1,0); const minX=Math.min(worldA.x,worldB.x), maxX=Math.max(worldA.x,worldB.x), minY=Math.min(worldA.y,worldB.y), maxY=Math.max(worldA.y,worldB.y); const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); const ids=[]; for(const it of candidates){ if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it)))) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1) ids.push(it.id); } if(!add) state.multiSelectedIds.clear(); for(const id of ids) state.multiSelectedIds.add(id); state.selectedId=state.multiSelectedIds.size?Array.from(state.multiSelectedIds).at(-1):null; renderList(); renderTileInstances(); refreshLiveMisWindow(false, { force: true }); } flushTransformDragUi(); }
   cv.addEventListener('mouseup', e => {
     if (state.insertModeActive && state.insertDragStart){
       const rect = cv.getBoundingClientRect();
@@ -15184,9 +15243,9 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       for(const start of d.snapshots){const it=getGizmoTransformTarget(start.id);if(!it)continue;let itemDegrees=valueDegrees;if(state.rotationSnapEnabled&&state.rotationSnapMode==='absolute'&&state.transformPivot==='individual'){const initial=d.mode==='rotX'?start.pitch:start.heading,rawValueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);itemDegrees=snapValue(initial+rawValueDegrees,state.rotationSnap)-initial;}if(d.mode==='rotX')it.pitch=start.pitch+itemDegrees;else it.heading=start.heading+itemDegrees;if(state.transformPivot!=='individual'&&d.snapshots.length>1){const p=vec3Add(d.pivot,rotateAroundAxis(vec3Sub(start.world,d.pivot),d.handle.axis,angle));it.x=worldToRaw(p.x,'x');it.y=worldToRaw(p.y,'y');it.z=worldToRaw(p.z,'z');}}
     }
     if (state.referenceGlb?.selected) syncReferenceGlbTransform();
-    else commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean));updateMapTileDragPreview();updateItemGizmo();
+    else commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean), { deferUi: true });updateMapTileDragPreview();updateItemGizmo();
   });
-  window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();clearMapTileDragPreview();persistMapTileEditorState();renderTileInstances();updateItemGizmo();});
+  window.addEventListener('mouseup',()=>{if(!state.gizmoDrag)return;state.gizmoDrag=null;state.hoveredGizmoHandle=null;endUndoTransaction();clearMapTileDragPreview();persistMapTileEditorState();flushTransformDragUi();updateItemGizmo();});
 
   const _origLoadMisFile = loadMisFile;
   loadMisFile = async function(file, fileHandle = null){
