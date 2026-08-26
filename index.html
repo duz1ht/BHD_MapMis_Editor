@@ -2031,10 +2031,10 @@
                 <label class="checkRow"><input type="checkbox" id="wpNoLoop" /><span>Waypoint does NOT loop</span></label>
                 <label class="checkRow"><input type="checkbox" id="wpBlueTeam" /><span>Blue Team Waypoint</span></label>
                 <label class="checkRow"><input type="checkbox" id="wpRedTeam" /><span>Red Team Waypoint</span></label>
-                <div id="wpMarkerCount">Markers selected: 0</div>
+                <div id="wpMarkerCount">Current Size: 0</div>
                 <div id="waypointTopActions">
                   <button id="wpSelectMarkersBtn">Select Markers</button>
-                  <button id="wpSaveAsBtn">Save As</button>
+                  <button id="wpSaveAsBtn">Print List</button>
                   <button id="wpOkBtn">Ok</button>
                 </div>
               </div>
@@ -5026,14 +5026,11 @@ end group
 
   function buildWaypointList(){
     const candidates = [];
-    for (const sec of state.sectionBlocks){
-      if (sec.kind !== "waypoint") continue;
-      const n = parseWaypointNumber(sec);
-      if (!Number.isInteger(n) || n < 1 || n > 127) continue;
+    for (const n of getKnownWaypointIds()){
+      const sec = getWaypointSectionByNumber(n);
       const desc = getWaypointDescription(sec);
       candidates.push({ id: String(n), label: `${n} - ${desc || `Waypoint ${n}`}` });
     }
-    candidates.sort((a,b) => Number(a.id) - Number(b.id));
     ui.wpList.innerHTML = `<option value="">None</option>` + candidates.map(c => {
       return `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label)}</option>`;
     }).join("");
@@ -5724,6 +5721,58 @@ end group
 
   function getWaypointSectionByNumber(n){
     return state.sectionBlocks.find(s => s.kind === "waypoint" && parseWaypointNumber(s) === n) || null;
+  }
+
+  function getKnownWaypointIds(){
+    const ids = new Set();
+    for (const sec of state.sectionBlocks || []){
+      if (sec.kind !== "waypoint") continue;
+      const waypointId = parseWaypointNumber(sec);
+      if (Number.isInteger(waypointId) && waypointId >= 1 && waypointId <= 127) ids.add(waypointId);
+    }
+    for (const it of state.items || []){
+      const waypointId = getItemWaypointId(it);
+      if (waypointId != null && waypointId <= 127) ids.add(waypointId);
+    }
+    return [...ids].sort((a, b) => a - b);
+  }
+
+  function getWaypointSlot(waypointId){
+    const id = Math.trunc(Number(waypointId));
+    if (!Number.isInteger(id) || id < 1 || id > 127) return null;
+    const section = getWaypointSectionByNumber(id);
+    const markers = [];
+    for (const [sourceIndex, item] of (state.items || []).entries()){
+      if (!isWaypointMarkerItem(item) || getItemWaypointId(item) !== id) continue;
+      markers.push({ item, sourceIndex, number: getItemWaypointNumber(item) });
+    }
+    markers.sort((a, b) => (a.number - b.number) || (a.sourceIndex - b.sourceIndex));
+    const configuredColor = Number(section?.kv?.color);
+    const hasExplicitColor = Number.isInteger(configuredColor) && configuredColor >= 0 && configuredColor < WAYPOINT_COLOR_HEX.length;
+    return {
+      id,
+      section,
+      markers,
+      description: getWaypointDescription(section),
+      attrib: parseWaypointAttrib(section?.kv?.attrib || "0"),
+      hasExplicitColor,
+      colorIndex: hasExplicitColor ? configuredColor : (id - 1) % WAYPOINT_COLOR_HEX.length,
+    };
+  }
+
+  function reportWaypointMetadataMismatches(){
+    const referencedIds = new Set((state.items || []).map(getItemWaypointId).filter(id => id != null && id <= 127));
+    const invalidSections = (state.sectionBlocks || [])
+      .filter(sec => sec.kind === "waypoint")
+      .map(sec => parseWaypointNumber(sec))
+      .filter(id => Number.isInteger(id) && (id < 1 || id > 127));
+    if (invalidSections.length){
+      addLog(`[waypoints] metadata block(s) outside the supported 1-127 range: ${[...new Set(invalidSections)].join(", ")}. Marker references were left unchanged.`);
+    }
+    const missingMetadata = [...referencedIds].filter(id => !getWaypointSectionByNumber(id));
+    if (missingMetadata.length){
+      addLog(`[waypoints] list(s) inferred from marker references without metadata blocks: ${missingMetadata.sort((a, b) => a - b).join(", ")}.`);
+    }
   }
 
   function parseAreaTrigNumber(sec){
@@ -6420,15 +6469,17 @@ end group
     return v;
   }
 
-  function fillWaypointEditor(sec){
-    const desc = getWaypointDescription(sec);
-    const colorNum = Number(sec?.kv?.color || "0");
-    const attrib = parseWaypointAttrib(sec?.kv?.attrib || "0");
-    wpDesc.value = desc;
-    wpColor.value = Number.isFinite(colorNum) && colorNum >= 0 && colorNum <= 22 ? String(colorNum) : "0";
-    wpNoLoop.checked = attrib.noLoop;
-    wpBlueTeam.checked = attrib.blue;
-    wpRedTeam.checked = attrib.red;
+  function fillWaypointEditor(slot){
+    const model = slot || getWaypointSlot(state.waypointSelectedNumber);
+    if (!model) return;
+    wpDesc.value = model.description;
+    wpColor.value = String(model.colorIndex);
+    wpColor.dataset.initialValue = String(model.colorIndex);
+    wpColor.dataset.explicit = model.hasExplicitColor ? "1" : "0";
+    wpNoLoop.checked = model.attrib.noLoop;
+    wpBlueTeam.checked = model.attrib.blue;
+    wpRedTeam.checked = model.attrib.red;
+    updateWaypointMarkerCount(model.markers.length);
   }
 
   function saveCurrentWaypoint(){
@@ -6437,7 +6488,9 @@ end group
     const desc = String(wpDesc.value || "").trim();
     const colorVal = Number(wpColor.value || "0");
     const attribVal = buildWaypointAttrib();
-    const hasWaypointData = !!desc || colorVal > 0 || attribVal > 0;
+    const colorChanged = String(colorVal) !== String(wpColor.dataset.initialValue || "0");
+    const hasExplicitColor = wpColor.dataset.explicit === "1";
+    const hasWaypointData = !!desc || attribVal > 0 || colorChanged || hasExplicitColor;
 
     if (!sec && !hasWaypointData) return;
 
@@ -6461,7 +6514,7 @@ end group
     sec.kv = {};
     const lines = [];
     if (desc){ sec.kv.description = desc; lines.push(`  description "${desc.replace(/"/g,"")}"`); }
-    if (colorVal > 0){ sec.kv.color = String(colorVal); lines.push(`  color ${colorVal}`); }
+    if (hasExplicitColor || colorChanged){ sec.kv.color = String(colorVal); lines.push(`  color ${colorVal}`); }
     if (attribVal > 0){ sec.kv.attrib = String(attribVal); lines.push(`  attrib ${attribVal}`); }
     sec.lines = lines;
     buildWaypointList();
@@ -7744,9 +7797,8 @@ end group
       sectionDeleteBtn.disabled = true;
       const cards = [];
       for (let n=1; n<=127; n++){
-        const sec = getWaypointSectionByNumber(n);
-        const desc = getWaypointDescription(sec);
-        const label = `${n} - ${desc || ""}`;
+        const slot = getWaypointSlot(n);
+        const label = `${n} - ${slot.description || `Waypoint ${n}`}`;
         if (!q || label.toLowerCase().includes(q)) cards.push({ n, label });
       }
       sectionList.innerHTML = cards.map(c => `<div class="secCard ${state.waypointSelectedNumber===c.n?'active':''}" data-id="${c.n}">${escapeHtml(c.label)}</div>`).join("") || `<div class="hint">No waypoints.</div>`;
@@ -7815,11 +7867,9 @@ end group
     if (state.sectionKind === "waypoint"){
       state.waypointSelectedNumber = Math.max(1, Math.min(127, Number(id) || 1));
       sectionList.querySelectorAll('.secCard').forEach(el => el.classList.toggle('active', Number(el.dataset.id)===state.waypointSelectedNumber));
-      const sec = getWaypointSectionByNumber(state.waypointSelectedNumber);
       sectionMeta.textContent = `begin waypoint ${state.waypointSelectedNumber}`;
       state.selectedWaypointMarkerIds.clear();
-      updateWaypointMarkerCount(0);
-      fillWaypointEditor(sec);
+      fillWaypointEditor(getWaypointSlot(state.waypointSelectedNumber));
       return;
     }
 
@@ -8049,18 +8099,16 @@ end group
   }
 
 
-  function saveWaypointsAs(){
-    const secs = [];
-    for (let n=1; n<=127; n++){
-      const sec = getWaypointSectionByNumber(n);
-      if (!sec) continue;
-      const block = [sec.beginLine || `begin waypoint ${n}`];
-      for (const line of sec.lines) block.push(line);
-      block.push('end waypoint');
-      secs.push(block.join('\n'));
+  function printSelectedWaypointList(){
+    const slot = getWaypointSlot(state.waypointSelectedNumber);
+    if (!slot) return;
+    const title = slot.description || `Waypoint ${slot.id}`;
+    const lines = [`// Waypoint List ${slot.id} - ${title}`, `// Current Size: ${slot.markers.length}`];
+    for (const marker of slot.markers){
+      const item = marker.item;
+      lines.push(`${marker.number}\titem ${String(item.beginLine || "").replace(/^begin\s+item\s+/i, "")}\tposition ${item.x} ${item.y} ${item.z}`);
     }
-    const text = secs.join('\n\n') || '// no waypoints';
-    downloadText('waypoints_export.txt', text);
+    downloadText(`waypoint_${slot.id}_list.txt`, lines.join('\n'));
   }
 
   function applyGlobalReplace(){
@@ -8147,10 +8195,10 @@ end group
     return true;
   }
 
-  function updateWaypointMarkerCount(count){
+  function updateWaypointMarkerCount(){
     if (!wpMarkerCount) return;
-    const n = Math.max(0, Math.trunc(Number(count) || 0));
-    wpMarkerCount.textContent = `Markers selected: ${n}`;
+    const n = getWaypointSlot(state.waypointSelectedNumber)?.markers.length || 0;
+    wpMarkerCount.textContent = `Current Size: ${n}`;
   }
 
   function getItemWaypointId(it){
@@ -8163,7 +8211,7 @@ end group
   function selectWaypointMarkers(){
     if(state.tileEditModeActive){statusEl.textContent="Tile Edit Mode only allows MapTiles to be selected.";return;}
     const waypointNumber = Math.max(1, Math.min(127, Number(state.waypointSelectedNumber) || 1));
-    const markers = state.items.filter(it => getItemWaypointId(it) === waypointNumber);
+    const markers = (getWaypointSlot(waypointNumber)?.markers || []).map(entry => entry.item);
     state.selectedWaypointMarkerIds = new Set(markers.map(m => m.id));
     updateWaypointMarkerCount(markers.length);
 
@@ -8424,7 +8472,7 @@ end group
     const wpDistanceKey = kvFindKey(it, ["wpdistance", "waypoint_distance"]);
     const wpAdvKey = kvFindKey(it, ["wp_adv_trigger", "adv_event"]);
     const wpEnabled = kvHas(it, "waypoint_id") || kvHas(it, "wpnumber") || kvHas(it, "ttoolindex") || !!wpAdvKey || kvHas(it, "nav_wp") || !!wpDistanceKey;
-    const hasWaypointChoices = state.sectionBlocks.some(s => s.kind === "waypoint");
+    const hasWaypointChoices = getKnownWaypointIds().length > 0;
     setEnabled(ui.wpList, hasWaypointChoices || (wpEnabled && kvHas(it, "waypoint_id")));
     setEnabled(ui.wpNumber, hasWaypointChoices || wpEnabled || kvHas(it, "wpnumber"));
     setEnabled(ui.wpDistance, hasWaypointChoices || wpEnabled);
@@ -9667,7 +9715,7 @@ end group
   groupSelectMembersBtn?.addEventListener("click", selectAllGroupMembers);
   groupSaveAsTextBtn?.addEventListener("click", saveGroupsAsTextFile);
   wpSelectMarkersBtn.addEventListener("click", selectWaypointMarkers);
-  wpSaveAsBtn.addEventListener("click", saveWaypointsAs);
+  wpSaveAsBtn.addEventListener("click", printSelectedWaypointList);
   wpOkBtn.addEventListener("click", () => { saveCurrentWaypoint(); closeSectionEditor(); });
   areaTrigSelectMarkersBtn.addEventListener("click", selectAreaTriggerMarkers);
   areaTrigOkBtn.addEventListener("click", () => { saveCurrentAreaTrig(); closeSectionEditor(); });
@@ -10484,6 +10532,7 @@ end group
     const parsed = parseMIS(text);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
+    reportWaypointMetadataMismatches();
     state.sectionSelectedId = null;
     state.eventSelectedId = null;
     eventUi.selectedTrigger = -1;
@@ -12588,11 +12637,8 @@ end group
   function getWaypointColorHexForItem(it){
     const waypointId = getItemWaypointId(it);
     if (waypointId == null) return null;
-    const sec = getWaypointSectionByNumber(waypointId);
-    if (!sec) return null;
-    const colorIndex = Number(sec.kv?.color ?? 0);
-    if (!Number.isInteger(colorIndex) || colorIndex < 0 || colorIndex >= WAYPOINT_COLOR_HEX.length) return null;
-    return WAYPOINT_COLOR_HEX[colorIndex];
+    const slot = getWaypointSlot(waypointId);
+    return slot ? WAYPOINT_COLOR_HEX[slot.colorIndex] : null;
   }
 
   function getAreaTriggerColorHexForItem(it){
