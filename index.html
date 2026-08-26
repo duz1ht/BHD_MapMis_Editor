@@ -10629,6 +10629,22 @@ end group
     const n=(Number(v)||0)/MIS_POS_SCALE;
     return n;
   }
+  const invalidGeometryWarnings = new Set();
+  function warnInvalidGeometryOnce(source, detail=''){
+    const key = `${source}:${detail}`;
+    if (invalidGeometryWarnings.has(key)) return;
+    invalidGeometryWarnings.add(key);
+    console.warn(`[geometry] Ignoring non-finite position data from ${source}${detail ? ` (${detail})` : ''}.`);
+  }
+  function isFinitePosition(x, y, z){
+    return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z);
+  }
+  function hasFinitePositionData(values, length=values?.length || 0){
+    if (length === 0) return true;
+    if (!values || length < 0 || length > values.length || length % 3 !== 0) return false;
+    for (let i=0; i<length; i++) if (!Number.isFinite(values[i])) return false;
+    return true;
+  }
   function worldToRaw(v, axis='z'){
     const n=Number(v)||0;
     return Math.round(n*MIS_POS_SCALE);
@@ -11858,6 +11874,15 @@ end group
   function updateThreeLineGeometry(lineSegments, positions, colors=null){
     if (!lineSegments?.geometry) return;
     const g = lineSegments.geometry;
+    const source = lineSegments.name || lineSegments.type || 'line geometry';
+    if (!hasFinitePositionData(positions)){
+      warnInvalidGeometryOnce(source);
+      g.setDrawRange(0, 0);
+      lineSegments.visible = false;
+      g.boundingBox = null;
+      g.boundingSphere = null;
+      return;
+    }
     let posAttr = g.getAttribute('position');
     if (!posAttr || posAttr.array.length < positions.length){
       let cap = Math.max(128, posAttr?.array?.length || 128);
@@ -11884,6 +11909,8 @@ end group
 
     g.setDrawRange(0, Math.floor(positions.length / 3));
     lineSegments.visible = positions.length > 0;
+    g.boundingBox = null;
+    g.boundingSphere = null;
   }
 
   function appendRectLineData(posArr, colorArr, offsetX, offsetY, scaleX, scaleY, z, color){
@@ -12073,6 +12100,10 @@ end group
       const x = rawToWorld(it.x,'x');
       const y = rawToWorld(it.y,'y');
       const z = getItemWorldZ(it);
+      if (!isFinitePosition(x, y, z)){
+        warnInvalidGeometryOnce('item points', String(it.id));
+        continue;
+      }
       if (it.id===state.selectedId||state.multiSelectedIds.has(it.id)){
         selectedBuf[selectedLen++]=x; selectedBuf[selectedLen++]=y; selectedBuf[selectedLen++]=z;
       } else if (state.selectedWaypointMarkerIds.has(it.id)){
@@ -12088,9 +12119,12 @@ end group
       const maxPasteLen = state.itemClipboardItems.length * 3;
       pasteBuf = ensureScratchCapacity('paste', maxPasteLen);
       for(const entry of state.itemClipboardItems){
-        pasteBuf[pasteLen++]=state.pastePreviewWorld.x+entry.dx;
-        pasteBuf[pasteLen++]=state.pastePreviewWorld.y+entry.dy;
-        pasteBuf[pasteLen++]=state.pastePreviewWorld.z||0;
+        const x=state.pastePreviewWorld.x+entry.dx,y=state.pastePreviewWorld.y+entry.dy,z=state.pastePreviewWorld.z||0;
+        if (!isFinitePosition(x, y, z)){
+          warnInvalidGeometryOnce('paste preview');
+          continue;
+        }
+        pasteBuf[pasteLen++]=x; pasteBuf[pasteLen++]=y; pasteBuf[pasteLen++]=z;
       }
     }
 
@@ -12130,9 +12164,15 @@ end group
       for (let i = 1; i < entries.length; i++){
         const previous = entries[i - 1].it;
         const current = entries[i].it;
+        const previousPosition=[rawToWorld(previous.x, 'x'),rawToWorld(previous.y, 'y'),getItemWorldZ(previous)];
+        const currentPosition=[rawToWorld(current.x, 'x'),rawToWorld(current.y, 'y'),getItemWorldZ(current)];
+        if (!isFinitePosition(...previousPosition) || !isFinitePosition(...currentPosition)){
+          warnInvalidGeometryOnce('waypoint lines', `${previous.id}->${current.id}`);
+          continue;
+        }
         positions.push(
-          rawToWorld(previous.x, 'x'), rawToWorld(previous.y, 'y'), getItemWorldZ(previous),
-          rawToWorld(current.x, 'x'), rawToWorld(current.y, 'y'), getItemWorldZ(current),
+          ...previousPosition,
+          ...currentPosition,
         );
         colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
       }
@@ -12174,6 +12214,7 @@ end group
       geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3));
       geometry.setDrawRange(0, 0);
       const points = new THREE.Points(geometry, material);
+      points.frustumCulled = false;
       items.materials.set(group, material);
       items.pointsByGroup.set(group, points);
       items.drawCountByGroup.set(group, 0);
@@ -12203,6 +12244,15 @@ end group
   function updateThreeItemGroup(group, srcBuf, srcLen){
     const points = state.threeItems.pointsByGroup.get(group);
     if (!points) return;
+    if (!hasFinitePositionData(srcBuf, srcLen)){
+      warnInvalidGeometryOnce('item points', group);
+      points.geometry.setDrawRange(0, 0);
+      points.geometry.boundingBox = null;
+      points.geometry.boundingSphere = null;
+      points.visible = false;
+      state.threeItems.drawCountByGroup.set(group, 0);
+      return;
+    }
     const needed = srcLen;
     let attr = points.geometry.getAttribute('position');
     if (!attr || attr.array.length < needed){
@@ -12218,6 +12268,8 @@ end group
     }
     points.geometry.setDrawRange(0, Math.floor(srcLen / 3));
     points.visible = srcLen > 0;
+    points.geometry.boundingBox = null;
+    points.geometry.boundingSphere = null;
     state.threeItems.drawCountByGroup.set(group, Math.floor(srcLen / 3));
   }
 
@@ -12543,7 +12595,6 @@ end group
             lightMapIntensity: Number.isFinite(m.lightMapIntensity) ? m.lightMapIntensity : 1,
             specularMap: m.specularMap || null,
             envMap: m.envMap || null,
-            envMapIntensity: Number.isFinite(m.envMapIntensity) ? m.envMapIntensity : 1,
             shininess: Number.isFinite(m.shininess) ? m.shininess : 24,
             transparent: !!m.transparent,
             opacity: Number.isFinite(m.opacity) ? m.opacity : 1,
@@ -14708,7 +14759,13 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       }
       statsHudAccumTime = 0;
     }
-    scheduleNextFrame();
+    const cameraStillMoving = dlen > 0 || vec3Len(camVel) > 0.01;
+    if (cameraStillMoving) scheduleNextFrame();
+    else {
+      renderLoopRunning = false;
+      renderLoopRafId = 0;
+      camVel=vec3(0,0,0);
+    }
   }
   startRenderLoop();
 
@@ -14778,7 +14835,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     camVel=vec3(0,0,0); requestRender();
   }
   function toggleTopView(){setTopView(!topViewLocked);}
-  addEventListener('keydown',e=>{ if(hasTypingFocus()||keyboardShortcutsOverlay.classList.contains('open')) return; const k=e.key.toLowerCase(); const lookActive=(document.pointerLockElement===cv&&state.cameraLookActive); if(k==='delete'){ e.preventDefault(); deleteSelectedItem(); return; } if(k==='c'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); setSidebarOpen(appLayoutEl?.classList.contains('sidebarClosed')); return; } if(k==='t'&&!e.repeat){ e.preventDefault(); toggleTopView(); } if(k==='g'&&!e.repeat){ e.preventDefault(); cycleGridMainAreaVisibility(); } if(k==='home'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleSceneInfo(); } if(k==='i'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleInsertMode(); } if(k==='h'&&!e.repeat){ toggleViewOption('showAnchorPoints'); } if(k==='f'){ e.preventDefault(); if(!e.repeat) cycleGlbViewMode(); } if(k==='x'&&!lookActive&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat){ toggleTransformSpace(); } if(k==='w'&&!lookActive){ state.transformMode='translate'; updateItemGizmo(); } if(k==='e'&&!lookActive){ state.transformMode='rotate'; updateItemGizmo(); } if(k==='w'&&lookActive) move.w=1; if(k==='a'&&lookActive) move.a=1; if(k==='s'&&lookActive) move.s=1; if(k==='d'&&lookActive) move.d=1; if(k==='q'&&lookActive) move.q=1; if(k==='e'&&lookActive) move.e=1; if(k==='r') setRenderMode(renderMode==='C'?'H':(renderMode==='H'?'D':'C')); state.keysDown.add(e.code); });
+  addEventListener('keydown',e=>{ if(hasTypingFocus()||keyboardShortcutsOverlay.classList.contains('open')) return; const k=e.key.toLowerCase(); const lookActive=(document.pointerLockElement===cv&&state.cameraLookActive); if(k==='delete'){ e.preventDefault(); deleteSelectedItem(); return; } if(k==='c'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); setSidebarOpen(appLayoutEl?.classList.contains('sidebarClosed')); return; } if(k==='t'&&!e.repeat){ e.preventDefault(); toggleTopView(); } if(k==='g'&&!e.repeat){ e.preventDefault(); cycleGridMainAreaVisibility(); } if(k==='home'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleSceneInfo(); } if(k==='i'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.shiftKey&&!e.repeat){ e.preventDefault(); toggleInsertMode(); } if(k==='h'&&!e.repeat){ toggleViewOption('showAnchorPoints'); } if(k==='f'){ e.preventDefault(); if(!e.repeat) cycleGlbViewMode(); } if(k==='x'&&!lookActive&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat){ toggleTransformSpace(); } if(k==='w'&&!lookActive){ state.transformMode='translate'; updateItemGizmo(); } if(k==='e'&&!lookActive){ state.transformMode='rotate'; updateItemGizmo(); } if(k==='w'&&lookActive) move.w=1; if(k==='a'&&lookActive) move.a=1; if(k==='s'&&lookActive) move.s=1; if(k==='d'&&lookActive) move.d=1; if(k==='q'&&lookActive) move.q=1; if(k==='e'&&lookActive) move.e=1; if(lookActive&&['w','a','s','d','q','e'].includes(k)) startRenderLoop(); if(k==='r') setRenderMode(renderMode==='C'?'H':(renderMode==='H'?'D':'C')); state.keysDown.add(e.code); });
   addEventListener('keyup',e=>{ if(hasTypingFocus()) return; const k=e.key.toLowerCase(); if(k==='w') move.w=0; if(k==='a') move.a=0; if(k==='s') move.s=0; if(k==='d') move.d=0; if(k==='q') move.q=0; if(k==='e') move.e=0; state.keysDown.delete(e.code); });
   addEventListener('mousemove',e=>{
     if(document.pointerLockElement!==cv) return;
@@ -14795,6 +14852,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     cam.yaw=((cam.yaw+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
     cam.pitch -= movementY*0.002;
     cam.pitch=Math.max(-1.55,Math.min(1.55,cam.pitch));
+    requestRender();
   });
 
   document.getElementById('modeC')?.addEventListener('click',()=>setRenderMode('C'));
