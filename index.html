@@ -5016,8 +5016,7 @@ end group
     const candidates = [];
     for (const n of getKnownWaypointIds()){
       const sec = getWaypointSectionByNumber(n);
-      const desc = getWaypointDisplayDescription(n, sec);
-      candidates.push({ id: String(n), label: `${n} - ${desc || `Waypoint ${n}`}` });
+      candidates.push({ id: String(n), label: getWaypointLabel(n, sec) });
     }
     ui.wpList.innerHTML = `<option value="">None</option>` + candidates.map(c => {
       return `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label)}</option>`;
@@ -5715,6 +5714,19 @@ end group
     return getReservedWaypointDescription(waypointId) || getWaypointDescription(section);
   }
 
+  function isWaypointUsed(waypointId, section = getWaypointSectionByNumber(waypointId)){
+    const id = Math.trunc(Number(waypointId));
+    if (!Number.isInteger(id) || id < 1 || id > 127) return false;
+    return !!section || (state.items || []).some(item => getItemWaypointId(item) === id);
+  }
+
+  function getWaypointLabel(waypointId, section = getWaypointSectionByNumber(waypointId)){
+    const id = Math.trunc(Number(waypointId));
+    const description = getWaypointDisplayDescription(id, section);
+    const displayName = description || (isWaypointUsed(id, section) ? `Waypoint ${id}` : "");
+    return `${id} -${displayName ? ` ${displayName}` : ""}`;
+  }
+
   function parseWaypointNumber(sec){
     if (!sec || sec.kind !== "waypoint") return null;
     const fromLabel = Number((sec.label || "").trim());
@@ -5760,6 +5772,7 @@ end group
       markers,
       description: getWaypointDisplayDescription(id, section),
       reserved: isReservedWaypoint(id),
+      used: isWaypointUsed(id, section),
       attrib: parseWaypointAttrib(section?.kv?.attrib || "0"),
       hasExplicitColor,
       colorIndex: hasExplicitColor ? configuredColor : (id - 1) % WAYPOINT_COLOR_HEX.length,
@@ -6120,8 +6133,7 @@ end group
     ];
     for (let n = 1; n <= 127; n++){
       const sec = getWaypointSectionByNumber(n);
-      const desc = getWaypointDisplayDescription(n, sec);
-      const label = `${n} - ${desc || ""}`;
+      const label = getWaypointLabel(n, sec);
       const count = itemCountByWaypoint.get(n) || 0;
       const checked = getWaypointVisibility(String(n)) ? "checked" : "";
       const hasDefinedColor = Object.prototype.hasOwnProperty.call(sec?.kv || {}, "color");
@@ -6892,8 +6904,7 @@ end group
     }
     if (sec.kind === "waypoint"){
       const n = parseWaypointNumber(sec) || sec.label || sec.id;
-      const desc = getWaypointDisplayDescription(n, sec);
-      return `${n} - ${desc || ""}`;
+      return getWaypointLabel(n, sec);
     }
     if (sec.kind === "weapon_availability"){
       const summary = formatWeaponLoadoutSummary(sec);
@@ -7320,9 +7331,9 @@ end group
   }
   function eventWaypointSelect(field,value,label){
     const waypoints=getKnownWaypointIds()
-      .map(number=>({number,description:getWaypointDisplayDescription(number)}));
+      .map(number=>({number,label:getWaypointLabel(number)}));
     const hasValue=value===0||waypoints.some(waypoint=>waypoint.number===value);
-    const options=[`<option value="0" ${value===0?'selected':''}>0 - None</option>`,...waypoints.map(waypoint=>`<option value="${waypoint.number}" ${waypoint.number===value?'selected':''}>${escapeHtml(`${waypoint.number} - ${waypoint.description||`Waypoint ${waypoint.number}`}`)}</option>`)];
+    const options=[`<option value="0" ${value===0?'selected':''}>0 - None</option>`,...waypoints.map(waypoint=>`<option value="${waypoint.number}" ${waypoint.number===value?'selected':''}>${escapeHtml(waypoint.label)}</option>`)];
     if(!hasValue) options.unshift(`<option value="${value}" selected>${escapeHtml(`${value} - Unknown (preserved)`)}</option>`);
     return `<label>${escapeHtml(label)}<select data-field="${field}">${options.join('')}</select></label>`;
   }
@@ -7807,7 +7818,7 @@ end group
       const cards = [];
       for (let n=1; n<=127; n++){
         const slot = getWaypointSlot(n);
-        const label = `${n} - ${slot.description || `Waypoint ${n}`}`;
+        const label = getWaypointLabel(n, slot.section);
         if (!q || label.toLowerCase().includes(q)) cards.push({ n, label });
       }
       sectionList.innerHTML = cards.map(c => `<div class="secCard ${state.waypointSelectedNumber===c.n?'active':''}" data-id="${c.n}">${escapeHtml(c.label)}</div>`).join("") || `<div class="hint">No waypoints.</div>`;
