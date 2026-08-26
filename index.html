@@ -513,7 +513,8 @@
     #canvasShowPanelList{ display:grid; grid-template-columns:1fr; gap:4px; font-size:12px; }
     #canvasShowPanelList label{ display:flex; align-items:center; gap:6px; }
     .showOptionGroup{ margin:2px 0; padding:5px 7px 6px; border:1px solid var(--line); border-radius:var(--radius-sm); display:grid; gap:4px; }
-    .showOptionGroup legend{ padding:0 4px; color:var(--text-muted); font-weight:700; }
+    .showOptionGroup legend{ width:calc(100% - 8px); padding:0 4px; color:var(--text-muted); font-weight:700; }
+    .showOptionGroup legend label{ width:100%; }
     #canvasShowPanelList label.showCategoryEmpty,
     .visibilityItemEmpty{ opacity:.42; }
     .visibilityItemCount{
@@ -1785,11 +1786,11 @@
           <label data-show-category="building"><input type="checkbox" id="showBuildings" checked> <span class="visibilityItemName">Buildings</span> <span class="visibilityItemCount">(0)</span></label>
           <label data-show-category="object"><input type="checkbox" id="showObjects" checked> <span class="visibilityItemName">Objects</span> <span class="visibilityItemCount">(0)</span></label>
           <label data-show-category="decoration"><input type="checkbox" id="showDecorations" checked> <span class="visibilityItemName">Decorations</span> <span class="visibilityItemCount">(0)</span></label>
-          <fieldset class="showOptionGroup"><legend>Tiles</legend>
+          <fieldset class="showOptionGroup" data-show-group="tiles"><legend><label><input type="checkbox" id="showTilesGroup" data-show-group-toggle="tiles" checked> <span class="visibilityItemName">Tiles</span> <span class="visibilityItemCount">(0)</span></label></legend>
             <label data-show-category="tileMis"><input type="checkbox" id="showMisMapTiles" checked> <span class="visibilityItemName">Tiles - .mis MapTile</span> <span class="visibilityItemCount">(0)</span></label>
             <label data-show-category="tileTilOnly"><input type="checkbox" id="showTilOnlyMapTiles" checked> <span class="visibilityItemName">Tiles - Existing only in the .til</span> <span class="visibilityItemCount">(0)</span></label>
           </fieldset>
-          <fieldset class="showOptionGroup"><legend>Markers</legend>
+          <fieldset class="showOptionGroup" data-show-group="markers"><legend><label><input type="checkbox" id="showMarkersGroup" data-show-group-toggle="markers" checked> <span class="visibilityItemName">Markers</span> <span class="visibilityItemCount">(0)</span></label></legend>
             <label data-show-category="markerGameplay"><input type="checkbox" id="showMarkers" checked> <span class="visibilityItemName">Markers - Gameplay</span> <span class="visibilityItemCount">(0)</span></label>
             <label data-show-category="markerWaypoint"><input type="checkbox" id="showWaypointMarkers" checked> <span class="visibilityItemName">Markers - Waypoints</span> <span class="visibilityItemCount">(0)</span></label>
             <label data-show-category="markerAreaTrigger"><input type="checkbox" id="showAreaTriggerMarkers" checked> <span class="visibilityItemName">Markers - Area Triggers</span> <span class="visibilityItemCount">(0)</span></label>
@@ -4252,6 +4253,10 @@ end group
     powerup: { inputId: "showPowerups", label: "Power-ups" },
     vehicle: { inputId: "showVehicles", label: "Vehicles" },
   };
+  const SHOW_OPTION_GROUPS = {
+    tiles: { categories: ["tileMis", "tileTilOnly"] },
+    markers: { categories: ["markerGameplay", "markerWaypoint", "markerAreaTrigger", "markerSound"] },
+  };
 
   function getCatalogDefForItem(it){
     const tid = kvHas(it, "type_id") ? String(it.kv.type_id) : "";
@@ -4318,6 +4323,13 @@ end group
       if(countEl)countEl.textContent=`(${count})`;label.classList.toggle('showCategoryEmpty',count===0);
       if(input)input.disabled=count===0;if(only)only.disabled=count===0;
     });
+    for (const [group, config] of Object.entries(SHOW_OPTION_GROUPS)){
+      const fieldset = canvasShowPanelEl?.querySelector(`[data-show-group="${group}"]`);
+      const total = config.categories.reduce((sum, category) => sum + (counts[category] || 0), 0);
+      const count = fieldset?.querySelector("legend .visibilityItemCount");
+      if (count) count.textContent = `(${total})`;
+    }
+    syncShowGroupControls();
   }
 
   function getItemGraphicScale(it){
@@ -9499,16 +9511,47 @@ end group
     setAllAreaTriggerVisibility(true);
   });
 
+  function getShowLeafInputs(){
+    return Array.from(canvasShowPanelEl?.querySelectorAll('input[type="checkbox"]:not([data-show-group-toggle])') || []);
+  }
+
+  function getShowGroupChildInputs(group){
+    return Array.from(canvasShowPanelEl?.querySelectorAll(`[data-show-group="${group}"] [data-show-category] input, [data-show-group="${group}"] [data-show-count-source] input`) || []);
+  }
+
+  function syncShowGroupControls(){
+    canvasShowPanelEl?.querySelectorAll('input[data-show-group-toggle]').forEach((groupInput) => {
+      const children = getShowGroupChildInputs(groupInput.dataset.showGroupToggle);
+      const enabledChildren = children.filter((input) => !input.disabled);
+      const checkedCount = enabledChildren.filter((input) => input.checked).length;
+      groupInput.disabled = enabledChildren.length === 0;
+      groupInput.checked = enabledChildren.length > 0 && checkedCount === enabledChildren.length;
+      groupInput.indeterminate = checkedCount > 0 && checkedCount < enabledChildren.length;
+      const label = groupInput.closest("label");
+      const onlyButton = label?.querySelector(".visibilityOnlyBtn");
+      label?.classList.toggle("showCategoryEmpty", groupInput.disabled);
+      if (onlyButton) onlyButton.disabled = groupInput.disabled;
+    });
+  }
+
+  function applyShowVisibilityChanges(tilesChanged = false){
+    syncShowGroupControls();
+    syncShowOnlyButtonState();
+    invalidateThreeItemGeometryCaches();
+    state.glb.structureDirty = true;
+    syncReferenceGlbVisibility();
+    if (tilesChanged) scheduleMapTileOverlayRebuild();
+    requestRender();
+    syncGlbItems();
+  }
+
   function setAllShowOptions(visible){
     visibilityOnlyState.show = null;
-    canvasShowPanelEl?.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+    getShowLeafInputs().forEach((input) => {
       if (input.disabled) return;
       input.checked = !!visible;
-      input.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    invalidateThreeItemGeometryCaches();
-    syncShowOnlyButtonState();
-    requestRender();
+    applyShowVisibilityChanges(true);
   }
 
   function syncReferenceGlbVisibility(){
@@ -9520,8 +9563,10 @@ end group
   }
 
   function isolateShowOption(selectedInput){
-    const inputs = Array.from(canvasShowPanelEl?.querySelectorAll('input[type="checkbox"]') || []);
+    const inputs = getShowLeafInputs();
     const key = selectedInput.id;
+    const selectedGroup = selectedInput.dataset.showGroupToggle || "";
+    const selectedGroupInputs = new Set(selectedGroup ? getShowGroupChildInputs(selectedGroup) : []);
     const current = visibilityOnlyState.show;
     if (current?.key === key){
       for (const input of inputs) if (!input.disabled) input.checked = current.snapshot.get(input.id) ?? false;
@@ -9529,14 +9574,12 @@ end group
     } else {
       const snapshot = current?.snapshot || new Map(inputs.map((input) => [input.id, input.checked]));
       visibilityOnlyState.show = { key, snapshot };
-      for (const input of inputs) if (!input.disabled) input.checked = input === selectedInput;
+      for (const input of inputs){
+        if (input.disabled) continue;
+        input.checked = selectedGroup ? selectedGroupInputs.has(input) : input === selectedInput;
+      }
     }
-    syncShowOnlyButtonState();
-    invalidateThreeItemGeometryCaches();
-    state.glb.structureDirty = true;
-    syncReferenceGlbVisibility();
-    requestRender();
-    syncGlbItems();
+    applyShowVisibilityChanges(true);
   }
 
   function syncShowOnlyButtonState(){
@@ -9568,6 +9611,7 @@ end group
       label.insertAdjacentHTML("beforeend", visibilityOnlyButton(labelText));
     });
     bindVisibilityOnlyActions(list, 'input[type="checkbox"]', isolateShowOption);
+    syncShowGroupControls();
   }
 
   initializeShowOnlyActions();
@@ -9588,16 +9632,20 @@ end group
   canvasShowPanelEl?.addEventListener("change", (event) => {
     if (!(event.target instanceof HTMLInputElement)) return;
     visibilityOnlyState.show = null;
-    syncShowOnlyButtonState();
+    const group = event.target.dataset.showGroupToggle;
+    if (group){
+      for (const input of getShowGroupChildInputs(group)) if (!input.disabled) input.checked = event.target.checked;
+      applyShowVisibilityChanges(group === "tiles");
+      return;
+    }
     if (event.target === showReferenceGlbEl){
+      syncShowGroupControls();
+      syncShowOnlyButtonState();
       syncReferenceGlbVisibility();
       return;
     }
-    if (!event.target.closest("[data-show-category]")) return;
-    invalidateThreeItemGeometryCaches();
-    state.glb.structureDirty = true;
-    if (event.target.id === "showMisMapTiles" || event.target.id === "showTilOnlyMapTiles") scheduleMapTileOverlayRebuild();
-    requestRender();
+    if (!event.target.closest("[data-show-category], [data-show-count-source]")) return;
+    applyShowVisibilityChanges(event.target.id === "showMisMapTiles" || event.target.id === "showTilOnlyMapTiles");
   });
   debugFogPanelEl?.addEventListener("click", (event) => {
     event.stopPropagation();
