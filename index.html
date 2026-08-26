@@ -4282,6 +4282,15 @@ end group
     return ITEM_TEAM_TINTS[String(it.kv.team).trim()] || fallbackTint;
   }
 
+  function getDefinitionTintOpacity(def){
+    const opacity = Number(def?.tintOpacity);
+    return Number.isFinite(opacity) ? Math.max(0, Math.min(100, opacity)) / 100 : 1;
+  }
+
+  function getItemTintOpacity(it){
+    return getDefinitionTintOpacity(getDefForItem(it));
+  }
+
   function getItemEditorHelper(it){
     return String(getDefForItem(it)?.editorHelper || "").trim().toLowerCase();
   }
@@ -4384,6 +4393,7 @@ end group
           graphic: "",
           graphicScale: 1,
           tint: "",
+          tintOpacity: 100,
           editorHelper: "",
           editorHelperSize: 0,
           editorHelperOpacity: 100,
@@ -4428,6 +4438,10 @@ end group
         if (k === "type") cur.type = v;
         if (k === "graphic") cur.graphic = v;
         if (k === "tint" && /^#[0-9a-f]{6}$/i.test(v)) cur.tint = v;
+        if (k === "tint_opacity"){
+          const numericTintOpacity = Number(v);
+          if (Number.isFinite(numericTintOpacity)) cur.tintOpacity = Math.max(0, Math.min(100, numericTintOpacity));
+        }
         if (k === "editor_helper") cur.editorHelper = v.trim().toLowerCase();
         if (k === "editor_helper_size"){
           const numericSize = Number(v);
@@ -4492,6 +4506,7 @@ end group
         graphic: Object.prototype.hasOwnProperty.call(supplementKv, "graphic") ? supplement.graphic : base.graphic,
         graphicScale: Object.prototype.hasOwnProperty.call(supplementKv, "graphic_scale") ? supplement.graphicScale : base.graphicScale,
         tint: Object.prototype.hasOwnProperty.call(supplementKv, "tint") ? supplement.tint : base.tint,
+        tintOpacity: Object.prototype.hasOwnProperty.call(supplementKv, "tint_opacity") ? supplement.tintOpacity : base.tintOpacity,
         editorHelper: Object.prototype.hasOwnProperty.call(supplementKv, "editor_helper") ? supplement.editorHelper : base.editorHelper,
         editorHelperSize: Object.prototype.hasOwnProperty.call(supplementKv, "editor_helper_size") ? supplement.editorHelperSize : base.editorHelperSize,
         editorHelperOpacity: Object.prototype.hasOwnProperty.call(supplementKv, "editor_helper_opacity") ? supplement.editorHelperOpacity : base.editorHelperOpacity,
@@ -4842,7 +4857,7 @@ end group
     if (preview.object) preview.scene.remove(preview.object);
     preview.object = template.clone(true);
     cloneGlbMaterials(preview.object);
-    applySolidTintToGlbObject(preview.object, def.tint);
+    applySolidTintToGlbObject(preview.object, def.tint, getDefinitionTintOpacity(def));
     applyItemModelTransform(preview.object, 0, 0, def.graphicScale);
     preview.object.visible = true;
     preview.scene.add(preview.object);
@@ -12615,20 +12630,21 @@ end group
 
   // GLB color precedence, from lowest to highest: base material, DEF tint,
   // waypoint/area-trigger color, then temporary view/selection visuals.
-  function applySolidTintToGlbObject(root, tint){
+  function applySolidTintToGlbObject(root, tint, opacity = 1){
     const normalizedTint = String(tint || "").trim();
     if (!root || !/^#[0-9a-f]{6}$/i.test(normalizedTint) || !state.glb.THREE) return;
     const color = new state.glb.THREE.Color(normalizedTint);
+    const normalizedOpacity = Number.isFinite(Number(opacity)) ? Math.max(0, Math.min(1, Number(opacity))) : 1;
     root.traverse?.(obj => {
       if (!obj.isMesh) return;
       const originalMaterials = Array.isArray(obj.material) ? obj.material : [obj.material];
       const tintedMaterials = originalMaterials.map(material => new state.glb.THREE.MeshBasicMaterial({
         color,
         side: material?.side ?? state.glb.THREE.FrontSide,
-        transparent: false,
-        opacity: 1,
+        transparent: normalizedOpacity < 1,
+        opacity: normalizedOpacity,
         depthTest: material?.depthTest ?? true,
-        depthWrite: material?.depthWrite ?? true,
+        depthWrite: normalizedOpacity < 1 ? false : (material?.depthWrite ?? true),
         toneMapped: false,
       }));
       obj.material = Array.isArray(obj.material) ? tintedMaterials : tintedMaterials[0];
@@ -13474,7 +13490,7 @@ end group
       const visual = template.clone(true);
       visual.name = `ATTACHED_WEAPON_MODEL_${attachment.slot}_${attachment.itemId}`;
       cloneGlbMaterials(visual);
-      applySolidTintToGlbObject(visual, attachedDef.tint);
+      applySolidTintToGlbObject(visual, attachedDef.tint, getDefinitionTintOpacity(attachedDef));
       applyGlbModelCorrection(visual, attachedDef.graphicScale);
       visual.traverse((obj) => {
         obj.userData.isAttachedWeapon = true;
@@ -13489,7 +13505,7 @@ end group
   function getGlbItemVisualSignature(it, graphic){
     const rawTypeId = String(it?.kv?.type_id || it?.typeId || "");
     const typeId = toDefIdFromMisTypeId(rawTypeId);
-    return [String(graphic || "").trim(), typeId, getItemTint(it), getAttachedWeaponSignature(typeId)].join("|");
+    return [String(graphic || "").trim(), typeId, getItemTint(it), getItemTintOpacity(it), getAttachedWeaponSignature(typeId)].join("|");
   }
 
   function disposeGlbInstanceMaterials(instance){
@@ -14210,7 +14226,7 @@ end group
           parentVisual.name = `ITEM_MODEL_${it.id}`;
           parentVisual.userData.isPrimaryItemVisual = true;
           cloneGlbMaterials(parentVisual);
-          applySolidTintToGlbObject(parentVisual, getItemTint(it));
+          applySolidTintToGlbObject(parentVisual, getItemTint(it), getItemTintOpacity(it));
           applyGlbModelCorrection(parentVisual, getItemGraphicScale(it));
           instance.add(parentVisual);
           applyWaypointColorToGlbObject(parentVisual, it);
