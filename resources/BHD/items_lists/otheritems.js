@@ -177,4 +177,5 @@ begin "CTflag Change Team Flag (PSP)"
 	editor_helper_size 8
 	tintteam 1
 	tint #00FF00
+	tint_opacity 65
 end
