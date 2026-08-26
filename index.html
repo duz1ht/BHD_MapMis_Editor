@@ -2561,18 +2561,6 @@ begin weapon_availability
   WPN_AT4             ALWAYS_ON
 end weapon_availability
 
-begin waypoint 125
-  description "Goto SSN"
-end waypoint
-
-begin waypoint 126
-  description "Goto Group"
-end waypoint
-
-begin waypoint 127
-  description "Goto Player"
-end waypoint
-
 begin group 1
   description "Blue Players"
 end group
@@ -3702,7 +3690,7 @@ end group
     return indexed;
   }
 
-  async function readTextFromEditorFolder(path){
+  async function readFileFromEditorFolder(path, resourceType = "resource"){
     if (!state.editorFolderHandle) return null;
     try{
       const parts = String(path || "").split("/").filter(Boolean);
@@ -3712,32 +3700,22 @@ end group
       }
       const fileHandle = await dir.getFileHandle(parts[parts.length - 1]);
       const file = await fileHandle.getFile();
-      const text = await file.text();
-      addLog(`Loaded resource via editor folder: ${path}`);
-      return text;
+      addLog(`Loaded ${resourceType} via editor folder: ${path}`);
+      return file;
     } catch (err){
-      addLog(`ERROR loading resource via editor folder: ${path} (${err?.message || "read failed"})`);
+      addLog(`ERROR loading ${resourceType} via editor folder: ${path} (${err?.message || "read failed"})`);
       return null;
     }
   }
 
+  async function readTextFromEditorFolder(path){
+    const file = await readFileFromEditorFolder(path, "text resource");
+    return file ? file.text() : null;
+  }
+
   async function readArrayBufferFromEditorFolder(path){
-    if (!state.editorFolderHandle) return null;
-    try{
-      const parts = String(path || "").split("/").filter(Boolean);
-      let dir = state.editorFolderHandle;
-      for (let i = 0; i < parts.length - 1; i++){
-        dir = await dir.getDirectoryHandle(parts[i]);
-      }
-      const fileHandle = await dir.getFileHandle(parts[parts.length - 1]);
-      const file = await fileHandle.getFile();
-      const buf = await file.arrayBuffer();
-      addLog(`Loaded binary resource via editor folder: ${path} (${buf.byteLength} bytes)`);
-      return buf;
-    } catch (err){
-      addLog(`ERROR loading binary via editor folder: ${path} (${err?.message || "read failed"})`);
-      return null;
-    }
+    const file = await readFileFromEditorFolder(path, "binary resource");
+    return file ? file.arrayBuffer() : null;
   }
 
   async function loadBinaryResource(path){
@@ -4640,7 +4618,7 @@ end group
     if (!state.editorFolderHandle) return null;
     try{
       let dir = state.editorFolderHandle;
-      for (const part of ["resources", "3d_items"]) dir = await dir.getDirectoryHandle(part);
+      for (const part of ["resources", "BHD", "3d_items"]) dir = await dir.getDirectoryHandle(part);
       const files = new Set();
       for await (const [fileName, handle] of dir.entries()){
         if (handle.kind === "file" && /\.glb$/i.test(fileName)) files.add(fileName.toLowerCase());
@@ -4676,6 +4654,10 @@ end group
   }
 
   function runHttpGlbChecks(){
+    if (state.isLocalRuntime){
+      state.glbCheckQueue.length = 0;
+      return;
+    }
     while (state.glbChecksActive < 4 && state.glbCheckQueue.length){
       const { filename, requestFilename, def } = state.glbCheckQueue.shift();
       state.glbChecksActive += 1;
@@ -5028,8 +5010,7 @@ end group
     const candidates = [];
     for (const n of getKnownWaypointIds()){
       const sec = getWaypointSectionByNumber(n);
-      const desc = getWaypointDescription(sec);
-      candidates.push({ id: String(n), label: `${n} - ${desc || `Waypoint ${n}`}` });
+      candidates.push({ id: String(n), label: getWaypointLabel(n, sec) });
     }
     ui.wpList.innerHTML = `<option value="">None</option>` + candidates.map(c => {
       return `<option value="${escapeHtml(c.id)}">${escapeHtml(c.label)}</option>`;
@@ -5342,15 +5323,11 @@ end group
     ];
 
     for (const path of candidates){
-      try {
-        const res = await fetch(path);
-        if (!res.ok) continue;
-        const value = parseTerrainWaterHeight(await res.text());
-        GENERAL_TERRAIN_WATER_HEIGHT.set(key, value);
-        return value;
-      } catch (_err) {
-        // ignore and keep trying paths
-      }
+      const text = await loadTextResource(path);
+      if (text === null) continue;
+      const value = parseTerrainWaterHeight(text);
+      GENERAL_TERRAIN_WATER_HEIGHT.set(key, value);
+      return value;
     }
 
     GENERAL_TERRAIN_WATER_HEIGHT.set(key, 0);
@@ -5709,6 +5686,36 @@ end group
   ];
   const AREA_TRIGGER_COLORS = WAYPOINT_COLORS.slice(0, 17);
   const AREA_TRIGGER_COLOR_HEX = WAYPOINT_COLOR_HEX.slice(0, 17);
+  const RESERVED_WAYPOINTS = Object.freeze({
+    125: "Goto SSN",
+    126: "Goto Group",
+    127: "Goto Player",
+  });
+
+  function getReservedWaypointDescription(waypointId){
+    return RESERVED_WAYPOINTS[Math.trunc(Number(waypointId))] || "";
+  }
+
+  function isReservedWaypoint(waypointId){
+    return !!getReservedWaypointDescription(waypointId);
+  }
+
+  function getWaypointDisplayDescription(waypointId, section = getWaypointSectionByNumber(waypointId)){
+    return getReservedWaypointDescription(waypointId) || getWaypointDescription(section);
+  }
+
+  function isWaypointUsed(waypointId, section = getWaypointSectionByNumber(waypointId)){
+    const id = Math.trunc(Number(waypointId));
+    if (!Number.isInteger(id) || id < 1 || id > 127) return false;
+    return !!section || (state.items || []).some(item => getItemWaypointId(item) === id);
+  }
+
+  function getWaypointLabel(waypointId, section = getWaypointSectionByNumber(waypointId)){
+    const id = Math.trunc(Number(waypointId));
+    const description = getWaypointDisplayDescription(id, section);
+    const displayName = description || (isWaypointUsed(id, section) ? `Waypoint ${id}` : "");
+    return `${id} -${displayName ? ` ${displayName}` : ""}`;
+  }
 
   function parseWaypointNumber(sec){
     if (!sec || sec.kind !== "waypoint") return null;
@@ -5724,7 +5731,7 @@ end group
   }
 
   function getKnownWaypointIds(){
-    const ids = new Set();
+    const ids = new Set(Object.keys(RESERVED_WAYPOINTS).map(Number));
     for (const sec of state.sectionBlocks || []){
       if (sec.kind !== "waypoint") continue;
       const waypointId = parseWaypointNumber(sec);
@@ -5753,7 +5760,9 @@ end group
       id,
       section,
       markers,
-      description: getWaypointDescription(section),
+      description: getWaypointDisplayDescription(id, section),
+      reserved: isReservedWaypoint(id),
+      used: isWaypointUsed(id, section),
       attrib: parseWaypointAttrib(section?.kv?.attrib || "0"),
       hasExplicitColor,
       colorIndex: hasExplicitColor ? configuredColor : (id - 1) % WAYPOINT_COLOR_HEX.length,
@@ -6114,8 +6123,7 @@ end group
     ];
     for (let n = 1; n <= 127; n++){
       const sec = getWaypointSectionByNumber(n);
-      const desc = getWaypointDescription(sec);
-      const label = `${n} - ${desc || ""}`;
+      const label = getWaypointLabel(n, sec);
       const count = itemCountByWaypoint.get(n) || 0;
       const checked = getWaypointVisibility(String(n)) ? "checked" : "";
       const hasDefinedColor = Object.prototype.hasOwnProperty.call(sec?.kv || {}, "color");
@@ -6479,11 +6487,16 @@ end group
     wpNoLoop.checked = model.attrib.noLoop;
     wpBlueTeam.checked = model.attrib.blue;
     wpRedTeam.checked = model.attrib.red;
+    [wpDesc, wpColor, wpNoLoop, wpBlueTeam, wpRedTeam].forEach((field) => {
+      field.disabled = model.reserved;
+      field.closest('.checkRow')?.classList.toggle('disabled', model.reserved);
+    });
     updateWaypointMarkerCount(model.markers.length);
   }
 
   function saveCurrentWaypoint(){
     const n = state.waypointSelectedNumber || 1;
+    if (isReservedWaypoint(n)) return;
     let sec = getWaypointSectionByNumber(n);
     const desc = String(wpDesc.value || "").trim();
     const colorVal = Number(wpColor.value || "0");
@@ -6881,8 +6894,7 @@ end group
     }
     if (sec.kind === "waypoint"){
       const n = parseWaypointNumber(sec) || sec.label || sec.id;
-      const desc = getWaypointDescription(sec);
-      return `${n} - ${desc || ""}`;
+      return getWaypointLabel(n, sec);
     }
     if (sec.kind === "weapon_availability"){
       const summary = formatWeaponLoadoutSummary(sec);
@@ -7308,12 +7320,10 @@ end group
     return `<label>${escapeHtml(label)}<select data-field="${field}">${options.join('')}</select></label>`;
   }
   function eventWaypointSelect(field,value,label){
-    const waypoints=getSectionsByKind("waypoint")
-      .map(sec=>({number:parseWaypointNumber(sec),description:getWaypointDescription(sec)}))
-      .filter(waypoint=>Number.isFinite(waypoint.number))
-      .sort((a,b)=>a.number-b.number);
+    const waypoints=getKnownWaypointIds()
+      .map(number=>({number,label:getWaypointLabel(number)}));
     const hasValue=value===0||waypoints.some(waypoint=>waypoint.number===value);
-    const options=[`<option value="0" ${value===0?'selected':''}>0 - None</option>`,...waypoints.map(waypoint=>`<option value="${waypoint.number}" ${waypoint.number===value?'selected':''}>${escapeHtml(`${waypoint.number} - ${waypoint.description||`Waypoint ${waypoint.number}`}`)}</option>`)];
+    const options=[`<option value="0" ${value===0?'selected':''}>0 - None</option>`,...waypoints.map(waypoint=>`<option value="${waypoint.number}" ${waypoint.number===value?'selected':''}>${escapeHtml(waypoint.label)}</option>`)];
     if(!hasValue) options.unshift(`<option value="${value}" selected>${escapeHtml(`${value} - Unknown (preserved)`)}</option>`);
     return `<label>${escapeHtml(label)}<select data-field="${field}">${options.join('')}</select></label>`;
   }
@@ -7798,7 +7808,7 @@ end group
       const cards = [];
       for (let n=1; n<=127; n++){
         const slot = getWaypointSlot(n);
-        const label = `${n} - ${slot.description || `Waypoint ${n}`}`;
+        const label = getWaypointLabel(n, slot.section);
         if (!q || label.toLowerCase().includes(q)) cards.push({ n, label });
       }
       sectionList.innerHTML = cards.map(c => `<div class="secCard ${state.waypointSelectedNumber===c.n?'active':''}" data-id="${c.n}">${escapeHtml(c.label)}</div>`).join("") || `<div class="hint">No waypoints.</div>`;
@@ -12488,7 +12498,6 @@ end group
     return { entries: out, stats };
   }
 
-
   async function loadGraphicTemplate(graphic){
     const key = String(graphic || "").trim();
     if (!key) return null;
@@ -12499,11 +12508,10 @@ end group
       const glbData = await loadBinaryResource(path);
       if (!glbData) throw new Error(`Failed to read GLB: ${path}`);
 
-      const basePath = path.slice(0, path.lastIndexOf("/") + 1);
       const gltf = state.glb.loader.parseAsync
-        ? await state.glb.loader.parseAsync(glbData, basePath)
+        ? await state.glb.loader.parseAsync(glbData, "")
         : await new Promise((resolve, reject) => {
-            state.glb.loader.parse(glbData, basePath, resolve, reject);
+            state.glb.loader.parse(glbData, "", resolve, reject);
           });
       const root = gltf.scene || gltf.scenes?.[0] || null;
       if (!root) return null;
@@ -15195,6 +15203,12 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
 
   const _origLoadMisFile = loadMisFile;
   loadMisFile = async function(file, fileHandle = null){
+    if (state.isLocalRuntime && !state.editorFolderHandle){
+      const message = "Set Editor Folder before opening a mission in local mode.";
+      addLog(`[local_resources] ${message}`);
+      statusEl.textContent = message;
+      return;
+    }
     await _origLoadMisFile(file, fileHandle);
     try{ await loadTerrainFromMis(); }catch(err){ addLog(`[terrain] load error: ${err?.message || err}`); camDebugEl.textContent = `Failed to load terrain: ${err.message||err}`; }
     await loadMapTilesForMission();
@@ -15234,15 +15248,12 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       addLog("ERROR: Failed to parse embedded ITEMS.DEF.");
     }
 
-    await preloadEnvironmentFiles();
-    await loadAiTextfileCatalog();
-
     if (state.isLocalRuntime){
-      addLog("Local runtime detected (file://). Waiting for 'Set Editor Folder'.");
-      statusEl.textContent = "Local mode detected: open File > Set Editor Folder to load catalogs.";
+      addLog("Local runtime detected (file://). Resource loading is paused until 'Set Editor Folder'.");
+      statusEl.textContent = "Local mode: open File > Set Editor Folder before loading maps and resources.";
       defStatusEl.textContent = "";
     } else {
-      await Promise.all([loadGameStrings(), loadWeaponDefs(), loadAttachedWeaponDefs(), loadWpNames()]);
+      await Promise.all([loadGameStrings(), loadWeaponDefs(), loadAttachedWeaponDefs(), loadWpNames(), loadAiTextfileCatalog(), preloadEnvironmentFiles()]);
     }
 
     const stringInfo = state.gameStrings.size
