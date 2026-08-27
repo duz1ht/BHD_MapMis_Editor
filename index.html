@@ -5013,6 +5013,32 @@ end group
     extra_val4:"0",extra_val5:"0",extra_valmode:"0",extra_bheight:"0",gen_string:"null"
   });
   const INSERTED_ITEM_QUOTED_KEYS=new Set(["name","iai_name","ai_textfile","extra_mlink","gen_string"]);
+  const MIS_ITEM_CANONICAL_KEY_ORDER=[
+    "type_id","name","iai_name","ai_textfile","id","position","facing","rot","team","map_symbol","group_id",
+    "wpdistance","wp_adv_trigger","fov","layer","obliqueness","waccuracy1","waccuracy2","perception2",
+    "perfectionist2","crouchtimer","shoottimer","attention","advancetimer","max_attack_distance","edistances",
+    "extra_mlink","extra_val1","extra_val2","extra_val3","extra_val4","extra_val5","extra_valmode","extra_bheight",
+    "gen_string","height_lock"
+  ];
+  const MIS_ITEM_CANONICAL_KEY_RANK=new Map(MIS_ITEM_CANONICAL_KEY_ORDER.map((key,index)=>[key,index]));
+
+  function removeItemKvLine(item,key){
+    delete item.kv[key];
+    const pattern=new RegExp(`^\\s*${key}\\b`,"i");
+    item.lines=(item.lines||[]).filter(raw=>!pattern.test(String(raw||"")));
+  }
+
+  function setCanonicalItemKvLine(item,key,value){
+    const normalizedKey=String(key).toLowerCase(),line=`  ${normalizedKey} ${value}`,pattern=new RegExp(`^\\s*${normalizedKey}\\b`,"i");
+    item.kv[normalizedKey]=String(value);
+    const lines=(item.lines||[]).filter(raw=>!pattern.test(String(raw||""))),targetRank=MIS_ITEM_CANONICAL_KEY_RANK.get(normalizedKey);
+    let insertAt=lines.length;
+    if(targetRank!==undefined)for(let i=0;i<lines.length;i++){
+      const match=String(lines[i]||"").trim().match(/^([A-Za-z0-9_]+)\b/),rank=match?MIS_ITEM_CANONICAL_KEY_RANK.get(match[1].toLowerCase()):undefined;
+      if(rank!==undefined&&rank>targetRank){insertAt=i;break;}
+    }
+    lines.splice(insertAt,0,line);item.lines=lines;
+  }
 
   function insertedItemDefinitionValue(def,key,fallback){
     const value=String(def?.kv?.[key]??"").trim();
@@ -8645,10 +8671,8 @@ end group
       }
     }
 
-    if (ui.layer.value === "0"){
-      delete it.kv.layer;
-      it.lines=(it.lines||[]).filter(raw=>!/^\s*layer\b/i.test(String(raw||"")));
-    }else it.kv.layer = ui.layer.value;
+    if (ui.layer.value === "0")removeItemKvLine(it,"layer");
+    else setCanonicalItemKvLine(it,"layer",ui.layer.value);
 
     if (kvHas(it, "position")){
       it.x = joinFixedPositionRaw(ui.posx.value, ui.posxFrac.value);
@@ -8664,8 +8688,8 @@ end group
       it.pitch = parseFloatSafe(ui.pitch.value);
       if (kvHas(it, "facing") || !kvHas(it, "rot")){
         const facingIsZero = Math.abs(it.heading) < 1e-9 && Math.abs(it.pitch) < 1e-9;
-        if (facingIsZero) delete it.kv.facing;
-        else it.kv.facing = `${it.heading} ${it.pitch}`;
+        if (facingIsZero) removeItemKvLine(it,"facing");
+        else setCanonicalItemKvLine(it,"facing",`${it.heading} ${it.pitch}`);
       } else {
         it.kv.rot = String(it.heading);
       }
@@ -14712,8 +14736,8 @@ end group
     if (!it) return;
     if (kvHas(it, "facing") || !kvHas(it, "rot")){
       const facingIsZero = Math.abs(Number(it.heading) || 0) < 1e-9 && Math.abs(Number(it.pitch) || 0) < 1e-9;
-      if (facingIsZero) delete it.kv.facing;
-      else it.kv.facing = `${it.heading} ${it.pitch}`;
+      if (facingIsZero) removeItemKvLine(it,"facing");
+      else setCanonicalItemKvLine(it,"facing",`${it.heading} ${it.pitch}`);
     } else it.kv.rot = String(it.heading);
   }
 
