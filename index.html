@@ -2733,10 +2733,9 @@ end group
       sourceFilename: "",
       atlasName: "",
       atlasImage: null,
-      overlayChunks: new Map(),
+      overlayTexture: null,
       borderLines: null,
       overlayResolution: 0,
-      overlayPixels: 0,
       paintedTiles: 0,
       lastBuildMs: 0,
       records: [],
@@ -10916,9 +10915,9 @@ end group
     if(state.mapTiles.pendingOverlayRebuild)cancelAnimationFrame(state.mapTiles.pendingOverlayRebuild);
     clearMapTileDragPreview(false);clearTileInsertCursorPreview();
     state.mapTiles.generation++;
-    disposeMapTileOverlayChunks();
+    state.mapTiles.overlayTexture?.dispose?.();
     disposeMapTileBorders();
-    Object.assign(state.mapTiles,{filename:"",sourceFilename:"",atlasName:"",atlasImage:null,overlayChunks:new Map(),borderLines:null,overlayResolution:0,overlayPixels:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:MAP_TILE_DEFAULT_SIZE,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,selectionOutlineCache:new Map(),dirty:false});
+    Object.assign(state.mapTiles,{filename:"",sourceFilename:"",atlasName:"",atlasImage:null,overlayTexture:null,borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:MAP_TILE_DEFAULT_SIZE,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,selectionOutlineCache:new Map(),dirty:false});
     state.tilOnlyItems=[];
     state.threeTerrain.dirty=true;
     state.collapsedTileGroups.clear();state.knownTileGroupIndices.clear();
@@ -11005,7 +11004,7 @@ end group
     const requested=String(atlasName||"").replace(/^"|"$/g,"").trim();
     const currentSize=Number(state.mapTiles.tileSize);
     if(!Number.isFinite(currentSize)||currentSize<=0||(!state.mapTiles.records.length&&currentSize===1))state.mapTiles.tileSize=MAP_TILE_DEFAULT_SIZE;
-    disposeMapTileOverlayChunks();disposeMapTileBorders();
+    state.mapTiles.overlayTexture?.dispose?.();state.mapTiles.overlayTexture=null;disposeMapTileBorders();
     state.mapTiles.atlasName="";state.mapTiles.atlasImage=null;state.mapTiles.error="";
     tileThumbnailAtlasSource=null;tileThumbnailAtlasCanvas=null;
     if(!requested){renderTilePalette();return false;}
@@ -11408,12 +11407,6 @@ end group
     lines.parent?.remove?.(lines);lines.geometry?.dispose?.();lines.material?.dispose?.();state.mapTiles.borderLines=null;
   }
 
-  function disposeMapTileOverlayChunks(){
-    for(const chunk of state.mapTiles.overlayChunks?.values?.()||[])chunk.texture?.dispose?.();
-    state.mapTiles.overlayChunks=new Map();
-    state.mapTiles.overlayResolution=0;state.mapTiles.overlayPixels=0;state.mapTiles.paintedTiles=0;
-  }
-
   function buildMapTileBorders(){
     disposeMapTileBorders();
     const THREE=state.glb.THREE,scene=state.glb.scene;
@@ -11446,13 +11439,23 @@ end group
 
   function buildMapTileOverlay(){
     const started=performance.now();
-    disposeMapTileOverlayChunks();
-    const img=state.mapTiles.atlasImage,THREE=state.glb.THREE,spanX=terrainSpanX(),spanY=terrainSpanY(),originX=originWorldX(),originY=originWorldY();
-    const shader=state.threeTerrain.material?.userData?.mapTileShader;if(shader)shader.uniforms.mapTileEnabled.value=0;
-    if(!img||!THREE||!state.mapTiles.records.length||spanX<=0||spanY<=0){buildMapTileBorders();requestRender();return;}
+    state.mapTiles.overlayTexture?.dispose?.();state.mapTiles.overlayTexture=null;state.mapTiles.overlayResolution=0;state.mapTiles.paintedTiles=0;
+    const img=state.mapTiles.atlasImage,THREE=state.glb.THREE,spanX=terrainSpanX(),spanY=terrainSpanY();
+    const updateTerrainUniform=()=>{
+      const shader=state.threeTerrain.material?.userData?.mapTileShader;if(!shader)return;
+      shader.uniforms.mapTileOverlay.value=state.mapTiles.overlayTexture;
+      shader.uniforms.mapTileBounds.value.set(originWorldX(),originWorldY(),spanX,spanY);
+      shader.uniforms.mapTileEnabled.value=state.mapTiles.overlayTexture?1:0;
+    };
+    if(!img||!THREE||!state.mapTiles.records.length||spanX<=0||spanY<=0){updateTerrainUniform();buildMapTileBorders();requestRender();return;}
     const cellW=Math.floor(img.w/8),cellH=Math.floor(img.h/8),tileSize=Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE;
-    const rendererLimit=Number(state.glb.renderer?.capabilities?.maxTextureSize)||4096;
-    const width=Math.max(1,Math.min(rendererLimit,Math.ceil(SECTOR_STRIDE*cellW/tileSize))),height=Math.max(1,Math.min(rendererLimit,Math.ceil(SECTOR_STRIDE*cellH/tileSize)));
+    const rendererLimit=Number(state.glb.renderer?.capabilities?.maxTextureSize)||4096,maxDimension=Math.max(1,Math.min(rendererLimit,4096));
+    const desiredDensity=Math.max(DEPTH_W/spanX,DEPTH_H/spanY,Math.min(cellW,cellH)/tileSize);
+    const scale=Math.min(1,maxDimension/Math.max(spanX*desiredDensity,spanY*desiredDensity));
+    const width=Math.max(1,Math.ceil(spanX*desiredDensity*scale)),height=Math.max(1,Math.ceil(spanY*desiredDensity*scale));
+    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+    const ctx=canvas.getContext('2d',{alpha:true});if(!ctx){updateTerrainUniform();buildMapTileBorders();return;}
+    ctx.clearRect(0,0,width,height);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
     const orientedCells=new Map();
     const orientedCell=(tileIndex,flags)=>{
       const orientation=Number(flags)&0x07,key=`${tileIndex}:${orientation}`;if(orientedCells.has(key))return orientedCells.get(key);
@@ -11467,36 +11470,21 @@ end group
       }
       cellCtx.putImageData(data,0,0);orientedCells.set(key,cell);return cell;
     };
-    const chunkCanvases=new Map();
-    const chunkFor=(gx,gy)=>{
-      const key=`${gx}:${gy}`;if(chunkCanvases.has(key))return chunkCanvases.get(key);
-      const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
-      const ctx=canvas.getContext('2d',{alpha:true});if(!ctx)return null;
-      ctx.clearRect(0,0,width,height);ctx.imageSmoothingEnabled=false;
-      const left=originX+gx*SECTOR_STRIDE,bottom=originY+gy*SECTOR_STRIDE,chunk={key,gx,gy,left,bottom,width,height,canvas,ctx};chunkCanvases.set(key,chunk);return chunk;
-    };
     let painted=0;
     for(const {item,record,footprint} of mapTileRenderEntries()){
       if(item&&state.mapTiles.dragPreviewIds.has(item.id))continue;
       const tileIndex=Number(record.tileIndex);if(!Number.isInteger(tileIndex)||tileIndex<0||tileIndex>255)continue;
       const cell=orientedCell(tileIndex,record.flags);if(!cell)continue;
-      const gx0=Math.max(0,Math.floor((footprint.left-originX)/SECTOR_STRIDE)),gx1=Math.min(sectorCount-1,Math.floor((footprint.right-originX-1e-9)/SECTOR_STRIDE));
-      const gy0=Math.max(0,Math.floor((footprint.bottom-originY)/SECTOR_STRIDE)),gy1=Math.min(sectorCount-1,Math.floor((footprint.top-originY-1e-9)/SECTOR_STRIDE));
-      if(gx1<gx0||gy1<gy0)continue;
-      for(let gy=gy0;gy<=gy1;gy++)for(let gx=gx0;gx<=gx1;gx++){
-        const chunk=chunkFor(gx,gy);if(!chunk)continue;
-        const dx=(footprint.left-chunk.left)/SECTOR_STRIDE*width,dy=(chunk.bottom+SECTOR_STRIDE-footprint.top)/SECTOR_STRIDE*height,dw=footprint.size/SECTOR_STRIDE*width,dh=footprint.size/SECTOR_STRIDE*height;
-        chunk.ctx.drawImage(cell,dx,dy,dw,dh);
-      }
+      const dx=(footprint.left-originWorldX())/spanX*width,dy=(originWorldY()+spanY-footprint.top)/spanY*height,dw=footprint.size/spanX*width,dh=footprint.size/spanY*height;
+      ctx.drawImage(cell,dx,dy,dw,dh);
       painted++;
     }
-    for(const chunk of chunkCanvases.values()){
-      const texture=new THREE.CanvasTexture(chunk.canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.wrapS=THREE.ClampToEdgeWrapping;texture.wrapT=THREE.ClampToEdgeWrapping;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;texture.needsUpdate=true;
-      state.mapTiles.overlayChunks.set(chunk.key,{texture,gx:chunk.gx,gy:chunk.gy,left:chunk.left,bottom:chunk.bottom,width:SECTOR_STRIDE,height:SECTOR_STRIDE,pixelWidth:width,pixelHeight:height});
+    if(painted){
+      const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.wrapS=THREE.ClampToEdgeWrapping;texture.wrapT=THREE.ClampToEdgeWrapping;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;texture.needsUpdate=true;state.mapTiles.overlayTexture=texture;
     }
-    state.mapTiles.overlayResolution=Math.max(width,height);state.mapTiles.overlayPixels=chunkCanvases.size*width*height;state.mapTiles.paintedTiles=painted;state.mapTiles.lastBuildMs=performance.now()-started;
+    state.mapTiles.overlayResolution=Math.max(width,height);state.mapTiles.paintedTiles=painted;state.mapTiles.lastBuildMs=performance.now()-started;updateTerrainUniform();
     buildMapTileBorders();
-    addLog(`[map_tiles] terrain overlays rebuilt: tiles=${painted}, chunks=${chunkCanvases.size}, chunk=${width}x${height}, pixels=${state.mapTiles.overlayPixels}, time=${state.mapTiles.lastBuildMs.toFixed(2)}ms`);
+    addLog(`[map_tiles] terrain overlay rebuilt: tiles=${painted}, texture=${width}x${height}, time=${state.mapTiles.lastBuildMs.toFixed(2)}ms`);
   }
 
   function scheduleMapTileOverlayRebuild(){
@@ -11931,7 +11919,7 @@ end group
     if (!terrain.scene){
       terrain.scene = new THREE.Scene();
     }
-    if(state.mapTiles.atlasImage&&!state.mapTiles.overlayChunks.size&&!state.mapTiles.dragPreviewIds.size)buildMapTileOverlay();
+    if(state.mapTiles.atlasImage&&!state.mapTiles.overlayTexture&&!state.mapTiles.dragPreviewIds.size)buildMapTileOverlay();
     for (const mesh of terrain.visibleTileMap.values()) terrain.scene.remove(mesh);
     terrain.visibleTileMap.clear();
     terrain.meshPool.length = 0;
@@ -11998,10 +11986,9 @@ end group
         depthWrite: true,
       });
       terrain.material.onBeforeCompile=(shader)=>{
-        const chunk=terrain.material.userData.pendingMapTileChunk;
-        shader.uniforms.mapTileOverlay={value:chunk?.texture||null};
-        shader.uniforms.mapTileBounds={value:new THREE.Vector4(chunk?.left||0,chunk?.bottom||0,chunk?.width||1,chunk?.height||1)};
-        shader.uniforms.mapTileEnabled={value:chunk?.texture?1:0};
+        shader.uniforms.mapTileOverlay={value:state.mapTiles.overlayTexture};
+        shader.uniforms.mapTileBounds={value:new THREE.Vector4(originWorldX(),originWorldY(),terrainSpanX(),terrainSpanY())};
+        shader.uniforms.mapTileEnabled={value:0};
         shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vMapTileWorld;').replace('#include <begin_vertex>','#include <begin_vertex>\nvMapTileWorld=(modelMatrix*vec4(transformed,1.0)).xyz;');
         shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D mapTileOverlay;\nuniform vec4 mapTileBounds;\nuniform float mapTileEnabled;\nvarying vec3 vMapTileWorld;').replace('#include <map_fragment>',`#include <map_fragment>
           if(mapTileEnabled>0.5){
@@ -12018,7 +12005,9 @@ end group
     terrain.material.map = getThreeTerrainTextureByMode();
     const tileShader=terrain.material.userData.mapTileShader;
     if(tileShader){
-      tileShader.uniforms.mapTileEnabled.value=0;
+      tileShader.uniforms.mapTileOverlay.value=state.mapTiles.overlayTexture;
+      tileShader.uniforms.mapTileBounds.value.set(originWorldX(),originWorldY(),terrainSpanX(),terrainSpanY());
+      tileShader.uniforms.mapTileEnabled.value=state.mapTiles.overlayTexture?1:0;
     }
     terrain.material.needsUpdate = true;
     terrain.ready = true;
@@ -12069,7 +12058,7 @@ end group
     const nextKeys = new Set();
     terrain.material.map = getThreeTerrainTextureByMode();
     const tileShader=terrain.material.userData.mapTileShader;
-    if(tileShader)tileShader.uniforms.mapTileEnabled.value=0;
+    if(tileShader)tileShader.uniforms.mapTileEnabled.value=state.mapTiles.overlayTexture?1:0;
 
     for (const tile of vis.visibleTiles){
       const meshKey = `${tile.gx}:${tile.gy}:${tile.lodLevel}:${tile.sectorIndex}`;
@@ -12089,15 +12078,6 @@ end group
       mesh.scale.set(1,1,1);
       mesh.matrixAutoUpdate = true;
       mesh.visible = true;
-      mesh.userData.mapTileChunkKey=`${tile.gx}:${tile.gy}`;
-      mesh.onBeforeRender=()=>{
-        const chunk=state.mapTiles.overlayChunks.get(mesh.userData.mapTileChunkKey)||null;
-        terrain.material.userData.pendingMapTileChunk=chunk;
-        const activeShader=terrain.material.userData.mapTileShader;if(!activeShader)return;
-        activeShader.uniforms.mapTileOverlay.value=chunk?.texture||null;
-        if(chunk)activeShader.uniforms.mapTileBounds.value.set(chunk.left,chunk.bottom,chunk.width,chunk.height);
-        activeShader.uniforms.mapTileEnabled.value=chunk?.texture?1:0;
-      };
     }
 
     for (const [key, mesh] of Array.from(terrain.visibleTileMap.entries())){
@@ -15173,7 +15153,7 @@ Top view lock: ${topViewLocked?'on':'off'}
 Top view span: ${topViewLocked?(topViewScale*2).toFixed(2):'-'}
 Draw calls: ${drawCalls}
 Terrain cull (frustum/back): ${state.terrainPerf?.culledFrustum ?? '-'} / ${state.terrainPerf?.culledBackface ?? '-'}
-MapTile paint: ${state.mapTiles.paintedTiles} tiles, ${state.mapTiles.overlayChunks.size} chunks, ${state.mapTiles.overlayResolution || '-'}px/chunk, ${state.mapTiles.overlayPixels.toLocaleString()} total pixels (${state.mapTiles.lastBuildMs.toFixed(2)} ms)
+MapTile paint: ${state.mapTiles.paintedTiles} tiles, ${state.mapTiles.overlayResolution || '-'}px (${state.mapTiles.lastBuildMs.toFixed(2)} ms)
 GLB instances: ${state.glb.itemInstances.size}
 GLB batches/transparent/items/meshes: ${state.glb.batchStats.batches} / ${state.glb.batchStats.transparentBatches} / ${state.glb.batchStats.items} / ${state.glb.batchStats.meshes}
 GLB CPU: transforms=${(state.renderDiagnostics.glbMs.transforms||0).toFixed(2)} arrows=${(state.renderDiagnostics.glbMs.arrows||0).toFixed(2)} circles=${(state.renderDiagnostics.glbMs.circles||0).toFixed(2)} areas=${(state.renderDiagnostics.glbMs.areas||0).toFixed(2)} selection=${(state.renderDiagnostics.glbMs.selection||0).toFixed(2)} submit=${(state.renderDiagnostics.glbMs.submit||0).toFixed(2)}
