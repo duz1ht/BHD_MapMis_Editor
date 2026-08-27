@@ -8964,6 +8964,27 @@ end group
     return copy;
   }
 
+  function createIndependentMapTileRecord(sourceItem, copiedItem){
+    if(!isMapTileItem(sourceItem)||!isMapTileItem(copiedItem))return null;
+    const sourceRecord=mapTileRecordForItem(sourceItem);
+    if(!sourceRecord)return null;
+    const recordIndex=state.mapTiles.records.length;
+    const record={
+      ...structuredClone(sourceRecord),
+      x:dfbhdmedTilCoordinate(Number(sourceRecord.x)+(Number(copiedItem.x)-Number(sourceItem.x))),
+      y:dfbhdmedTilCoordinate(Number(sourceRecord.y)+(Number(copiedItem.y)-Number(sourceItem.y))),
+      recordIndex
+    };
+    state.mapTiles.records.push(record);
+    state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);
+    state.mapTiles.dirty=true;
+    setItemKvLine(copiedItem,"extra_val2",recordIndex);
+    setItemKvLine(copiedItem,"extra_val1",record.flags);
+    const section=getItemSectionByStartFast(copiedItem.start);
+    if(section){section.kv={...copiedItem.kv};section.lines=copiedItem.lines.slice();}
+    return record;
+  }
+
   function createCanonicalMapTileItem(tileIndex,recordIndex,flags,centerX,centerY){
     const editorId=state.items.length?Math.max(...state.items.map(item=>item.id))+1:1;
     const blockNumber=getNextBeginItemNumber(),misId=getNextMisItemId();
@@ -9080,6 +9101,7 @@ end group
         selectCreated: false,
         refresh: false
       });
+      createIndependentMapTileRecord(entry.item,pasted);
       pastedItems.push(pasted);
     }
     if(pastedItems.some(it=>it._pendingTilRecordIndex!==undefined)){
@@ -9132,6 +9154,7 @@ end group
     }
     const sec = getItemSectionByStartFast(it.start);
     const copy = createPastedItemFrom(it, sec || null, { offset: true });
+    createIndependentMapTileRecord(it,copy);
     markItemsChanged({ structure: true });
     if(isMapTileItem(copy))scheduleMapTileOverlayRebuild();
     statusEl.textContent = `Duplicado: #${it.id} -> #${copy.id}`;
