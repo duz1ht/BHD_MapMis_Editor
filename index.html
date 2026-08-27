@@ -11433,25 +11433,6 @@ end group
     }
   }
 
-  function buildMapTileCoverageMipmaps(canvas){
-    const levels=[canvas];let sourceCanvas=canvas,sourceWidth=canvas.width,sourceHeight=canvas.height;
-    while(sourceWidth>1||sourceHeight>1){
-      const width=Math.max(1,sourceWidth>>1),height=Math.max(1,sourceHeight>>1),sourceCtx=sourceCanvas.getContext('2d',{willReadFrequently:true});if(!sourceCtx)break;
-      const source=sourceCtx.getImageData(0,0,sourceWidth,sourceHeight),level=document.createElement('canvas');level.width=width;level.height=height;
-      const ctx=level.getContext('2d'),output=ctx?.createImageData(width,height);if(!ctx||!output)break;
-      for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-        let best=-1,bestAlpha=-1;
-        for(let oy=0;oy<2;oy++)for(let ox=0;ox<2;ox++){
-          const sx=Math.min(sourceWidth-1,x*2+ox),sy=Math.min(sourceHeight-1,y*2+oy),offset=(sy*sourceWidth+sx)*4,alpha=source.data[offset+3];
-          if(alpha>bestAlpha){bestAlpha=alpha;best=offset;}
-        }
-        const dst=(y*width+x)*4;output.data[dst]=source.data[best];output.data[dst+1]=source.data[best+1];output.data[dst+2]=source.data[best+2];output.data[dst+3]=source.data[best+3];
-      }
-      ctx.putImageData(output,0,0);levels.push(level);sourceCanvas=level;sourceWidth=width;sourceHeight=height;
-    }
-    return levels;
-  }
-
   function buildMapTileBorders(){
     disposeMapTileBorders();
     const THREE=state.glb.THREE,scene=state.glb.scene;
@@ -11532,7 +11513,7 @@ end group
     const mipmapsSupported=!!state.glb.renderer?.capabilities?.isWebGL2||(isPowerOfTwo(width)&&isPowerOfTwo(height));
     const maxAnisotropy=Number(state.glb.renderer?.capabilities?.getMaxAnisotropy?.())||1,anisotropy=Math.max(1,Math.min(8,maxAnisotropy));
     for(const chunk of chunkCanvases.values()){
-      const texture=new THREE.CanvasTexture(chunk.canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.wrapS=THREE.ClampToEdgeWrapping;texture.wrapT=THREE.ClampToEdgeWrapping;texture.minFilter=mipmapsSupported?THREE.LinearMipmapLinearFilter:THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=false;if(mipmapsSupported)texture.mipmaps=buildMapTileCoverageMipmaps(chunk.canvas);texture.anisotropy=anisotropy;texture.needsUpdate=true;
+      const texture=new THREE.CanvasTexture(chunk.canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.wrapS=THREE.ClampToEdgeWrapping;texture.wrapT=THREE.ClampToEdgeWrapping;texture.minFilter=mipmapsSupported?THREE.LinearMipmapLinearFilter:THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;texture.generateMipmaps=mipmapsSupported;texture.anisotropy=anisotropy;texture.needsUpdate=true;
       state.mapTiles.overlayChunks.set(chunk.key,{texture,gx:chunk.gx,gy:chunk.gy,left:chunk.left,bottom:chunk.bottom,width:SECTOR_STRIDE,height:SECTOR_STRIDE,pixelWidth:width,pixelHeight:height});
     }
     state.mapTiles.overlayResolution=Math.max(width,height);state.mapTiles.overlayPixels=chunkCanvases.size*width*height;state.mapTiles.overlayMipmaps=mipmapsSupported;state.mapTiles.overlayAnisotropy=anisotropy;state.mapTiles.paintedTiles=painted;state.mapTiles.lastBuildMs=performance.now()-started;
