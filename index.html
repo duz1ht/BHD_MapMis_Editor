@@ -9135,14 +9135,17 @@ end group
 
   function pasteCopiedMapTilesImmediately(){
     if(!state.itemClipboardItems.length||!state.itemClipboardItems.every(entry=>isMapTileItem(entry.item)))return false;
-    const pastedItems=[],size=Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE;
+    let pastedItems=[];
+    const size=Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE,rawTileStep=worldToRaw(size,"x");
     beginUndoTransaction();
     try{
       for(const entry of state.itemClipboardItems){
         if(isTilOnlyMapTile(entry.item)){
           const source=mapTileRecordForItem(entry.item);
           if(!source)continue;
-          const record={...structuredClone(source),x:dfbhdmedTilCoordinate(Number(source.x)+worldToRaw(size,"x")),recordIndex:state.mapTiles.records.length};
+          let x=dfbhdmedTilCoordinate(Number(source.x)+rawTileStep),y=Number(source.y);
+          while(state.mapTiles.byPosition.has(mapTilePositionKey(x,y)))x=dfbhdmedTilCoordinate(x+rawTileStep);
+          const record={...structuredClone(source),x,y,recordIndex:state.mapTiles.records.length};
           state.mapTiles.records.push(record);
           state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);
           state.mapTiles.dirty=true;
@@ -9162,14 +9165,16 @@ end group
         rebuildTilOnlyItems();
         for(let i=0;i<pastedItems.length;i++)if(pastedItems[i]._pendingTilRecordIndex!==undefined)pastedItems[i]=getItemByIdFast(`til-record:${pastedItems[i]._pendingTilRecordIndex}`);
       }
+      pastedItems=pastedItems.filter(Boolean);
       if(!pastedItems.length){statusEl.textContent="Unable to paste the copied tiles.";return true;}
       markItemsChanged({structure:true});
       state.selectedId=pastedItems.at(-1)?.id??null;
       state.multiSelectedIds=new Set(pastedItems.map(item=>item.id));
       state.selectedWaypointMarkerIds.clear();
       updateWaypointMarkerCount(0);
-      scheduleMapTileOverlayRebuild();
-      renderList();renderItemWindow();renderTileInstances();scheduleLiveMisRefresh();requestRender();
+      if(state.mapTiles.pendingOverlayRebuild){cancelAnimationFrame(state.mapTiles.pendingOverlayRebuild);state.mapTiles.pendingOverlayRebuild=0;}
+      buildMapTileOverlay();
+      renderList();renderTileInstances();renderItemWindow();updateItemGizmo();scheduleLiveMisRefresh();requestRender();
       statusEl.textContent=pastedItems.length===1
         ? `Pasted independent tile #${pastedItems[0].id}.`
         : `Pasted ${pastedItems.length} independent tiles.`;
