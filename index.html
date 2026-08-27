@@ -12033,7 +12033,11 @@ end group
       terrain.material.onBeforeCompile=(shader)=>{
         shader.uniforms.mapTileOverlay={value:state.mapTiles.overlayTexture};
         shader.uniforms.mapTileBounds={value:new THREE.Vector4(originWorldX(),originWorldY(),terrainSpanX(),terrainSpanY())};
-        shader.uniforms.mapTileEnabled={value:0};
+        // The overlay may already have been built before Three compiles this
+        // material (for example, immediately after inserting or pasting a
+        // tile). Seed the compiled shader from the current texture instead of
+        // disabling it until a later overlay rebuild happens.
+        shader.uniforms.mapTileEnabled={value:state.mapTiles.overlayTexture?1:0};
         shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vMapTileWorld;').replace('#include <begin_vertex>','#include <begin_vertex>\nvMapTileWorld=(modelMatrix*vec4(transformed,1.0)).xyz;');
         shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D mapTileOverlay;\nuniform vec4 mapTileBounds;\nuniform float mapTileEnabled;\nvarying vec3 vMapTileWorld;').replace('#include <map_fragment>',`#include <map_fragment>
           if(mapTileEnabled>0.5){
