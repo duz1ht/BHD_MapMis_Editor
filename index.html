@@ -9149,7 +9149,7 @@ end group
           state.mapTiles.records.push(record);
           state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);
           state.mapTiles.dirty=true;
-          pastedItems.push({_pendingTilRecordIndex:record.recordIndex});
+          pastedItems.push({_pendingTilRecord:record});
           continue;
         }
         const pasted=createPastedItemFrom(entry.item,entry.section,{
@@ -9161,9 +9161,12 @@ end group
         createIndependentMapTileRecord(entry.item,pasted);
         pastedItems.push(pasted);
       }
-      if(pastedItems.some(item=>item._pendingTilRecordIndex!==undefined)){
+      if(pastedItems.some(item=>item._pendingTilRecord)){
         rebuildTilOnlyItems();
-        for(let i=0;i<pastedItems.length;i++)if(pastedItems[i]._pendingTilRecordIndex!==undefined)pastedItems[i]=getItemByIdFast(`til-record:${pastedItems[i]._pendingTilRecordIndex}`);
+        for(let i=0;i<pastedItems.length;i++){
+          const record=pastedItems[i]._pendingTilRecord;
+          if(record)pastedItems[i]=state.tilOnlyItems.find(item=>mapTileRecordForItem(item)===record)||null;
+        }
       }
       pastedItems=pastedItems.filter(Boolean);
       if(!pastedItems.length){statusEl.textContent="Unable to paste the copied tiles.";return true;}
