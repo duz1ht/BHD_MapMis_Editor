@@ -5006,6 +5006,40 @@ end group
     insertPreviewLabel.style.display = "block";
   }
 
+  const DEFAULT_INSERTED_ITEM_KV=Object.freeze({
+    iai_name:"",ai_textfile:"",wpdistance:"10",fov:"180",obliqueness:"15",waccuracy1:"100",waccuracy2:"100",
+    perception2:"100",perfectionist2:"100",crouchtimer:"3",shoottimer:"5",attention:"30",advancetimer:"10",
+    max_attack_distance:"16",edistances:"16 320",extra_mlink:"",extra_val1:"0",extra_val2:"0",extra_val3:"0",
+    extra_val4:"0",extra_val5:"0",extra_valmode:"0",extra_bheight:"0",gen_string:"null"
+  });
+  const INSERTED_ITEM_QUOTED_KEYS=new Set(["name","iai_name","ai_textfile","extra_mlink","gen_string"]);
+
+  function insertedItemDefinitionValue(def,key,fallback){
+    const value=String(def?.kv?.[key]??"").trim();
+    return value||fallback;
+  }
+
+  function buildInsertedItemKv(def,{misId,x,y,z,heading,pitch=0}){
+    const aiTextfile=insertedItemDefinitionValue(def,"default_aip",DEFAULT_INSERTED_ITEM_KV.ai_textfile);
+    const maxAttack=insertedItemDefinitionValue(def,"max_attack_dist",DEFAULT_INSERTED_ITEM_KV.max_attack_distance);
+    const [defaultMinEngage,defaultMaxEngage]=DEFAULT_INSERTED_ITEM_KV.edistances.split(" ");
+    const minEngage=insertedItemDefinitionValue(def,"min_engagement_dist",defaultMinEngage);
+    const maxEngage=insertedItemDefinitionValue(def,"max_engagement_dist",defaultMaxEngage);
+    const attribTokens=(def?.attrib||[]).flatMap(value=>String(value).toLowerCase().split(/\s+/)).filter(Boolean);
+    const kv={
+      type_id:String(toMisTypeIdFromDefId(def.id)),name:String(def.name||""),iai_name:DEFAULT_INSERTED_ITEM_KV.iai_name,
+      ai_textfile:aiTextfile,id:String(misId),position:`${x} ${y} ${z}`
+    };
+    if(Math.abs(Number(heading)||0)>1e-9||Math.abs(Number(pitch)||0)>1e-9)kv.facing=`${heading} ${pitch}`;
+    if(attribTokens.includes("good"))kv.team="1";
+    Object.assign(kv,DEFAULT_INSERTED_ITEM_KV,{ai_textfile:aiTextfile,max_attack_distance:maxAttack,edistances:`${minEngage} ${maxEngage}`});
+    return kv;
+  }
+
+  function insertedItemKvLines(kv){
+    return Object.entries(kv).map(([key,value])=>`  ${key} ${INSERTED_ITEM_QUOTED_KEYS.has(key)?quoteMisString(value):value}`);
+  }
+
   function createInsertedItem(def, world){
     const editorId = state.items.length ? Math.max(...state.items.map(item => item.id)) + 1 : 1;
     const blockNumber = getNextBeginItemNumber();
@@ -5014,12 +5048,8 @@ end group
     const z = worldToRaw(Number.isFinite(terrainZ) && terrainZ > -1e8 ? terrainZ : (world.z || 0), "z");
     const x = worldToRaw(world.x, "x"), y = worldToRaw(world.y, "y");
     const heading = state.insertRandomFacing ? Math.floor(Math.random() * 360) : 0;
-    const kv = {
-      type_id: toMisTypeIdFromDefId(def.id), name: quoteMisString(def.name), id: String(misId),
-      position: `${x} ${y} ${z}`, facing: `${heading} 0`, layer: "0"
-    };
-    if (Number(def.drawCircle) === 1) kv.wpdistance = "20";
-    const lines = Object.entries(kv).map(([key, value]) => `  ${key} ${value}`);
+    const kv=buildInsertedItemKv(def,{misId,x,y,z,heading,pitch:0});
+    const lines=insertedItemKvLines(kv);
     const start = Number.MAX_SAFE_INTEGER - (state.sectionBlocks.reduce((max, sec) => Math.max(max, sec.id), 0) + 1);
     const beginLine = `begin item ${blockNumber}`;
     const item = { id: editorId, start, end: start, beginLine, lines: lines.slice(), kv: { ...kv }, x, y, z, heading, pitch: 0 };
@@ -8443,8 +8473,8 @@ end group
     ui.presenceHint.textContent = "";
 
     buildLayerOptions();
-    setEnabled(ui.layer, kvHas(it, "layer"));
-    if (kvHas(it, "layer")) ui.layer.value = String(it.kv.layer);
+    setEnabled(ui.layer, true);
+    ui.layer.value = kvHas(it, "layer") ? String(it.kv.layer) : "0";
 
     // Sub-Type
     // If DEF is loaded and item has type_id, allow selecting and update type_id + name
@@ -8615,7 +8645,10 @@ end group
       }
     }
 
-    if (kvHas(it, "layer")) it.kv.layer = ui.layer.value;
+    if (ui.layer.value === "0"){
+      delete it.kv.layer;
+      it.lines=(it.lines||[]).filter(raw=>!/^\s*layer\b/i.test(String(raw||"")));
+    }else it.kv.layer = ui.layer.value;
 
     if (kvHas(it, "position")){
       it.x = joinFixedPositionRaw(ui.posx.value, ui.posxFrac.value);
