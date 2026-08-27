@@ -8968,6 +8968,7 @@ end group
     const sourceRecord=mapTileRecordForItem(sourceItem);
     if(!sourceRecord)return null;
     const recordIndex=state.mapTiles.records.length;
+    reserveAppendedTilRecordIndex(recordIndex);
     const record={
       ...structuredClone(sourceRecord),
       x:dfbhdmedTilCoordinate(Number(sourceRecord.x)+(Number(copiedItem.x)-Number(sourceItem.x))),
@@ -8982,6 +8983,22 @@ end group
     const section=getItemSectionByStartFast(copiedItem.start);
     if(section){section.kv={...copiedItem.kv};section.lines=copiedItem.lines.slice();}
     return record;
+  }
+
+  function reserveAppendedTilRecordIndex(recordIndex){
+    // A malformed or mismatched MIS can contain MapTiles that point past the
+    // end of the loaded TIL. Appending at the first missing index would make
+    // the new record look referenced by one of those items, so it would not be
+    // rebuilt as a selectable TIL-only item. Keep dangling references dangling
+    // by shifting them above the index that is about to be appended.
+    for(const item of state.items){
+      if(!isMapTileItem(item))continue;
+      const oldIndex=Math.trunc(Number(item.kv?.extra_val2));
+      if(!Number.isInteger(oldIndex)||oldIndex<recordIndex)continue;
+      setItemKvLine(item,"extra_val2",oldIndex+1);
+      const section=getItemSectionByStartFast(item.start);
+      if(section){section.kv={...item.kv};section.lines=item.lines.slice();}
+    }
   }
 
   function createCanonicalMapTileItem(tileIndex,recordIndex,flags,centerX,centerY){
@@ -9094,7 +9111,7 @@ end group
     for (const entry of state.itemClipboardItems){
       if(isTilOnlyMapTile(entry.item)){
         const source=state.mapTiles.records[Math.trunc(Number(entry.item.kv?.extra_val2))];if(!source)continue;
-        const half=(Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE)*.5,record={...structuredClone(source),x:worldToRaw(world.x+entry.dx-half,"x"),y:worldToRaw(world.y+entry.dy+half,"y"),recordIndex:state.mapTiles.records.length};
+        const half=(Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE)*.5,recordIndex=state.mapTiles.records.length;reserveAppendedTilRecordIndex(recordIndex);const record={...structuredClone(source),x:worldToRaw(world.x+entry.dx-half,"x"),y:worldToRaw(world.y+entry.dy+half,"y"),recordIndex};
         state.mapTiles.records.push(record);state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);state.mapTiles.dirty=true;
         pastedItems.push({_pendingTilRecordIndex:record.recordIndex});continue;
       }
@@ -9145,7 +9162,9 @@ end group
           if(!source)continue;
           let x=dfbhdmedTilCoordinate(Number(source.x)+rawTileStep),y=Number(source.y);
           while(state.mapTiles.byPosition.has(mapTilePositionKey(x,y)))x=dfbhdmedTilCoordinate(x+rawTileStep);
-          const record={...structuredClone(source),x,y,recordIndex:state.mapTiles.records.length};
+          const recordIndex=state.mapTiles.records.length;
+          reserveAppendedTilRecordIndex(recordIndex);
+          const record={...structuredClone(source),x,y,recordIndex};
           state.mapTiles.records.push(record);
           state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);
           state.mapTiles.dirty=true;
@@ -9204,7 +9223,7 @@ end group
     if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be duplicated.";return;}
     if(isTilOnlyMapTile(it)){
       const source=mapTileRecordForItem(it);if(!source)return;
-      const offset=worldToRaw(Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE,"x"),record={...structuredClone(source),x:source.x+offset,recordIndex:state.mapTiles.records.length};
+      const offset=worldToRaw(Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE,"x"),recordIndex=state.mapTiles.records.length;reserveAppendedTilRecordIndex(recordIndex);const record={...structuredClone(source),x:source.x+offset,recordIndex};
       state.mapTiles.records.push(record);state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);state.mapTiles.dirty=true;rebuildTilOnlyItems();
       selectById(`til-record:${record.recordIndex}`);scheduleUndoCapture();buildMapTileOverlay();renderTileInstances();statusEl.textContent=`Duplicated TIL record ${source.recordIndex+1}.`;return;
     }
@@ -11305,7 +11324,7 @@ end group
     beginUndoTransaction();
     try{
       const canonicalCenterX=rawToWorld(dfbhdmedTilCoordinate(worldToRaw(centerX,"x")),"x"),canonicalCenterY=rawToWorld(dfbhdmedTilCoordinate(worldToRaw(centerY,"y")),"y");
-      const recordIndex=state.mapTiles.records.length,record={x:dfbhdmedTilCoordinate(worldToRaw(canonicalCenterX-size*.5,"x")),y:dfbhdmedTilCoordinate(worldToRaw(canonicalCenterY+size*.5,"y")),tileIndex,flags:state.tileInsertFlags,reserved:0,recordIndex};
+      const recordIndex=state.mapTiles.records.length;reserveAppendedTilRecordIndex(recordIndex);const record={x:dfbhdmedTilCoordinate(worldToRaw(canonicalCenterX-size*.5,"x")),y:dfbhdmedTilCoordinate(worldToRaw(canonicalCenterY+size*.5,"y")),tileIndex,flags:state.tileInsertFlags,reserved:0,recordIndex};
       state.mapTiles.records.push(record);state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);state.mapTiles.dirty=true;
       createCanonicalMapTileItem(tileIndex,recordIndex,state.tileInsertFlags,canonicalCenterX,canonicalCenterY);
       markItemsChanged({structure:true});buildMapTileOverlay();renderList();renderItemWindow();scheduleLiveMisRefresh();syncGlbItems();requestRender();
