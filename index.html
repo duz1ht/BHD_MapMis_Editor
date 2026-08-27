@@ -9129,11 +9129,56 @@ end group
       : `Colados: ${pastedItems.length} itens`;
   }
 
+  function pasteCopiedMapTilesImmediately(){
+    if(!state.itemClipboardItems.length||!state.itemClipboardItems.every(entry=>isMapTileItem(entry.item)))return false;
+    const pastedItems=[],size=Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE;
+    beginUndoTransaction();
+    try{
+      for(const entry of state.itemClipboardItems){
+        if(isTilOnlyMapTile(entry.item)){
+          const source=mapTileRecordForItem(entry.item);
+          if(!source)continue;
+          const record={...structuredClone(source),x:dfbhdmedTilCoordinate(Number(source.x)+worldToRaw(size,"x")),recordIndex:state.mapTiles.records.length};
+          state.mapTiles.records.push(record);
+          state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);
+          state.mapTiles.dirty=true;
+          pastedItems.push({_pendingTilRecordIndex:record.recordIndex});
+          continue;
+        }
+        const pasted=createPastedItemFrom(entry.item,entry.section,{
+          offset:false,
+          worldPosition:{x:rawToWorld(entry.item.x,"x")+size,y:rawToWorld(entry.item.y,"y")},
+          selectCreated:false,
+          refresh:false
+        });
+        createIndependentMapTileRecord(entry.item,pasted);
+        pastedItems.push(pasted);
+      }
+      if(pastedItems.some(item=>item._pendingTilRecordIndex!==undefined)){
+        rebuildTilOnlyItems();
+        for(let i=0;i<pastedItems.length;i++)if(pastedItems[i]._pendingTilRecordIndex!==undefined)pastedItems[i]=getItemByIdFast(`til-record:${pastedItems[i]._pendingTilRecordIndex}`);
+      }
+      if(!pastedItems.length){statusEl.textContent="Unable to paste the copied tiles.";return true;}
+      markItemsChanged({structure:true});
+      state.selectedId=pastedItems.at(-1)?.id??null;
+      state.multiSelectedIds=new Set(pastedItems.map(item=>item.id));
+      state.selectedWaypointMarkerIds.clear();
+      updateWaypointMarkerCount(0);
+      scheduleMapTileOverlayRebuild();
+      renderList();renderItemWindow();renderTileInstances();scheduleLiveMisRefresh();requestRender();
+      statusEl.textContent=pastedItems.length===1
+        ? `Pasted independent tile #${pastedItems[0].id}.`
+        : `Pasted ${pastedItems.length} independent tiles.`;
+    }finally{endUndoTransaction();}
+    return true;
+  }
+
   function pasteCopiedItem(){
     if (!state.itemClipboardItems.length){
       statusEl.textContent = "Nenhum item copiado para colar.";
       return;
     }
+    if(pasteCopiedMapTilesImmediately())return;
     const rect = cv.getBoundingClientRect();
     const sx = state.lastMouse ? state.lastMouse.sx : rect.width / 2;
     const sy = state.lastMouse ? state.lastMouse.sy : rect.height / 2;
