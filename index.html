@@ -9008,7 +9008,11 @@ end group
     const selectedIds = state.multiSelectedIds.size
       ? Array.from(state.multiSelectedIds)
       : (state.selectedId != null ? [state.selectedId] : []);
-    const selectedItems = state.items.filter(it => selectedIds.includes(it.id));
+    // Existing map tiles may only have a companion TIL record. They are
+    // exposed as synthetic entries in state.tilOnlyItems rather than in the
+    // MIS-backed state.items array, so resolve the selected IDs through the
+    // shared lookup used by the canvas and tile-instance list.
+    const selectedItems = selectedIds.map(id=>getItemByIdFast(id)).filter(Boolean);
     if(state.tileEditModeActive&&selectedItems.some(it=>!isMapTileItem(it))){statusEl.textContent="Tile Edit Mode only allows MapTiles to be copied or edited.";return false;}
     if (!selectedItems.length){
       statusEl.textContent = "Selecione um item para copiar.";
