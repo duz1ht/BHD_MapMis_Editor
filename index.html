@@ -6927,7 +6927,9 @@ end group
       out.push(...newBlock);
     }
 
-    return out.join("\n");
+    // MIS files are a Windows-native format. Always serialize them with CRLF
+    // regardless of the line endings used by the source file or host OS.
+    return out.join("\r\n");
   }
 
   const UNDO_HISTORY_LIMIT = 100;
