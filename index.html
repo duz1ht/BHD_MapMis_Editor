@@ -2920,7 +2920,7 @@ end group
     measure('points', () => drawItemsThree(P, V));
     measure('glb', () => drawGlbItems(P, V));
     measure('waypoints', () => drawWaypointLinesThree(P, V));
-    measure('gizmo', () => { updateItemGizmo(); drawThreeGizmo(); });
+    measure('gizmo', () => { updateItemGizmo(PV); drawThreeGizmo(); });
     state.renderDiagnostics.layerMs = layerMs;
     return result;
   }
@@ -11996,8 +11996,14 @@ end group
     const tanHalfVerticalFov=Math.tan(verticalFov/2);
     return {...viewport,verticalFov,tanHalfVerticalFov,orthographic:topViewLocked,orthographicHalfHeight:topViewScale};
   }
-  function currentPV(){ const {forward,forwardXY}=cameraBasis(); const projection=getCameraProjection(); const {aspect,verticalFov,orthographic,orthographicHalfHeight}=projection; const P=orthographic?mat4Orthographic(-orthographicHalfHeight*aspect,orthographicHalfHeight*aspect,-orthographicHalfHeight,orthographicHalfHeight,1.0,1000000.0):mat4Perspective(verticalFov,aspect,1.0,1000000.0); const V=mat4LookAt(cam.pos,vec3Add(cam.pos,forward),(Math.abs(forward.z)>0.999)?forwardXY:vec3(0,0,1)); return {P,V,PV:mat4Mul(P,V)}; }
-  function worldToScreen(x,y,z=0){ const {PV}=currentPV(); const px=PV[0]*x+PV[4]*y+PV[8]*z+PV[12], py=PV[1]*x+PV[5]*y+PV[9]*z+PV[13], pw=PV[3]*x+PV[7]*y+PV[11]*z+PV[15]; if(pw<=0) return {sx:-999,sy:-999,visible:false}; const nx=px/pw, ny=py/pw, r=cv.getBoundingClientRect(); return {sx:(nx*0.5+0.5)*r.width, sy:(1-(ny*0.5+0.5))*r.height, visible:true}; }
+  function currentPV(projection=getCameraProjection()){ const {forward,forwardXY}=cameraBasis(); const {aspect,verticalFov,orthographic,orthographicHalfHeight}=projection; const P=orthographic?mat4Orthographic(-orthographicHalfHeight*aspect,orthographicHalfHeight*aspect,-orthographicHalfHeight,orthographicHalfHeight,1.0,1000000.0):mat4Perspective(verticalFov,aspect,1.0,1000000.0); const V=mat4LookAt(cam.pos,vec3Add(cam.pos,forward),(Math.abs(forward.z)>0.999)?forwardXY:vec3(0,0,1)); return {P,V,PV:mat4Mul(P,V)}; }
+  function createWorldToScreenContext(PV=null,rect=cv.getBoundingClientRect()){
+    const width=Math.max(1,rect.width||cv.clientWidth||cv.width||1),height=Math.max(1,rect.height||cv.clientHeight||cv.height||1);
+    if(!PV){const verticalFov=CAMERA_REFERENCE_VERTICAL_FOV,projection={rect,width,height,aspect:width/height,verticalFov,tanHalfVerticalFov:Math.tan(verticalFov/2),orthographic:topViewLocked,orthographicHalfHeight:topViewScale};PV=currentPV(projection).PV;}
+    return {PV,width,height};
+  }
+  function projectWorldToScreen(x,y,z=0,context){const {PV,width,height}=context,px=PV[0]*x+PV[4]*y+PV[8]*z+PV[12],py=PV[1]*x+PV[5]*y+PV[9]*z+PV[13],pw=PV[3]*x+PV[7]*y+PV[11]*z+PV[15];if(pw<=0)return {sx:-999,sy:-999,visible:false};const nx=px/pw,ny=py/pw;return {sx:(nx*.5+.5)*width,sy:(1-(ny*.5+.5))*height,visible:true};}
+  function worldToScreen(x,y,z=0){return projectWorldToScreen(x,y,z,createWorldToScreenContext());}
   function screenRay(sx,sy){ const {width,height,aspect,tanHalfVerticalFov,orthographic,orthographicHalfHeight}=getCameraProjection(), nx=(sx/width)*2-1, ny=1-(sy/height)*2; const {forward,right}=cameraBasis(); const up=vec3Norm(vec3Cross(right,forward)); if(orthographic){ const origin=vec3Add(cam.pos,vec3Add(vec3Scale(right,nx*orthographicHalfHeight*aspect),vec3Scale(up,ny*orthographicHalfHeight))); return {origin,dir:forward}; } const dir=vec3Norm(vec3Add(vec3Add(forward,vec3Scale(right,nx*tanHalfVerticalFov*aspect)),vec3Scale(up,ny*tanHalfVerticalFov))); return {origin:cam.pos,dir}; }
   function screenToWorld(sx,sy,zPlane=0){ const ray=screenRay(sx,sy), dz=ray.dir.z; if(Math.abs(dz)<1e-6) return {x:ray.origin.x,y:ray.origin.y,z:zPlane}; const t=(zPlane-ray.origin.z)/dz; return {x:ray.origin.x+ray.dir.x*Math.max(t,0), y:ray.origin.y+ray.dir.y*Math.max(t,0), z:zPlane}; }
 
@@ -14976,9 +14982,9 @@ end group
       root.traverse(child=>{if(!child.isMesh||child.userData.gizmoRole==='pick')return;child.material.color.setHex(color??child.userData.gizmoBaseColor);child.material.opacity=dimmed?.22:(active?1:child.userData.gizmoBaseOpacity);});
     }
   }
-  function drawRotationDragFeedback(center,drag){
+  function drawRotationDragFeedback(center,drag,projectionContext=createWorldToScreenContext()){
     if(!gizmoCtx||drag?.handle?.kind!=='ring'||!drag.startVector||!drag.currentVector)return;
-    const radius=Math.max(.01,drag.feedbackRadius||1),c=worldToScreen(center.x,center.y,center.z),startWorld=vec3Add(center,vec3Scale(drag.startVector,radius)),currentWorld=vec3Add(center,vec3Scale(drag.currentVector,radius)),a=worldToScreen(startWorld.x,startWorld.y,startWorld.z),b=worldToScreen(currentWorld.x,currentWorld.y,currentWorld.z);
+    const radius=Math.max(.01,drag.feedbackRadius||1),c=projectWorldToScreen(center.x,center.y,center.z,projectionContext),startWorld=vec3Add(center,vec3Scale(drag.startVector,radius)),currentWorld=vec3Add(center,vec3Scale(drag.currentVector,radius)),a=projectWorldToScreen(startWorld.x,startWorld.y,startWorld.z,projectionContext),b=projectWorldToScreen(currentWorld.x,currentWorld.y,currentWorld.z,projectionContext);
     if(!c.visible||!a.visible||!b.visible)return;
     gizmoCtx.save();gizmoCtx.strokeStyle='#fff';gizmoCtx.fillStyle='#fff';gizmoCtx.lineWidth=2;gizmoCtx.beginPath();gizmoCtx.moveTo(c.sx,c.sy);gizmoCtx.lineTo(a.sx,a.sy);gizmoCtx.moveTo(c.sx,c.sy);gizmoCtx.lineTo(b.sx,b.sy);gizmoCtx.stroke();
     const screenRadius=Math.max(12,Math.hypot(a.sx-c.sx,a.sy-c.sy)),startAngle=Math.atan2(a.sy-c.sy,a.sx-c.sx),endAngle=Math.atan2(b.sy-c.sy,b.sx-c.sx);gizmoCtx.globalAlpha=.8;gizmoCtx.beginPath();gizmoCtx.arc(c.sx,c.sy,screenRadius,startAngle,endAngle,drag.appliedAngle<0);gizmoCtx.stroke();gizmoCtx.globalAlpha=1;gizmoCtx.font='12px sans-serif';gizmoCtx.fillText(drag.label,c.sx+14,c.sy-14);gizmoCtx.restore();
@@ -14998,8 +15004,9 @@ end group
     cache.set(it.id,{signature,points});
     return points;
   }
-  function drawSelectedMapTileOutlines(){
-    if(!gizmoCtx)return;
+  function drawSelectedMapTileOutlines(projectionContext=createWorldToScreenContext()){
+    const started=performance.now();
+    if(!gizmoCtx){state.renderDiagnostics.mapTileOutlineMs=0;return;}
     const ids=state.multiSelectedIds.size?Array.from(state.multiSelectedIds):(state.selectedId!=null?[state.selectedId]:[]);
     const segments=12,selectedIds=new Set(ids);
     for(const id of state.mapTiles.selectionOutlineCache.keys())if(!selectedIds.has(id))state.mapTiles.selectionOutlineCache.delete(id);
@@ -15009,22 +15016,24 @@ end group
       const anchor=getItemInteractionAnchor(it);
       gizmoCtx.beginPath();let started=false;
       for(const point of selectedMapTileOutlinePoints(it,f,anchor,segments)){
-        const p=worldToScreen(point.x,point.y,point.z);if(!p.visible){started=false;continue;}if(!started){gizmoCtx.moveTo(p.sx,p.sy);started=true;}else gizmoCtx.lineTo(p.sx,p.sy);
+        const p=projectWorldToScreen(point.x,point.y,point.z,projectionContext);if(!p.visible){started=false;continue;}if(!started){gizmoCtx.moveTo(p.sx,p.sy);started=true;}else gizmoCtx.lineTo(p.sx,p.sy);
       }
       gizmoCtx.stroke();
     }
     gizmoCtx.restore();
+    state.renderDiagnostics.mapTileOutlineMs=performance.now()-started;
   }
-  function updateItemGizmo(){
+  function updateItemGizmo(PV=null){
     const rect=cv.getBoundingClientRect(),dpr=Math.max(1,Math.min(window.devicePixelRatio||1,2));
+    const projectionContext=createWorldToScreenContext(PV,rect);
     if(gizmoCtx){gizmoCtx.setTransform(dpr,0,0,dpr,0,0);gizmoCtx.clearRect(0,0,rect.width,rect.height);}
-    drawSelectedMapTileOutlines();
+    drawSelectedMapTileOutlines(projectionContext);
     if(!ensureThreeGizmo()){state.gizmoVisual=null;return;}
     const group=state.glb.gizmoGroup,it=state.referenceGlb?.selected ? state.referenceGlb.item : getSelected(),items=selectedTransformItems(),center=gizmoPivot(items);
     if(!it||!center||state.modalOpen||(!state.referenceGlb?.selected&&!isTilOnlyMapTile(it)&&!isItemVisibilityFilterMatch(it))){group.visible=false;state.gizmoVisual=null;return;}
     group.visible=true;group.position.set(center.x,center.y,center.z);
     const basis=state.gizmoDrag?.handle?.kind==='ring'?state.gizmoDrag.basis:itemTransformBasis(it),THREE=state.glb.THREE,m=new THREE.Matrix4().makeBasis(new THREE.Vector3(basis.x.x,basis.x.y,basis.x.z),new THREE.Vector3(basis.y.x,basis.y.y,basis.y.z),new THREE.Vector3(basis.z.x,basis.z.y,basis.z.z));group.quaternion.setFromRotationMatrix(m);
-    const {tanHalfVerticalFov,orthographic,orthographicHalfHeight}=getCameraProjection();
+    const tanHalfVerticalFov=Math.tan(CAMERA_REFERENCE_VERTICAL_FOV/2),orthographic=topViewLocked,orthographicHalfHeight=topViewScale;
     const viewportH=Math.max(1,rect.height),distance=Math.max(.01,Math.hypot(center.x-cam.pos.x,center.y-cam.pos.y,center.z-cam.pos.z));
     const worldPerPixel=orthographic?(2*orthographicHalfHeight/viewportH):(2*distance*tanHalfVerticalFov/viewportH);
     group.scale.setScalar(worldPerPixel*GIZMO_STYLE.screenSizePx);
@@ -15035,7 +15044,7 @@ end group
     }
     updateGizmoMaterials();
     state.gizmoVisual={mode:state.transformMode,center:{world:center},basis,handles:{moveX:{kind:'axis',axis:basis.x},moveY:{kind:'axis',axis:basis.y},moveZ:{kind:'axis',axis:basis.z},moveXY:{kind:'plane',axisA:basis.x,axisB:basis.y},moveXZ:{kind:'plane',axisA:basis.x,axisB:basis.z},moveYZ:{kind:'plane',axisA:basis.y,axisB:basis.z},rotX:{kind:'ring',axis:basis.x},rotZ:{kind:'ring',axis:basis.z}}};
-    if(state.gizmoDrag?.label&&gizmoCtx){if(state.gizmoDrag.handle?.kind==='ring')drawRotationDragFeedback(center,state.gizmoDrag);else{const c=worldToScreen(center.x,center.y,center.z);gizmoCtx.font='12px sans-serif';gizmoCtx.fillStyle='#fff';gizmoCtx.fillText(state.gizmoDrag.label,c.sx+14,c.sy-14);}}
+    if(state.gizmoDrag?.label&&gizmoCtx){if(state.gizmoDrag.handle?.kind==='ring')drawRotationDragFeedback(center,state.gizmoDrag,projectionContext);else{const c=projectWorldToScreen(center.x,center.y,center.z,projectionContext);gizmoCtx.font='12px sans-serif';gizmoCtx.fillStyle='#fff';gizmoCtx.fillText(state.gizmoDrag.label,c.sx+14,c.sy-14);}}
   }
   function drawThreeGizmo(){
     if(!state.glb.ready||!state.glb.gizmoScene||!state.glb.gizmoGroup?.visible)return;
@@ -15469,6 +15478,7 @@ GLB missing def(type_id): ${state.glb.lastStats?.skippedDefNotFoundForTypeId ?? 
 GLB missing instance post-sync: ${state.glb.lastStats?.missingInstancesAfterSync ?? '-'}
 Frame CPU: ${state.renderDiagnostics.frameMs.toFixed(2)} ms
 Layers CPU: terrain=${(state.renderDiagnostics.layerMs.terrain||0).toFixed(2)} overlay=${(state.renderDiagnostics.layerMs.overlays||0).toFixed(2)} points=${(state.renderDiagnostics.layerMs.points||0).toFixed(2)} glb=${(state.renderDiagnostics.layerMs.glb||0).toFixed(2)} waypoints=${(state.renderDiagnostics.layerMs.waypoints||0).toFixed(2)} gizmo=${(state.renderDiagnostics.layerMs.gizmo||0).toFixed(2)}
+MapTile selection outline CPU: ${(state.renderDiagnostics.mapTileOutlineMs||0).toFixed(2)} ms
 Wrap: x=${wrapX} y=${wrapY}
 Sectors: ${sectorCount}x${sectorCount} origin=${terrainOrigin.x},${terrainOrigin.y}
 Terrain size: ${terrainSpanX()} x ${terrainSpanY()}
