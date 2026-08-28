@@ -2860,7 +2860,6 @@ end group
       scratchViewMatrix: null,
       raycaster: null,
       pointerNdc: null,
-      gizmoScene: null,
       gizmoGroup: null,
       gizmoHandles: new Map(),
       gizmoRaycaster: null,
@@ -2918,9 +2917,9 @@ end group
     result.drawCalls = measure('terrain', () => drawTerrainThree(P, V, forward));
     measure('overlays', () => drawOverlaysThree(P, V, forward));
     measure('points', () => drawItemsThree(P, V));
+    measure('gizmo', () => updateItemGizmo(PV));
     measure('glb', () => drawGlbItems(P, V));
     measure('waypoints', () => drawWaypointLinesThree(P, V));
-    measure('gizmo', () => { updateItemGizmo(PV); drawThreeGizmo(); });
     state.renderDiagnostics.layerMs = layerMs;
     return result;
   }
@@ -14945,16 +14944,16 @@ end group
     return vec3Scale(out,1/items.length);
   }
   function makeGizmoMaterial(THREE,color,opacity=1){
-    return new THREE.MeshBasicMaterial({color,transparent:opacity<1,opacity,depthTest:false,depthWrite:false,side:THREE.DoubleSide,toneMapped:false});
+    return new THREE.MeshBasicMaterial({color,transparent:true,opacity,depthTest:false,depthWrite:false,side:THREE.DoubleSide,toneMapped:false});
   }
   function registerGizmoHandle(object,name,baseColor){
     object.traverse(child=>{if(!child.isMesh)return;child.userData.gizmoHandle=name;child.userData.gizmoBaseColor=baseColor;child.userData.gizmoBaseOpacity=child.material.opacity;child.userData.gizmoRole??='visual';child.renderOrder=10000;});
     state.glb.gizmoHandles.set(name,object);
   }
   function ensureThreeGizmo(){
-    if(!state.glb.ready||!state.glb.THREE)return false;
+    if(!state.glb.ready||!state.glb.THREE||!state.glb.scene)return false;
     if(state.glb.gizmoGroup)return true;
-    const THREE=state.glb.THREE,scene=new THREE.Scene(),group=new THREE.Group();scene.add(group);
+    const THREE=state.glb.THREE,scene=state.glb.scene,group=new THREE.Group();group.name='EDITOR_TRANSFORM_GIZMO';scene.add(group);
     const axisGeom=new THREE.CylinderGeometry(.035,.035,.78,12),coneGeom=new THREE.ConeGeometry(.09,.22,16),unitY=new THREE.Vector3(0,1,0);
     function axis(name,key,dir){
       const root=new THREE.Group(),mat=makeGizmoMaterial(THREE,GIZMO_STYLE.colors[key]);
@@ -14970,10 +14969,10 @@ end group
       const root=new THREE.Group(),visual=new THREE.Mesh(new THREE.TorusGeometry(radius,.026,12,128),makeGizmoMaterial(THREE,GIZMO_STYLE.colors[key],.96));
       const pickMaterial=makeGizmoMaterial(THREE,GIZMO_STYLE.colors[key],0);pickMaterial.colorWrite=false;
       const pick=new THREE.Mesh(new THREE.TorusGeometry(radius,.09,8,96),pickMaterial);
-      visual.userData.gizmoRole='visual';pick.userData.gizmoRole='pick';root.add(visual,pick);root.rotation.set(...rotation);root.userData.gizmoPickMeshes=[pick];group.add(root);registerGizmoHandle(root,name,GIZMO_STYLE.colors[key]);
+      visual.userData.gizmoRole='visual';pick.userData.gizmoRole='pick';pick.visible=false;root.add(visual,pick);root.rotation.set(...rotation);root.userData.gizmoPickMeshes=[pick];group.add(root);registerGizmoHandle(root,name,GIZMO_STYLE.colors[key]);
     }
     ring('rotX','x',[0,Math.PI/2,0],.76);ring('rotZ','z',[0,0,0],.9);
-    state.glb.gizmoScene=scene;state.glb.gizmoGroup=group;state.glb.gizmoRaycaster=new THREE.Raycaster();state.glb.gizmoPointerNdc=new THREE.Vector2();
+    state.glb.gizmoGroup=group;state.glb.gizmoRaycaster=new THREE.Raycaster();state.glb.gizmoPointerNdc=new THREE.Vector2();
     return true;
   }
   function updateGizmoMaterials(){
@@ -15046,11 +15045,6 @@ end group
     state.gizmoVisual={mode:state.transformMode,center:{world:center},basis,handles:{moveX:{kind:'axis',axis:basis.x},moveY:{kind:'axis',axis:basis.y},moveZ:{kind:'axis',axis:basis.z},moveXY:{kind:'plane',axisA:basis.x,axisB:basis.y},moveXZ:{kind:'plane',axisA:basis.x,axisB:basis.z},moveYZ:{kind:'plane',axisA:basis.y,axisB:basis.z},rotX:{kind:'ring',axis:basis.x},rotZ:{kind:'ring',axis:basis.z}}};
     if(state.gizmoDrag?.label&&gizmoCtx){if(state.gizmoDrag.handle?.kind==='ring')drawRotationDragFeedback(center,state.gizmoDrag,projectionContext);else{const c=projectWorldToScreen(center.x,center.y,center.z,projectionContext);gizmoCtx.font='12px sans-serif';gizmoCtx.fillStyle='#fff';gizmoCtx.fillText(state.gizmoDrag.label,c.sx+14,c.sy-14);}}
   }
-  function drawThreeGizmo(){
-    if(!state.glb.ready||!state.glb.gizmoScene||!state.glb.gizmoGroup?.visible)return;
-    const renderer=state.glb.renderer;renderer.clearDepth();renderer.resetState();renderer.render(state.glb.gizmoScene,state.glb.camera);renderer.resetState();
-  }
-
   function flushTransformDragUi(){
     if (!state.dragUiDirty) return;
     state.dragUiDirty = false;
