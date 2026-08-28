@@ -5609,9 +5609,12 @@ end group
     const generation = ++state.generalInfoLoadGeneration;
     const kv = sec?.kv || {};
     const terrainOptions = state.generalTerrainNames || [];
-    const currentTile=String(kv.terrain_tile_tga||"trntile11").replace(/\.tga$/i,"");
-    const tileOptions=TERRAIN_TILE_FILE_INDEX.map(fileName=>String(fileName).replace(/\.tga$/i,""));
-    if(currentTile&&!tileOptions.some(value=>value.toLowerCase()===currentTile.toLowerCase()))tileOptions.push({value:currentTile,label:`${currentTile} (unavailable)`});
+    const currentTile=String(kv.terrain_tile_tga||"").replace(/\.tga$/i,"");
+    const tileOptions=[{value:"",label:"None"},...TERRAIN_TILE_FILE_INDEX.map(fileName=>{
+      const value=String(fileName).replace(/\.tga$/i,"");
+      return {value,label:value};
+    })];
+    if(currentTile&&!tileOptions.some(option=>option.value.toLowerCase()===currentTile.toLowerCase()))tileOptions.push({value:currentTile,label:`${currentTile} (unavailable)`});
     ensureSelectOptions(giTerrain, terrainOptions.map(v=>({ value:v, label:v })), kv.terrain || "dvd1", { caseInsensitive: true });
     ensureSelectOptions(giTiles, tileOptions, currentTile, { caseInsensitive: true });
     const playerTypeRaw = String(kv.player_type ?? "1");
@@ -5712,7 +5715,7 @@ end group
     kv.name = quoteMisString(giMissionName.value);
     kv.designer = quoteMisString(giDesigner.value);
     kv.terrain = giTerrain.value || "dvd1";
-    kv.terrain_tile_tga = giTiles.value || "trntile11";
+    kv.terrain_tile_tga = giTiles.value || "";
     kv.player_type = String(Math.max(0, Math.trunc(Number(giPlayerType.value || 0))));
 
     let attrib = Number(kv.attrib || 0);
@@ -6741,10 +6744,10 @@ end group
         for (const raw of blockLines){
           const t = raw.trim();
           if (!t || t.startsWith("//")) continue;
-          const m = t.match(/^([A-Za-z0-9_]+)\s+(.*)$/);
+          const m = t.match(/^([A-Za-z0-9_]+)(?:\s+(.*))?$/);
           if (!m) continue;
           const key = m[1].toLowerCase();
-          let val = m[2].trim();
+          let val = (m[2] || "").trim();
           if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
           kv[key] = val;
         }
@@ -6840,11 +6843,11 @@ end group
       for (const raw of srcLines){
         const t = raw.trim();
         if (!t || t.startsWith("//")) { newBlock.push(raw); continue; }
-        const m = t.match(/^([A-Za-z0-9_]+)\s+(.*)$/);
+        const m = t.match(/^([A-Za-z0-9_]+)(?:\s+(.*))?$/);
         if (!m) { newBlock.push(raw); continue; }
         const key = m[1],lookupKey=key.toLowerCase();
         if (Object.prototype.hasOwnProperty.call(kv, lookupKey)){
-          const rawValue = m[2].trim();
+          const rawValue = (m[2] || "").trim();
           const rawUnquoted = rawValue.startsWith('"') && rawValue.endsWith('"')
             ? rawValue.slice(1, -1)
             : rawValue;
