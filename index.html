@@ -2534,6 +2534,26 @@ end group
 
 `;
 
+  const GENERAL_INFORMATION_CANONICAL_KEYS=[
+    "file_version","name","designer","terrain","cnv_file","tt_file","terrain_color","attrib","visible_if","notvisible_if",
+    "arty","water_level","fog_level","fog_color","weather_type","lowest_elev","num_items","num_events","sunset","viewx",
+    "viewy","viewz","viewzoom","gen_def_val1","gen_def_val2","gen_def_val3","gen_def_val4","hardwin","hardlose",
+    "subgoals_win","subgoals_lose","win_scores","lose_scores","terrain_tile_tga","wind","wp_names_blue","wp_names_red",
+    "player_type","max_saves","map_zoom","bonus_expiration","default_primary","default_secondary","default_accessory",
+    "loadoutfile","attribA","attribB","attribN","mapkey_circle","mapkey_fcircle","mapkey_diamond","mapkey_cross"
+  ];
+
+  function generalInformationKvLines(kv){
+    const lines=[],seen=new Set();
+    for(const outputKey of GENERAL_INFORMATION_CANONICAL_KEYS){
+      const key=outputKey.toLowerCase();
+      if(!Object.prototype.hasOwnProperty.call(kv,key))continue;
+      lines.push(`  ${outputKey} ${kv[key]}`);seen.add(key);
+    }
+    for(const [key,value] of Object.entries(kv))if(!seen.has(key.toLowerCase()))lines.push(`  ${key} ${value}`);
+    return lines;
+  }
+
   const MAP_TILE_DEFAULT_SIZE=16;
   const state = {
     rawText: "",
@@ -5675,6 +5695,8 @@ end group
 
   function applyGeneralInfoSection(sec){
     const kv = { ...(sec.kv || {}) };
+    kv.cnv_file=String(kv.cnv_file??"");
+    kv.tt_file=String(kv.tt_file??"");
     kv.name = quoteMisString(giMissionName.value);
     kv.designer = quoteMisString(giDesigner.value);
     kv.terrain = giTerrain.value || "dvd1";
@@ -5712,17 +5734,17 @@ end group
     if (giWaterEnabled.checked){
       kv.water_level = String(Math.max(0, Math.round(Number(giWaterLevel.value || 0) / 0.5)));
     } else {
-      delete kv.water_level;
+      kv.water_level=String(kv.water_level??"0")||"0";
     }
     if (giFogDistEnabled.checked){
       kv.fog_level = String(numberToFixed16(giFogLevel.value || 0));
     } else {
-      delete kv.fog_level;
+      kv.fog_level=String(kv.fog_level??"0")||"0";
     }
     if (giFogColorEnabled.checked){
       kv.fog_color = String(encodeFogColor(giFogR.value, giFogG.value, giFogB.value));
     } else {
-      delete kv.fog_color;
+      kv.fog_color=String(kv.fog_color??"0")||"0";
     }
 
     kv.wind = `${Math.max(0, Math.trunc(Number(giWindSpeed.value || 0)))} ${Math.max(0, Math.trunc(Number(giWindDirection.value || 0)))}`;
@@ -5736,7 +5758,7 @@ end group
     delete kv.rotate_map_180;
 
     sec.kv = kv;
-    sec.lines = Object.entries(kv).map(([k,v]) => `  ${k} ${v}`);
+    sec.lines = generalInformationKvLines(kv);
     syncWeaponLoadoutsFromGeneral(sec);
   }
 
