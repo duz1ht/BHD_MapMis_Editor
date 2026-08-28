@@ -2806,6 +2806,8 @@ end group
       insertPreviewWorld: null,
       pendingOverlayRebuild: 0,
       selectionOutlineCache: new Map(),
+      selectionOutlineObject: null,
+      selectionOutlineSignature: "",
       dirty: false,
     },
     threeOverlays: {
@@ -11114,7 +11116,8 @@ end group
     state.mapTiles.generation++;
     disposeMapTileOverlayChunks();
     disposeMapTileBorders();
-    Object.assign(state.mapTiles,{filename:"",sourceFilename:"",atlasName:"",atlasImage:null,overlayChunks:new Map(),overlayPixels:0,overlayCellCache:new Map(),overlayBuildQueue:new Map(),overlayEvictions:0,overlayResolutionCounts:{128:0,256:0,512:0,1024:0},borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:MAP_TILE_DEFAULT_SIZE,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,selectionOutlineCache:new Map(),dirty:false});
+    disposeSelectedMapTileOutline();
+    Object.assign(state.mapTiles,{filename:"",sourceFilename:"",atlasName:"",atlasImage:null,overlayChunks:new Map(),overlayPixels:0,overlayCellCache:new Map(),overlayBuildQueue:new Map(),overlayEvictions:0,overlayResolutionCounts:{128:0,256:0,512:0,1024:0},borderLines:null,overlayResolution:0,paintedTiles:0,lastBuildMs:0,records:[],headerReserved:0,byPosition:new Map(),tileSize:MAP_TILE_DEFAULT_SIZE,error:"",dragPreviewIds:new Set(),dragPreviewGroup:null,dragPreviewMeshes:new Map(),insertPreviewMesh:null,insertPreviewIndex:null,insertPreviewWorld:null,pendingOverlayRebuild:0,selectionOutlineCache:new Map(),selectionOutlineObject:null,selectionOutlineSignature:"",dirty:false});
     state.tilOnlyItems=[];
     state.threeTerrain.dirty=true;
     state.collapsedTileGroups.clear();state.knownTileGroupIndices.clear();
@@ -15003,30 +15006,41 @@ end group
     cache.set(it.id,{signature,points});
     return points;
   }
-  function drawSelectedMapTileOutlines(projectionContext=createWorldToScreenContext()){
+  function disposeSelectedMapTileOutline(){
+    const outline=state.mapTiles.selectionOutlineObject;
+    if(outline){outline.parent?.remove?.(outline);outline.geometry?.dispose?.();outline.material?.dispose?.();}
+    state.mapTiles.selectionOutlineObject=null;state.mapTiles.selectionOutlineSignature="";
+  }
+  function syncSelectedMapTileOutlineGeometry(){
     const started=performance.now();
-    if(!gizmoCtx){state.renderDiagnostics.mapTileOutlineMs=0;return;}
     const ids=state.multiSelectedIds.size?Array.from(state.multiSelectedIds):(state.selectedId!=null?[state.selectedId]:[]);
-    const segments=12,selectedIds=new Set(ids);
+    const segments=12,selectedIds=new Set(ids),entries=[];
     for(const id of state.mapTiles.selectionOutlineCache.keys())if(!selectedIds.has(id))state.mapTiles.selectionOutlineCache.delete(id);
-    gizmoCtx.save();gizmoCtx.strokeStyle='#ffad00';gizmoCtx.lineWidth=2;gizmoCtx.lineJoin='round';gizmoCtx.lineCap='round';
     for(const id of ids){
       const it=getItemByIdFast(id),f=getMapTileFootprint(it);if(!f)continue;
       const anchor=getItemInteractionAnchor(it);
-      gizmoCtx.beginPath();let started=false;
-      for(const point of selectedMapTileOutlinePoints(it,f,anchor,segments)){
-        const p=projectWorldToScreen(point.x,point.y,point.z,projectionContext);if(!p.visible){started=false;continue;}if(!started){gizmoCtx.moveTo(p.sx,p.sy);started=true;}else gizmoCtx.lineTo(p.sx,p.sy);
-      }
-      gizmoCtx.stroke();
+      entries.push({id,points:selectedMapTileOutlinePoints(it,f,anchor,segments),signature:`${id}:${f.left}:${f.right}:${f.bottom}:${f.top}:${anchor.z}`});
     }
-    gizmoCtx.restore();
+    const signature=`${state.terrainLoad.generation}:${state.terrainLoad.revision}|${entries.map(entry=>entry.signature).join('|')}`;
+    let outline=state.mapTiles.selectionOutlineObject;
+    if(signature===state.mapTiles.selectionOutlineSignature&&outline?.parent){state.renderDiagnostics.mapTileOutlineMs=performance.now()-started;return;}
+    if(!state.glb.THREE||!state.glb.scene){state.renderDiagnostics.mapTileOutlineMs=performance.now()-started;return;}
+    if(!entries.length){if(outline){outline.geometry.setDrawRange(0,0);outline.visible=false;}state.mapTiles.selectionOutlineSignature=signature;state.renderDiagnostics.mapTileOutlineMs=performance.now()-started;return;}
+    if(!outline){
+      const THREE=state.glb.THREE,geometry=new THREE.BufferGeometry(),material=new THREE.LineBasicMaterial({color:0xffad00,transparent:true,opacity:1,depthTest:true,depthWrite:false,toneMapped:false});
+      geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(0),3));outline=new THREE.LineSegments(geometry,material);outline.name='MAP_TILE_SELECTION_OUTLINE';outline.renderOrder=9999;outline.frustumCulled=false;outline.raycast=()=>null;state.glb.scene.add(outline);state.mapTiles.selectionOutlineObject=outline;
+    }
+    const positions=[];
+    for(const {points} of entries)for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];positions.push(a.x,a.y,a.z,b.x,b.y,b.z);}
+    updateThreeLineGeometry(outline,new Float32Array(positions));
+    state.mapTiles.selectionOutlineSignature=signature;
     state.renderDiagnostics.mapTileOutlineMs=performance.now()-started;
   }
   function updateItemGizmo(PV=null){
     const rect=cv.getBoundingClientRect(),dpr=Math.max(1,Math.min(window.devicePixelRatio||1,2));
     const projectionContext=createWorldToScreenContext(PV,rect);
     if(gizmoCtx){gizmoCtx.setTransform(dpr,0,0,dpr,0,0);gizmoCtx.clearRect(0,0,rect.width,rect.height);}
-    drawSelectedMapTileOutlines(projectionContext);
+    syncSelectedMapTileOutlineGeometry();
     if(!ensureThreeGizmo()){state.gizmoVisual=null;return;}
     const group=state.glb.gizmoGroup,it=state.referenceGlb?.selected ? state.referenceGlb.item : getSelected(),items=selectedTransformItems(),center=gizmoPivot(items);
     if(!it||!center||state.modalOpen||(!state.referenceGlb?.selected&&!isTilOnlyMapTile(it)&&!isItemVisibilityFilterMatch(it))){group.visible=false;state.gizmoVisual=null;return;}
@@ -15472,7 +15486,7 @@ GLB missing def(type_id): ${state.glb.lastStats?.skippedDefNotFoundForTypeId ?? 
 GLB missing instance post-sync: ${state.glb.lastStats?.missingInstancesAfterSync ?? '-'}
 Frame CPU: ${state.renderDiagnostics.frameMs.toFixed(2)} ms
 Layers CPU: terrain=${(state.renderDiagnostics.layerMs.terrain||0).toFixed(2)} overlay=${(state.renderDiagnostics.layerMs.overlays||0).toFixed(2)} points=${(state.renderDiagnostics.layerMs.points||0).toFixed(2)} glb=${(state.renderDiagnostics.layerMs.glb||0).toFixed(2)} waypoints=${(state.renderDiagnostics.layerMs.waypoints||0).toFixed(2)} gizmo=${(state.renderDiagnostics.layerMs.gizmo||0).toFixed(2)}
-MapTile selection outline CPU: ${(state.renderDiagnostics.mapTileOutlineMs||0).toFixed(2)} ms
+MapTile selection outline sync CPU: ${(state.renderDiagnostics.mapTileOutlineMs||0).toFixed(2)} ms
 Wrap: x=${wrapX} y=${wrapY}
 Sectors: ${sectorCount}x${sectorCount} origin=${terrainOrigin.x},${terrainOrigin.y}
 Terrain size: ${terrainSpanX()} x ${terrainSpanY()}
