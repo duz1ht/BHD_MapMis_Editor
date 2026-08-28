@@ -14745,11 +14745,16 @@ end group
   }
 
   function getSelectedGlbVisualIds(){
-    return new Set(
-      state.multiSelectedIds.size
-        ? Array.from(state.multiSelectedIds)
-        : (state.selectedId != null ? [state.selectedId] : [])
-    );
+    const selectedIds = state.multiSelectedIds.size
+      ? Array.from(state.multiSelectedIds)
+      : (state.selectedId != null ? [state.selectedId] : []);
+    // Selection also contains objects rendered outside the GLB scene, such as
+    // MapTiles. Only track IDs that currently have an individual instance or
+    // belong to a batch; otherwise a permanently missing instance would be
+    // interpreted as a visual change on every frame and trigger endless syncs.
+    return new Set(selectedIds.filter((itemId) =>
+      state.glb.itemInstances.has(itemId) || state.glb.batchedItemLookup.has(itemId)
+    ));
   }
 
   function reconcileGlbSelectionVisuals(nextIds = getSelectedGlbVisualIds()){
