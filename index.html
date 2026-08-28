@@ -6927,9 +6927,12 @@ end group
       out.push(...newBlock);
     }
 
-    // MIS files are a Windows-native format. Always serialize them with CRLF
-    // regardless of the line endings used by the source file or host OS.
-    return out.join("\r\n");
+    // MIS files are a Windows-native format. MED terminates the final section
+    // with CRLF followed by one blank line (two CRLF sequences total).
+    // Normalize any source-file trailing whitespace so repeated saves do not
+    // keep appending additional blank lines.
+    while (out.length && out[out.length - 1].trim() === "") out.pop();
+    return `${out.join("\r\n")}\r\n\r\n`;
   }
 
   const UNDO_HISTORY_LIMIT = 100;
