@@ -2546,6 +2546,15 @@ end group
 
 `;
 
+  function createDefaultNewMapMis(now = new Date()){
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+    const year = now.getFullYear();
+    const hour = now.getHours();
+    const minute = String(now.getMinutes()).padStart(2, "0");
+    return `// mission metafile, saved on ${month}/${day}/${year}, ${hour}:${minute}\n\n\n${DEFAULT_NEW_MAP_MIS}`;
+  }
+
   const GENERAL_INFORMATION_CANONICAL_KEYS=[
     "file_version","name","designer","terrain","cnv_file","tt_file","terrain_color","attrib","visible_if","notvisible_if",
     "arty","water_level","fog_level","fog_color","weather_type","lowest_elev","num_items","num_events","sunset","viewx",
@@ -10256,15 +10265,16 @@ end group
     insertPreviewLabel.style.display = "none";
     cv.style.cursor = "";
 
-    state.rawText = DEFAULT_NEW_MAP_MIS;
-    const parsed = parseMIS(DEFAULT_NEW_MAP_MIS);
+    const newMapMis = createDefaultNewMapMis();
+    state.rawText = newMapMis;
+    const parsed = parseMIS(newMapMis);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
     const generalInfo = state.sectionBlocks.find(sec => sec.kind === "general_information");
     if (generalInfo) fillGeneralInfoEditor(generalInfo);
     disposeAreaTriggerVolumes();
     state.areaTriggerVolumes.signature = "";
-    resetUndoHistory(DEFAULT_NEW_MAP_MIS);
+    resetUndoHistory(newMapMis);
     markItemsChanged({ structure: true });
     state.selectedId = null;
     state.multiSelectedIds.clear();
