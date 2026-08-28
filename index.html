@@ -857,7 +857,8 @@
     .insertPreviewPanel{ display:grid; gap:4px; }
     #insertGlbPreview{ width:100%; height:150px; display:block; border:1px solid var(--line-muted); background:var(--canvas); box-sizing:border-box; }
     #insertGlbPreviewStatus{ min-height:16px; color:var(--text-subtle); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    #liveMisOverlay{
+    #liveMisOverlay,
+    #liveTilOverlay{
       position:absolute;
       inset:0;
       background:var(--overlay);
@@ -867,8 +868,10 @@
       z-index:55;
       padding:18px;
     }
-    #liveMisOverlay.open{ display:flex; }
-    #liveMisWindow{
+    #liveMisOverlay.open,
+    #liveTilOverlay.open{ display:flex; }
+    #liveMisWindow,
+    #liveTilWindow{
       width:min(1120px,100%);
       height:min(820px,100%);
       background:var(--panel-muted);
@@ -883,7 +886,8 @@
       min-width:280px;
       max-width:360px;
     }
-    #liveMisText{
+    #liveMisText,
+    #liveTilText{
       color:var(--text);
       width:100%;
       height:100%;
@@ -2069,6 +2073,13 @@
         </div>
       </div>
 
+      <div id="liveTilOverlay" aria-hidden="true">
+        <div id="liveTilWindow" role="dialog" aria-modal="true" aria-labelledby="liveTilTitle">
+          <div class="windowTitle"><span id="liveTilTitle">.TIL Code</span><span class="spacer"></span><button class="xbtn" id="liveTilCloseBtn" type="button" aria-label="Close .TIL Code">X</button></div>
+          <pre id="liveTilText" aria-live="polite"></pre>
+        </div>
+      </div>
+
       <div id="logsOverlay" aria-hidden="true">
         <div id="logsWindow" role="dialog" aria-modal="true" aria-label="Logs">
           <div class="windowTitle">Logs <span class="spacer"></span><span id="logsFilterBar" class="logsFilterBar" aria-label="Log filters"></span><button class="xbtn" id="logsCloseBtn">X</button></div>
@@ -2621,6 +2632,7 @@ end group
     liveMisSearchTerm: "",
     liveMisSearchIndex: -1,
     liveMisRawText: "",
+    liveTilOpen: false,
     realtimePrevMisText: "",
     realtimeLog: [],
     selectedWaypointMarkerIds: new Set(),
@@ -3039,6 +3051,9 @@ end group
   const liveMisText = document.getElementById("liveMisText");
   const liveMisSearch = document.getElementById("liveMisSearch");
   const findItemBlockInMisBtn = document.getElementById("ui_findItemBlockInMis");
+  const liveTilOverlay = document.getElementById("liveTilOverlay");
+  const liveTilCloseBtn = document.getElementById("liveTilCloseBtn");
+  const liveTilText = document.getElementById("liveTilText");
   const logsOverlay = document.getElementById("logsOverlay");
   const logsCloseBtn = document.getElementById("logsCloseBtn");
   const logsText = document.getElementById("logsText");
@@ -7765,6 +7780,7 @@ end group
     if (misRealtimeConsoleEl){
       updateRealtimeChangesConsole(state.liveMisRawText, resetBaseline);
     }
+    refreshLiveTilWindow();
     if (!state.liveMisOpen) return;
     renderLiveMisHighlighted();
   }
@@ -7860,6 +7876,51 @@ end group
       return escapeHtml(line);
     }).join("\n");
     misRealtimeConsoleEl.innerHTML = html;
+  }
+
+  function formatLiveTilText(){
+    const records=state.mapTiles.records || [];
+    if(!state.filename && !state.mapTiles.filename && !state.mapTiles.sourceFilename){
+      return "// No map is loaded.\n// Open a .mis file to view its companion .til content.";
+    }
+    const filename=state.mapTiles.sourceFilename || state.mapTiles.filename || String(state.filename || "edited.mis").replace(/\.mis$/i,".til");
+    const byteLength=16+records.length*12;
+    const lines=[
+      `// ${filename}`,
+      "// Live decoded view of the binary .til file.",
+      "",
+      "signature 0lit",
+      `record_count ${records.length}`,
+      `file_size ${byteLength}`,
+      `header_reserved ${Number(state.mapTiles.headerReserved)||0}`,
+      "",
+      "// record  x  y  tile_index  flags  reserved"
+    ];
+    for(const [index,record] of records.entries()){
+      const x=dfbhdmedTilCoordinate(record.x),y=dfbhdmedTilCoordinate(record.y);
+      const tileIndex=Number(record.tileIndex)||0,flags=Number(record.flags)||0,reserved=Number(record.reserved)||0;
+      lines.push(`${index} ${x} ${y} ${tileIndex} ${flags} ${reserved}`);
+    }
+    if(!records.length)lines.push("// No tile records loaded.");
+    return lines.join("\n");
+  }
+
+  function refreshLiveTilWindow(){
+    if(state.liveTilOpen)liveTilText.textContent=formatLiveTilText();
+  }
+
+  function openLiveTilWindow(){
+    state.liveTilOpen=true;
+    liveTilOverlay.classList.add("open");
+    liveTilOverlay.setAttribute("aria-hidden","false");
+    refreshLiveTilWindow();
+    liveTilCloseBtn.focus();
+  }
+
+  function closeLiveTilWindow(){
+    state.liveTilOpen=false;
+    liveTilOverlay.classList.remove("open");
+    liveTilOverlay.setAttribute("aria-hidden","true");
   }
 
   function openLiveMisWindow(){
@@ -8969,7 +9030,8 @@ end group
     if (e.key === "Escape" && state.tileInsertIndex!==null){e.preventDefault();cancelTileInsertMode();return;}
     if (e.key === "Escape" && state.modalOpen) closeModalCancel();
     if (e.key === "Escape" && state.sectionEditorOpen) closeSectionEditor();
-    if (e.key === "Escape" && state.liveMisOpen) closeLiveMisWindow();
+    if (e.key === "Escape" && state.liveTilOpen) closeLiveTilWindow();
+    else if (e.key === "Escape" && state.liveMisOpen) closeLiveMisWindow();
     if (e.key === "Escape" && keyboardShortcutsOverlay.classList.contains("open")) closeKeyboardShortcuts();
     if (e.key === "Escape") {
       setCanvasShowPanelOpen(false);
@@ -10007,6 +10069,8 @@ end group
   liveMisOverlay.addEventListener("mousedown", (e) => { if (e.target === liveMisOverlay) closeLiveMisWindow(); });
   liveMisSearch.addEventListener("input", () => findInLiveMis(false, false));
   liveMisSearch.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); findInLiveMis(true, true); } });
+  liveTilCloseBtn.addEventListener("click", closeLiveTilWindow);
+  liveTilOverlay.addEventListener("mousedown", (e) => { if (e.target === liveTilOverlay) closeLiveTilWindow(); });
   findItemBlockInMisBtn.addEventListener("click", () => openLiveMisAtItemBlock(getSelected()));
   sectionKindSelect.addEventListener("change", () => { state.sectionKind = sectionKindSelect.value; state.sectionSelectedId = state.sectionKind === "event" ? state.eventSelectedId : null; sectionAddBtn.textContent = state.sectionKind === "group" ? "Ok" : "Add block"; updateSectionEditorMode(); renderSectionList(); });
   sectionQuickNav?.addEventListener("change", () => {
@@ -10524,6 +10588,7 @@ end group
     "view.showAnchorPoints": () => toggleViewOption("showAnchorPoints"),
     "tools.importReferenceGlb": () => fileReferenceGlbEl.click(),
     "mis.liveChanges": openLiveMisWindow,
+    "til.liveChanges": openLiveTilWindow,
     "logs.open": openLogsWindow,
     "more.keyboardShortcuts": openKeyboardShortcuts,
     "uiStyle.default": () => setTheme("default"),
@@ -10631,6 +10696,7 @@ end group
           { separator: true },
           { label: "Logs", command: "logs.open" },
           { label: "MIS Code", command: "mis.liveChanges" },
+          { label: ".TIL Code", command: "til.liveChanges" },
           { separator: true },
           {
             label: "UI Style",
