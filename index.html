@@ -2477,15 +2477,23 @@
   lose_scores 0 0 0 0 0 0 0 0
   terrain_tile_tga${" "}
   wind 0 0
+  wp_names_blue 0 0 0 0 0 0 0 0
+  wp_names_red 0 0 0 0 0 0 0 0
   player_type 0
   max_saves 3
   map_zoom 0.50
   bonus_expiration 10
-  wp_names_blue 0 0 0 0 0 0 0 0
-  wp_names_red 0 0 0 0 0 0 0 0
   default_primary   WPN_CAR15AUTO
   default_secondary WPN_M9Berreta
   default_accessory WPN_CLAYMORE
+  loadoutfile Default
+  attribA 0
+  attribB 0
+  attribN 0
+  mapkey_circle 0
+  mapkey_fcircle 0
+  mapkey_diamond 0
+  mapkey_cross 0
 end general_information
 
 begin weapon_availability
@@ -6800,15 +6808,15 @@ end group
         if (!t || t.startsWith("//")) { newBlock.push(raw); continue; }
         const m = t.match(/^([A-Za-z0-9_]+)\s+(.*)$/);
         if (!m) { newBlock.push(raw); continue; }
-        const key = m[1];
-        if (Object.prototype.hasOwnProperty.call(kv, key)){
+        const key = m[1],lookupKey=key.toLowerCase();
+        if (Object.prototype.hasOwnProperty.call(kv, lookupKey)){
           const rawValue = m[2].trim();
           const rawUnquoted = rawValue.startsWith('"') && rawValue.endsWith('"')
             ? rawValue.slice(1, -1)
             : rawValue;
-          if (String(kv[key]) === rawUnquoted) newBlock.push(raw);
-          else newBlock.push(`  ${key} ${kv[key]}`);
-          seen.add(key);
+          if (String(kv[lookupKey]) === rawUnquoted) newBlock.push(raw);
+          else newBlock.push(`  ${key} ${kv[lookupKey]}`);
+          seen.add(lookupKey);
         } else {
           newBlock.push(raw);
         }
