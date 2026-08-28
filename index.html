@@ -2486,6 +2486,14 @@
   default_primary   WPN_CAR15AUTO
   default_secondary WPN_M9Berreta
   default_accessory WPN_CLAYMORE
+  loadoutfile Default
+  attribA 0
+  attribB 0
+  attribN 0
+  mapkey_circle 0
+  mapkey_fcircle 0
+  mapkey_diamond 0
+  mapkey_cross 0
 end general_information
 
 begin weapon_availability
@@ -2516,6 +2524,18 @@ begin weapon_availability
   WPN_AT4             ALWAYS_ON
 end weapon_availability
 
+begin waypoint 125
+  description "Goto SSN"
+end waypoint
+
+begin waypoint 126
+  description "Goto Group"
+end waypoint
+
+begin waypoint 127
+  description "Goto Player"
+end waypoint
+
 begin group 1
   description "Blue Players"
 end group
@@ -2525,6 +2545,35 @@ begin group 2
 end group
 
 `;
+
+  function createDefaultNewMapMis(now = new Date()){
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+    const year = now.getFullYear();
+    const hour = now.getHours();
+    const minute = String(now.getMinutes()).padStart(2, "0");
+    return `// mission metafile, saved on ${month}/${day}/${year}, ${hour}:${minute}\n\n\n${DEFAULT_NEW_MAP_MIS}`;
+  }
+
+  const GENERAL_INFORMATION_CANONICAL_KEYS=[
+    "file_version","name","designer","terrain","cnv_file","tt_file","terrain_color","attrib","visible_if","notvisible_if",
+    "arty","water_level","fog_level","fog_color","weather_type","lowest_elev","num_items","num_events","sunset","viewx",
+    "viewy","viewz","viewzoom","gen_def_val1","gen_def_val2","gen_def_val3","gen_def_val4","hardwin","hardlose",
+    "subgoals_win","subgoals_lose","win_scores","lose_scores","terrain_tile_tga","wind","wp_names_blue","wp_names_red",
+    "player_type","max_saves","map_zoom","bonus_expiration","default_primary","default_secondary","default_accessory",
+    "loadoutfile","attribA","attribB","attribN","mapkey_circle","mapkey_fcircle","mapkey_diamond","mapkey_cross"
+  ];
+
+  function generalInformationKvLines(kv){
+    const lines=[],seen=new Set();
+    for(const outputKey of GENERAL_INFORMATION_CANONICAL_KEYS){
+      const key=outputKey.toLowerCase();
+      if(!Object.prototype.hasOwnProperty.call(kv,key))continue;
+      lines.push(`  ${outputKey} ${kv[key]}`);seen.add(key);
+    }
+    for(const [key,value] of Object.entries(kv))if(!seen.has(key.toLowerCase()))lines.push(`  ${key} ${value}`);
+    return lines;
+  }
 
   const MAP_TILE_DEFAULT_SIZE=16;
   const state = {
@@ -5006,6 +5055,66 @@ end group
     insertPreviewLabel.style.display = "block";
   }
 
+  const DEFAULT_INSERTED_ITEM_KV=Object.freeze({
+    iai_name:"",ai_textfile:"",wpdistance:"10",fov:"180",obliqueness:"15",waccuracy1:"100",waccuracy2:"100",
+    perception2:"100",perfectionist2:"100",crouchtimer:"3",shoottimer:"5",attention:"30",advancetimer:"10",
+    max_attack_distance:"16",edistances:"16 320",extra_mlink:"",extra_val1:"0",extra_val2:"0",extra_val3:"0",
+    extra_val4:"0",extra_val5:"0",extra_valmode:"0",extra_bheight:"0",gen_string:"null"
+  });
+  const INSERTED_ITEM_QUOTED_KEYS=new Set(["name","iai_name","ai_textfile","extra_mlink","gen_string"]);
+  const MIS_ITEM_CANONICAL_KEY_ORDER=[
+    "type_id","name","iai_name","ai_textfile","id","position","facing","rot","team","map_symbol","group_id",
+    "wpdistance","wp_adv_trigger","fov","layer","obliqueness","waccuracy1","waccuracy2","perception2",
+    "perfectionist2","crouchtimer","shoottimer","attention","advancetimer","max_attack_distance","edistances",
+    "extra_mlink","extra_val1","extra_val2","extra_val3","extra_val4","extra_val5","extra_valmode","extra_bheight",
+    "gen_string","height_lock"
+  ];
+  const MIS_ITEM_CANONICAL_KEY_RANK=new Map(MIS_ITEM_CANONICAL_KEY_ORDER.map((key,index)=>[key,index]));
+
+  function removeItemKvLine(item,key){
+    delete item.kv[key];
+    const pattern=new RegExp(`^\\s*${key}\\b`,"i");
+    item.lines=(item.lines||[]).filter(raw=>!pattern.test(String(raw||"")));
+  }
+
+  function setCanonicalItemKvLine(item,key,value){
+    const normalizedKey=String(key).toLowerCase(),line=`  ${normalizedKey} ${value}`,pattern=new RegExp(`^\\s*${normalizedKey}\\b`,"i");
+    item.kv[normalizedKey]=String(value);
+    const lines=(item.lines||[]).filter(raw=>!pattern.test(String(raw||""))),targetRank=MIS_ITEM_CANONICAL_KEY_RANK.get(normalizedKey);
+    let insertAt=lines.length;
+    if(targetRank!==undefined)for(let i=0;i<lines.length;i++){
+      const match=String(lines[i]||"").trim().match(/^([A-Za-z0-9_]+)\b/),rank=match?MIS_ITEM_CANONICAL_KEY_RANK.get(match[1].toLowerCase()):undefined;
+      if(rank!==undefined&&rank>targetRank){insertAt=i;break;}
+    }
+    lines.splice(insertAt,0,line);item.lines=lines;
+  }
+
+  function insertedItemDefinitionValue(def,key,fallback){
+    const value=String(def?.kv?.[key]??"").trim();
+    return value||fallback;
+  }
+
+  function buildInsertedItemKv(def,{misId,x,y,z,heading,pitch=0}){
+    const aiTextfile=insertedItemDefinitionValue(def,"default_aip",DEFAULT_INSERTED_ITEM_KV.ai_textfile);
+    const maxAttack=insertedItemDefinitionValue(def,"max_attack_dist",DEFAULT_INSERTED_ITEM_KV.max_attack_distance);
+    const [defaultMinEngage,defaultMaxEngage]=DEFAULT_INSERTED_ITEM_KV.edistances.split(" ");
+    const minEngage=insertedItemDefinitionValue(def,"min_engagement_dist",defaultMinEngage);
+    const maxEngage=insertedItemDefinitionValue(def,"max_engagement_dist",defaultMaxEngage);
+    const attribTokens=(def?.attrib||[]).flatMap(value=>String(value).toLowerCase().split(/\s+/)).filter(Boolean);
+    const kv={
+      type_id:String(toMisTypeIdFromDefId(def.id)),name:String(def.name||""),iai_name:DEFAULT_INSERTED_ITEM_KV.iai_name,
+      ai_textfile:aiTextfile,id:String(misId),position:`${x} ${y} ${z}`
+    };
+    if(Math.abs(Number(heading)||0)>1e-9||Math.abs(Number(pitch)||0)>1e-9)kv.facing=`${heading} ${pitch}`;
+    if(attribTokens.includes("good"))kv.team="1";
+    Object.assign(kv,DEFAULT_INSERTED_ITEM_KV,{ai_textfile:aiTextfile,max_attack_distance:maxAttack,edistances:`${minEngage} ${maxEngage}`});
+    return kv;
+  }
+
+  function insertedItemKvLines(kv){
+    return Object.entries(kv).map(([key,value])=>`  ${key} ${INSERTED_ITEM_QUOTED_KEYS.has(key)?quoteMisString(value):value}`);
+  }
+
   function createInsertedItem(def, world){
     const editorId = state.items.length ? Math.max(...state.items.map(item => item.id)) + 1 : 1;
     const blockNumber = getNextBeginItemNumber();
@@ -5014,12 +5123,8 @@ end group
     const z = worldToRaw(Number.isFinite(terrainZ) && terrainZ > -1e8 ? terrainZ : (world.z || 0), "z");
     const x = worldToRaw(world.x, "x"), y = worldToRaw(world.y, "y");
     const heading = state.insertRandomFacing ? Math.floor(Math.random() * 360) : 0;
-    const kv = {
-      type_id: toMisTypeIdFromDefId(def.id), name: quoteMisString(def.name), id: String(misId),
-      position: `${x} ${y} ${z}`, facing: `${heading} 0`, layer: "0"
-    };
-    if (Number(def.drawCircle) === 1) kv.wpdistance = "20";
-    const lines = Object.entries(kv).map(([key, value]) => `  ${key} ${value}`);
+    const kv=buildInsertedItemKv(def,{misId,x,y,z,heading,pitch:0});
+    const lines=insertedItemKvLines(kv);
     const start = Number.MAX_SAFE_INTEGER - (state.sectionBlocks.reduce((max, sec) => Math.max(max, sec.id), 0) + 1);
     const beginLine = `begin item ${blockNumber}`;
     const item = { id: editorId, start, end: start, beginLine, lines: lines.slice(), kv: { ...kv }, x, y, z, heading, pitch: 0 };
@@ -5513,9 +5618,12 @@ end group
     const generation = ++state.generalInfoLoadGeneration;
     const kv = sec?.kv || {};
     const terrainOptions = state.generalTerrainNames || [];
-    const currentTile=String(kv.terrain_tile_tga||"trntile11").replace(/\.tga$/i,"");
-    const tileOptions=TERRAIN_TILE_FILE_INDEX.map(fileName=>String(fileName).replace(/\.tga$/i,""));
-    if(currentTile&&!tileOptions.some(value=>value.toLowerCase()===currentTile.toLowerCase()))tileOptions.push({value:currentTile,label:`${currentTile} (unavailable)`});
+    const currentTile=String(kv.terrain_tile_tga||"").replace(/\.tga$/i,"");
+    const tileOptions=[{value:"",label:"None"},...TERRAIN_TILE_FILE_INDEX.map(fileName=>{
+      const value=String(fileName).replace(/\.tga$/i,"");
+      return {value,label:value};
+    })];
+    if(currentTile&&!tileOptions.some(option=>option.value.toLowerCase()===currentTile.toLowerCase()))tileOptions.push({value:currentTile,label:`${currentTile} (unavailable)`});
     ensureSelectOptions(giTerrain, terrainOptions.map(v=>({ value:v, label:v })), kv.terrain || "dvd1", { caseInsensitive: true });
     ensureSelectOptions(giTiles, tileOptions, currentTile, { caseInsensitive: true });
     const playerTypeRaw = String(kv.player_type ?? "1");
@@ -5611,10 +5719,12 @@ end group
 
   function applyGeneralInfoSection(sec){
     const kv = { ...(sec.kv || {}) };
+    kv.cnv_file=String(kv.cnv_file??"");
+    kv.tt_file=String(kv.tt_file??"");
     kv.name = quoteMisString(giMissionName.value);
     kv.designer = quoteMisString(giDesigner.value);
     kv.terrain = giTerrain.value || "dvd1";
-    kv.terrain_tile_tga = giTiles.value || "trntile11";
+    kv.terrain_tile_tga = giTiles.value || "";
     kv.player_type = String(Math.max(0, Math.trunc(Number(giPlayerType.value || 0))));
 
     let attrib = Number(kv.attrib || 0);
@@ -5648,17 +5758,17 @@ end group
     if (giWaterEnabled.checked){
       kv.water_level = String(Math.max(0, Math.round(Number(giWaterLevel.value || 0) / 0.5)));
     } else {
-      delete kv.water_level;
+      kv.water_level=String(kv.water_level??"0")||"0";
     }
     if (giFogDistEnabled.checked){
       kv.fog_level = String(numberToFixed16(giFogLevel.value || 0));
     } else {
-      delete kv.fog_level;
+      kv.fog_level=String(kv.fog_level??"0")||"0";
     }
     if (giFogColorEnabled.checked){
       kv.fog_color = String(encodeFogColor(giFogR.value, giFogG.value, giFogB.value));
     } else {
-      delete kv.fog_color;
+      kv.fog_color=String(kv.fog_color??"0")||"0";
     }
 
     kv.wind = `${Math.max(0, Math.trunc(Number(giWindSpeed.value || 0)))} ${Math.max(0, Math.trunc(Number(giWindDirection.value || 0)))}`;
@@ -5672,7 +5782,7 @@ end group
     delete kv.rotate_map_180;
 
     sec.kv = kv;
-    sec.lines = Object.entries(kv).map(([k,v]) => `  ${k} ${v}`);
+    sec.lines = generalInformationKvLines(kv);
     syncWeaponLoadoutsFromGeneral(sec);
   }
 
@@ -6643,10 +6753,10 @@ end group
         for (const raw of blockLines){
           const t = raw.trim();
           if (!t || t.startsWith("//")) continue;
-          const m = t.match(/^([A-Za-z0-9_]+)\s+(.*)$/);
+          const m = t.match(/^([A-Za-z0-9_]+)(?:\s+(.*))?$/);
           if (!m) continue;
           const key = m[1].toLowerCase();
-          let val = m[2].trim();
+          let val = (m[2] || "").trim();
           if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
           kv[key] = val;
         }
@@ -6742,17 +6852,17 @@ end group
       for (const raw of srcLines){
         const t = raw.trim();
         if (!t || t.startsWith("//")) { newBlock.push(raw); continue; }
-        const m = t.match(/^([A-Za-z0-9_]+)\s+(.*)$/);
+        const m = t.match(/^([A-Za-z0-9_]+)(?:\s+(.*))?$/);
         if (!m) { newBlock.push(raw); continue; }
-        const key = m[1];
-        if (Object.prototype.hasOwnProperty.call(kv, key)){
-          const rawValue = m[2].trim();
+        const key = m[1],lookupKey=key.toLowerCase();
+        if (Object.prototype.hasOwnProperty.call(kv, lookupKey)){
+          const rawValue = (m[2] || "").trim();
           const rawUnquoted = rawValue.startsWith('"') && rawValue.endsWith('"')
             ? rawValue.slice(1, -1)
             : rawValue;
-          if (String(kv[key]) === rawUnquoted) newBlock.push(raw);
-          else newBlock.push(`  ${key} ${kv[key]}`);
-          seen.add(key);
+          if (String(kv[lookupKey]) === rawUnquoted) newBlock.push(raw);
+          else newBlock.push(`  ${key} ${kv[lookupKey]}`);
+          seen.add(lookupKey);
         } else {
           newBlock.push(raw);
         }
@@ -6826,7 +6936,12 @@ end group
       out.push(...newBlock);
     }
 
-    return out.join("\n");
+    // MIS files are a Windows-native format. MED terminates the final section
+    // with CRLF followed by one blank line (two CRLF sequences total).
+    // Normalize any source-file trailing whitespace so repeated saves do not
+    // keep appending additional blank lines.
+    while (out.length && out[out.length - 1].trim() === "") out.pop();
+    return `${out.join("\r\n")}\r\n\r\n`;
   }
 
   const UNDO_HISTORY_LIMIT = 100;
@@ -8443,8 +8558,8 @@ end group
     ui.presenceHint.textContent = "";
 
     buildLayerOptions();
-    setEnabled(ui.layer, kvHas(it, "layer"));
-    if (kvHas(it, "layer")) ui.layer.value = String(it.kv.layer);
+    setEnabled(ui.layer, true);
+    ui.layer.value = kvHas(it, "layer") ? String(it.kv.layer) : "0";
 
     // Sub-Type
     // If DEF is loaded and item has type_id, allow selecting and update type_id + name
@@ -8615,7 +8730,8 @@ end group
       }
     }
 
-    if (kvHas(it, "layer")) it.kv.layer = ui.layer.value;
+    if (ui.layer.value === "0")removeItemKvLine(it,"layer");
+    else setCanonicalItemKvLine(it,"layer",ui.layer.value);
 
     if (kvHas(it, "position")){
       it.x = joinFixedPositionRaw(ui.posx.value, ui.posxFrac.value);
@@ -8631,8 +8747,8 @@ end group
       it.pitch = parseFloatSafe(ui.pitch.value);
       if (kvHas(it, "facing") || !kvHas(it, "rot")){
         const facingIsZero = Math.abs(it.heading) < 1e-9 && Math.abs(it.pitch) < 1e-9;
-        if (facingIsZero) delete it.kv.facing;
-        else it.kv.facing = `${it.heading} ${it.pitch}`;
+        if (facingIsZero) removeItemKvLine(it,"facing");
+        else setCanonicalItemKvLine(it,"facing",`${it.heading} ${it.pitch}`);
       } else {
         it.kv.rot = String(it.heading);
       }
@@ -8968,6 +9084,7 @@ end group
     const sourceRecord=mapTileRecordForItem(sourceItem);
     if(!sourceRecord)return null;
     const recordIndex=state.mapTiles.records.length;
+    reserveAppendedTilRecordIndex(recordIndex);
     const record={
       ...structuredClone(sourceRecord),
       x:dfbhdmedTilCoordinate(Number(sourceRecord.x)+(Number(copiedItem.x)-Number(sourceItem.x))),
@@ -8982,6 +9099,22 @@ end group
     const section=getItemSectionByStartFast(copiedItem.start);
     if(section){section.kv={...copiedItem.kv};section.lines=copiedItem.lines.slice();}
     return record;
+  }
+
+  function reserveAppendedTilRecordIndex(recordIndex){
+    // A malformed or mismatched MIS can contain MapTiles that point past the
+    // end of the loaded TIL. Appending at the first missing index would make
+    // the new record look referenced by one of those items, so it would not be
+    // rebuilt as a selectable TIL-only item. Keep dangling references dangling
+    // by shifting them above the index that is about to be appended.
+    for(const item of state.items){
+      if(!isMapTileItem(item))continue;
+      const oldIndex=Math.trunc(Number(item.kv?.extra_val2));
+      if(!Number.isInteger(oldIndex)||oldIndex<recordIndex)continue;
+      setItemKvLine(item,"extra_val2",oldIndex+1);
+      const section=getItemSectionByStartFast(item.start);
+      if(section){section.kv={...item.kv};section.lines=item.lines.slice();}
+    }
   }
 
   function createCanonicalMapTileItem(tileIndex,recordIndex,flags,centerX,centerY){
@@ -9008,7 +9141,11 @@ end group
     const selectedIds = state.multiSelectedIds.size
       ? Array.from(state.multiSelectedIds)
       : (state.selectedId != null ? [state.selectedId] : []);
-    const selectedItems = state.items.filter(it => selectedIds.includes(it.id));
+    // Existing map tiles may only have a companion TIL record. They are
+    // exposed as synthetic entries in state.tilOnlyItems rather than in the
+    // MIS-backed state.items array, so resolve the selected IDs through the
+    // shared lookup used by the canvas and tile-instance list.
+    const selectedItems = selectedIds.map(id=>getItemByIdFast(id)).filter(Boolean);
     if(state.tileEditModeActive&&selectedItems.some(it=>!isMapTileItem(it))){statusEl.textContent="Tile Edit Mode only allows MapTiles to be copied or edited.";return false;}
     if (!selectedItems.length){
       statusEl.textContent = "Selecione um item para copiar.";
@@ -9090,7 +9227,7 @@ end group
     for (const entry of state.itemClipboardItems){
       if(isTilOnlyMapTile(entry.item)){
         const source=state.mapTiles.records[Math.trunc(Number(entry.item.kv?.extra_val2))];if(!source)continue;
-        const half=(Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE)*.5,record={...structuredClone(source),x:worldToRaw(world.x+entry.dx-half,"x"),y:worldToRaw(world.y+entry.dy+half,"y"),recordIndex:state.mapTiles.records.length};
+        const half=(Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE)*.5,recordIndex=state.mapTiles.records.length;reserveAppendedTilRecordIndex(recordIndex);const record={...structuredClone(source),x:worldToRaw(world.x+entry.dx-half,"x"),y:worldToRaw(world.y+entry.dy+half,"y"),recordIndex};
         state.mapTiles.records.push(record);state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);state.mapTiles.dirty=true;
         pastedItems.push({_pendingTilRecordIndex:record.recordIndex});continue;
       }
@@ -9129,11 +9266,66 @@ end group
       : `Colados: ${pastedItems.length} itens`;
   }
 
+  function pasteCopiedMapTilesImmediately(){
+    if(!state.itemClipboardItems.length||!state.itemClipboardItems.every(entry=>isMapTileItem(entry.item)))return false;
+    let pastedItems=[];
+    const size=Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE,rawTileStep=worldToRaw(size,"x");
+    beginUndoTransaction();
+    try{
+      for(const entry of state.itemClipboardItems){
+        if(isTilOnlyMapTile(entry.item)){
+          const source=mapTileRecordForItem(entry.item);
+          if(!source)continue;
+          let x=dfbhdmedTilCoordinate(Number(source.x)+rawTileStep),y=Number(source.y);
+          while(state.mapTiles.byPosition.has(mapTilePositionKey(x,y)))x=dfbhdmedTilCoordinate(x+rawTileStep);
+          const recordIndex=state.mapTiles.records.length;
+          reserveAppendedTilRecordIndex(recordIndex);
+          const record={...structuredClone(source),x,y,recordIndex};
+          state.mapTiles.records.push(record);
+          state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);
+          state.mapTiles.dirty=true;
+          pastedItems.push({_pendingTilRecord:record});
+          continue;
+        }
+        const pasted=createPastedItemFrom(entry.item,entry.section,{
+          offset:false,
+          worldPosition:{x:rawToWorld(entry.item.x,"x")+size,y:rawToWorld(entry.item.y,"y")},
+          selectCreated:false,
+          refresh:false
+        });
+        createIndependentMapTileRecord(entry.item,pasted);
+        pastedItems.push(pasted);
+      }
+      if(pastedItems.some(item=>item._pendingTilRecord)){
+        rebuildTilOnlyItems();
+        for(let i=0;i<pastedItems.length;i++){
+          const record=pastedItems[i]._pendingTilRecord;
+          if(record)pastedItems[i]=state.tilOnlyItems.find(item=>mapTileRecordForItem(item)===record)||null;
+        }
+      }
+      pastedItems=pastedItems.filter(Boolean);
+      if(!pastedItems.length){statusEl.textContent="Unable to paste the copied tiles.";return true;}
+      markItemsChanged({structure:true});
+      state.selectedId=pastedItems.at(-1)?.id??null;
+      state.multiSelectedIds=new Set(pastedItems.map(item=>item.id));
+      state.selectedWaypointMarkerIds.clear();
+      updateWaypointMarkerCount(0);
+      if(state.mapTiles.pendingOverlayRebuild){cancelAnimationFrame(state.mapTiles.pendingOverlayRebuild);state.mapTiles.pendingOverlayRebuild=0;}
+      buildMapTileOverlay();
+      renderList();renderTileInstances();renderItemWindow();updateItemGizmo();scheduleLiveMisRefresh();requestRender();
+      statusEl.textContent=pastedItems.length===1
+        ? `Pasted independent tile #${pastedItems[0].id}.`
+        : `Pasted ${pastedItems.length} independent tiles.`;
+    }finally{endUndoTransaction();}
+    return true;
+  }
+
   function pasteCopiedItem(){
     if (!state.itemClipboardItems.length){
       statusEl.textContent = "Nenhum item copiado para colar.";
       return;
     }
+    if(pasteCopiedMapTilesImmediately())return;
     const rect = cv.getBoundingClientRect();
     const sx = state.lastMouse ? state.lastMouse.sx : rect.width / 2;
     const sy = state.lastMouse ? state.lastMouse.sy : rect.height / 2;
@@ -9147,7 +9339,7 @@ end group
     if(state.tileEditModeActive&&!isMapTileItem(it)){statusEl.textContent="Tile Edit Mode only allows MapTiles to be duplicated.";return;}
     if(isTilOnlyMapTile(it)){
       const source=mapTileRecordForItem(it);if(!source)return;
-      const offset=worldToRaw(Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE,"x"),record={...structuredClone(source),x:source.x+offset,recordIndex:state.mapTiles.records.length};
+      const offset=worldToRaw(Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE,"x"),recordIndex=state.mapTiles.records.length;reserveAppendedTilRecordIndex(recordIndex);const record={...structuredClone(source),x:source.x+offset,recordIndex};
       state.mapTiles.records.push(record);state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);state.mapTiles.dirty=true;rebuildTilOnlyItems();
       selectById(`til-record:${record.recordIndex}`);scheduleUndoCapture();buildMapTileOverlay();renderTileInstances();statusEl.textContent=`Duplicated TIL record ${source.recordIndex+1}.`;return;
     }
@@ -10073,15 +10265,16 @@ end group
     insertPreviewLabel.style.display = "none";
     cv.style.cursor = "";
 
-    state.rawText = DEFAULT_NEW_MAP_MIS;
-    const parsed = parseMIS(DEFAULT_NEW_MAP_MIS);
+    const newMapMis = createDefaultNewMapMis();
+    state.rawText = newMapMis;
+    const parsed = parseMIS(newMapMis);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
     const generalInfo = state.sectionBlocks.find(sec => sec.kind === "general_information");
     if (generalInfo) fillGeneralInfoEditor(generalInfo);
     disposeAreaTriggerVolumes();
     state.areaTriggerVolumes.signature = "";
-    resetUndoHistory(DEFAULT_NEW_MAP_MIS);
+    resetUndoHistory(newMapMis);
     markItemsChanged({ structure: true });
     state.selectedId = null;
     state.multiSelectedIds.clear();
@@ -11248,7 +11441,7 @@ end group
     beginUndoTransaction();
     try{
       const canonicalCenterX=rawToWorld(dfbhdmedTilCoordinate(worldToRaw(centerX,"x")),"x"),canonicalCenterY=rawToWorld(dfbhdmedTilCoordinate(worldToRaw(centerY,"y")),"y");
-      const recordIndex=state.mapTiles.records.length,record={x:dfbhdmedTilCoordinate(worldToRaw(canonicalCenterX-size*.5,"x")),y:dfbhdmedTilCoordinate(worldToRaw(canonicalCenterY+size*.5,"y")),tileIndex,flags:state.tileInsertFlags,reserved:0,recordIndex};
+      const recordIndex=state.mapTiles.records.length;reserveAppendedTilRecordIndex(recordIndex);const record={x:dfbhdmedTilCoordinate(worldToRaw(canonicalCenterX-size*.5,"x")),y:dfbhdmedTilCoordinate(worldToRaw(canonicalCenterY+size*.5,"y")),tileIndex,flags:state.tileInsertFlags,reserved:0,recordIndex};
       state.mapTiles.records.push(record);state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);state.mapTiles.dirty=true;
       createCanonicalMapTileItem(tileIndex,recordIndex,state.tileInsertFlags,canonicalCenterX,canonicalCenterY);
       markItemsChanged({structure:true});buildMapTileOverlay();renderList();renderItemWindow();scheduleLiveMisRefresh();syncGlbItems();requestRender();
@@ -11988,7 +12181,11 @@ end group
       terrain.material.onBeforeCompile=(shader)=>{
         shader.uniforms.mapTileOverlay={value:state.mapTiles.overlayTexture};
         shader.uniforms.mapTileBounds={value:new THREE.Vector4(originWorldX(),originWorldY(),terrainSpanX(),terrainSpanY())};
-        shader.uniforms.mapTileEnabled={value:0};
+        // The overlay may already have been built before Three compiles this
+        // material (for example, immediately after inserting or pasting a
+        // tile). Seed the compiled shader from the current texture instead of
+        // disabling it until a later overlay rebuild happens.
+        shader.uniforms.mapTileEnabled={value:state.mapTiles.overlayTexture?1:0};
         shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vMapTileWorld;').replace('#include <begin_vertex>','#include <begin_vertex>\nvMapTileWorld=(modelMatrix*vec4(transformed,1.0)).xyz;');
         shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D mapTileOverlay;\nuniform vec4 mapTileBounds;\nuniform float mapTileEnabled;\nvarying vec3 vMapTileWorld;').replace('#include <map_fragment>',`#include <map_fragment>
           if(mapTileEnabled>0.5){
@@ -14599,8 +14796,8 @@ end group
     if (!it) return;
     if (kvHas(it, "facing") || !kvHas(it, "rot")){
       const facingIsZero = Math.abs(Number(it.heading) || 0) < 1e-9 && Math.abs(Number(it.pitch) || 0) < 1e-9;
-      if (facingIsZero) delete it.kv.facing;
-      else it.kv.facing = `${it.heading} ${it.pitch}`;
+      if (facingIsZero) removeItemKvLine(it,"facing");
+      else setCanonicalItemKvLine(it,"facing",`${it.heading} ${it.pitch}`);
     } else it.kv.rot = String(it.heading);
   }
 
