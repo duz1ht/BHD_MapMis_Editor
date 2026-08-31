@@ -1,21 +1,5 @@
 This project ports the map editor from Delta Force: Black Hawk Down, released in 2003 by NovaLogic, into a simple HTML file using Three.js. We can keep it as a web app or later migrate it to something simple like Electron, or another platform that makes it easy to reuse and build on the existing work.
 
-Todo:
-- [x] 3D terrain rendering
-- [x] Items conversion from .3DI to .GLB
-- [x] General Information
-- [X] Waypoints
-- [X] Layer Names
-- [X] Groups
-- [ ] 90% - Item Attributes
-- [X] 90% - Area Triggers
-- [ ] 90% - Item context menu
-- [X] Canvas context menu
-- [ ] Briefing
-- [x] Events
-- [ ] Global Replace
-- [ ] Weapon Loadouts
-
 * `resources/BHD/items_lists/itemsDef.js` works similarly to the original `items.def`.
 * `resources/BHD/items_lists/otheritems.js` lists all the items that aren’t in `items.def` by default and also uses new variables, like graphic to indicate which 3D `.glb` file will be used for the item.
 * `resources/BHD/items_lists/weapon.def` provides the weapon catalog used to display loadout names.
