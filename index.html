@@ -1754,7 +1754,6 @@
           <button id="showAllShowOptionsBtn" type="button">Show All</button>
         </div>
         <div id="canvasShowPanelList">
-          <label><input type="checkbox" id="showCharTiles"> Char Tiles</label>
           <label><input type="checkbox" id="showReferenceGlb" checked> Reference GLB</label>
           <label><input type="checkbox" id="showEditorHelders" checked> Editor Helders</label>
           <label data-show-category="foliage"><input type="checkbox" id="showFoliage" checked> <span class="visibilityItemName">Foliage</span> <span class="visibilityItemCount">(0)</span></label>
@@ -2238,7 +2237,7 @@
                       </div>
                     </div>
                     <div class="kvRow">
-                      <div class="inlineLabel" style="margin:0;">extra_bheight:</div>
+                      <div id="ui_extraBheightLabel" class="inlineLabel" style="margin:0;">extra_bheight:</div>
                       <div class="posDualInputs">
                         <input id="ui_extraBheight" class="compactInput" disabled />
                         <input id="ui_extraBheight_frac" class="compactInput" disabled />
@@ -2246,11 +2245,11 @@
                     </div>
                   </div>
                   <div class="row" style="margin:2px 0 0 0;">
-                    <label class="checkRow" style="margin:0;">
+                    <label class="checkRow" style="margin:0;" title="Show and edit Z in world coordinates">
                       <input type="checkbox" id="ui_absHeight" />
                       <span>Absolute Height</span>
                     </label>
-                    <label class="checkRow" style="margin:0;">
+                    <label class="checkRow" style="margin:0;" title="Keep the item's world elevation when the terrain height changes">
                       <input type="checkbox" id="ui_lock" disabled />
                       <span>Lock</span>
                     </label>
@@ -2766,6 +2765,8 @@ end group
       waypointDataSignature: "",
       pointOffsetsByItemId: new Map(),
       pointTransformDirtyIds: new Set(),
+      waypointVertexIndicesByItemId: new Map(),
+      waypointTransformDirtyIds: new Set(),
       ready: false,
     },
     areaTriggerVolumes: {
@@ -3210,6 +3211,7 @@ end group
     posyFrac: document.getElementById("ui_posy_frac"),
     posz: document.getElementById("ui_posz"),
     poszFrac: document.getElementById("ui_posz_frac"),
+    extraBheightLabel: document.getElementById("ui_extraBheightLabel"),
     extraBheight: document.getElementById("ui_extraBheight"),
     extraBheightFrac: document.getElementById("ui_extraBheight_frac"),
     absHeight: document.getElementById("ui_absHeight"),
@@ -3411,6 +3413,9 @@ end group
     if(state.glb.batchedItemLookup.has(itemId))state.glb.structureDirty=true;
     state.glb.transformDirtyIds.add(itemId);
     if (renderUiState.showAnchorPoints) state.threeItems.pointTransformDirtyIds.add(itemId);
+    if (state.threeItems.waypointVertexIndicesByItemId.has(itemId)){
+      state.threeItems.waypointTransformDirtyIds.add(itemId);
+    }
     if (state.spatialIndex.enabled){
       const it = getItemByIdFast(itemId);
       if (it) upsertItemInSpatialIndex(it);
@@ -3428,6 +3433,7 @@ end group
   function markItemTransformsChanged(items){
     state.liveMisDirty = true;
     for (const it of items || []) if (it?.id != null) markItemTransformDirty(it.id);
+    if (state.threeItems.waypointTransformDirtyIds.size) requestRender();
   }
 
   function scheduleRenderList(){
@@ -4104,10 +4110,6 @@ end group
     return Number.isInteger(rounded) ? String(rounded) : String(rounded);
   }
 
-  function formatAbsoluteHeightFromRaw(v){
-    return formatCoord(v);
-  }
-
   function getGlbDimensionsForItem(item){
     if (!item || !state.glb.ready || !state.glb.THREE) return null;
 
@@ -4163,10 +4165,10 @@ end group
     const typeLabel = String(def?.type || "").trim() || readKvValue(item, "type");
     const typeIdValue = readKvValue(item, "type_id");
     const glbDimensions = getGlbDimensionsForItem(item);
-    const isHeightLockEnabled = readKvValue(item, "height_lock") === "1";
+    const isHeightLockEnabled = isItemHeightLocked(item);
     const extraBHeightValue = readKvValue(item, "extra_bheight");
     const zDetails = [
-      `Absolute Z: ${formatAbsoluteHeightFromRaw(item?.z)}`,
+      `Absolute Z: ${formatCoord(getItemWorldRawZ(item))}`,
       `Lock: ${isHeightLockEnabled ? "Enabled" : "Disabled"}`,
     ];
     if (extraBHeightValue !== "") zDetails.push(`extra_bheight: ${extraBHeightValue}`);
@@ -4399,7 +4401,8 @@ end group
 
   function isKothCenterItem(it){
     const def = getDefForItem(it);
-    return String(def?.id || def?.typeId || "") === "106006"
+    return Number(it?.kv?.type_id) === 6006
+      || String(def?.id || def?.typeId || "") === "106006"
       || String(def?.name || "").trim().toLowerCase() === "koth center";
   }
 
@@ -4969,9 +4972,7 @@ end group
     insertOverlay.setAttribute("aria-hidden", "true");
   }
 
-  function stopInsertMode(message = "Insert Mode canceled."){
-    closeInsertDialog();
-    state.insertModeActive = false;
+  function resetInsertPreview(){
     state.insertDragStart = null;
     state.insertDragStartScreen = null;
     state.insertHoverPoint = null;
@@ -4979,6 +4980,12 @@ end group
     state.insertPreviewSamples = [];
     state.insertPreviewPoints = [];
     insertPreviewLabel.style.display = "none";
+  }
+
+  function stopInsertMode(message = "Insert Mode canceled."){
+    closeInsertDialog();
+    state.insertModeActive = false;
+    resetInsertPreview();
     cv.style.cursor = "";
     renderMenuBar();
     requestRender();
@@ -5032,8 +5039,6 @@ end group
       ? `Insert Mode active: click the terrain to insert ${def.name}.`
       : `Insert Mode active: drag on the terrain to place ${state.insertDropCount} ${def.name} items.`;
   }
-
-  function quoteMisString(value){ return `"${String(value || "").replace(/"/g, "'")}"`; }
 
   function createInsertPreviewSamples(count, area){
     return Array.from({ length: count }, () => area === "oval"
@@ -5139,8 +5144,7 @@ end group
     const editorId = state.items.length ? Math.max(...state.items.map(item => item.id)) + 1 : 1;
     const blockNumber = getNextBeginItemNumber();
     const misId = getNextMisItemId();
-    const terrainZ = heightAtWorld(world.x, world.y, 1.0);
-    const z = worldToRaw(Number.isFinite(terrainZ) && terrainZ > -1e8 ? terrainZ : (world.z || 0), "z");
+    const z = 0;
     const x = worldToRaw(world.x, "x"), y = worldToRaw(world.y, "y");
     const heading = state.insertRandomFacing ? Math.floor(Math.random() * 360) : 0;
     const kv=buildInsertedItemKv(def,{misId,x,y,z,heading,pitch:0});
@@ -7879,7 +7883,7 @@ end group
   }
 
   function formatLiveTilText(){
-    const records=state.mapTiles.records || [];
+    const records=mapTileFileOrder(state.mapTiles.records);
     if(!state.filename && !state.mapTiles.filename && !state.mapTiles.sourceFilename){
       return "// No map is loaded.\n// Open a .mis file to view its companion .til content.";
     }
@@ -7897,8 +7901,7 @@ end group
       "// record  x  y  tile_index  flags  reserved"
     ];
     for(const [index,record] of records.entries()){
-      const x=dfbhdmedTilCoordinate(record.x),y=dfbhdmedTilCoordinate(record.y);
-      const tileIndex=Number(record.tileIndex)||0,flags=Number(record.flags)||0,reserved=Number(record.reserved)||0;
+      const {x,y,tileIndex,reserved}=record,flags=mapTileFlagsForFile(record);
       lines.push(`${index} ${x} ${y} ${tileIndex} ${flags} ${reserved}`);
     }
     if(!records.length)lines.push("// No tile records loaded.");
@@ -8435,21 +8438,20 @@ end group
   function runGlobalReplace(){
     openGlobalReplace();
   }
-  function downloadText(name, text){
-    const blob = new Blob([text], { type:"text/plain;charset=utf-8" });
+  function downloadBlob(name, data, type){
+    const blob = new Blob([data], { type });
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    a.href = url;
     a.download = name;
     a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function downloadText(name, text){
+    downloadBlob(name, text, "text/plain;charset=utf-8");
   }
   function downloadBinary(name, data){
-    const blob = new Blob([data], { type:"application/octet-stream" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    downloadBlob(name, data, "application/octet-stream");
   }
 
   function selectById(id, options = {}){
@@ -8474,6 +8476,34 @@ end group
     if(state.tilePaletteView==="instances")renderTileInstances();
     requestRender();
     return true;
+  }
+
+  function getSelectableItemTypeId(item){
+    if (isTilOnlyMapTile(item)){
+      const tileIndex = mapTileAtlasIndex(item);
+      return tileIndex === null ? null : tileIndex + 3;
+    }
+    const value = String(item?.kv?.type_id ?? "").trim();
+    const typeId = Number(value);
+    return value && Number.isInteger(typeId) ? typeId : null;
+  }
+
+  function selectThisType(item){
+    const typeId = getSelectableItemTypeId(item);
+    if (typeId === null) return;
+
+    // The MED adds visible matches to its current selection in mission order.
+    let activeId = state.selectedId;
+    for (const candidate of [...state.items, ...state.tilOnlyItems]){
+      if (getSelectableItemTypeId(candidate) !== typeId || state.multiSelectedIds.has(candidate.id)) continue;
+      if (!isItemVisibilityFilterMatch(candidate)) continue;
+      const isTile = isMapTileItem(candidate);
+      if (state.tileEditModeActive && (!isTile || isMapTileLocked(candidate))) continue;
+      if (isTile && isMapTileHidden(candidate)) continue;
+      state.multiSelectedIds.add(candidate.id);
+      activeId = candidate.id;
+    }
+    selectById(activeId, { additive: true });
   }
 
   function updateWaypointMarkerCount(){
@@ -8584,6 +8614,80 @@ end group
     return value;
   }
 
+  let showAbsoluteItemHeight = false;
+
+  function setItemWindowZ(raw){
+    const { whole, fraction } = splitFixedPositionRaw(raw);
+    setValueIf(ui.posz, whole);
+    setValueIf(ui.poszFrac, fraction);
+  }
+
+  function itemWindowTerrainRaw(){
+    const x = joinFixedPositionRaw(ui.posx.value, ui.posxFrac.value);
+    const y = joinFixedPositionRaw(ui.posy.value, ui.posyFrac.value);
+    return getItemTerrainRawZ(x, y);
+  }
+
+  function renderItemHeightControls(it){
+    const isTile = isMapTileItem(it);
+    const canEditHeight = kvHas(it, "position") && !isTile;
+    const locked = isItemHeightLocked(it);
+    const terrainZ = canEditHeight ? getItemTerrainRawZ(it.x, it.y) : 0;
+    const zOffset = (showAbsoluteItemHeight ? terrainZ : 0) - (locked ? terrainZ : 0);
+    setItemWindowZ(it.z + zOffset);
+
+    const isKothCenter = isKothCenterItem(it);
+    const isRuler = String(it.kv.name || "").trim().toLowerCase() === "ruler";
+    const canEditExtraHeight = canEditHeight && (isKothCenter || isRuler);
+    ui.extraBheightLabel.textContent = isTile ? "Tile index:" : isRuler ? "Length:" : "extra_bheight:";
+    ui.extraBheightLabel.title = isKothCenter ? "Height above the marker. The MIS stores the upper elevation." : "";
+    ui.extraBheightFrac.hidden = isTile;
+    setEnabled(ui.extraBheight, canEditExtraHeight);
+    setEnabled(ui.extraBheightFrac, canEditExtraHeight);
+    const extraBheightRaw = Number(it.kv.extra_bheight);
+    if (isTile){
+      setValueIf(ui.extraBheight, mapTileAtlasIndex(it) ?? (Number.isFinite(extraBheightRaw) ? extraBheightRaw : "-"));
+      setValueIf(ui.extraBheightFrac, "");
+    } else if (canEditExtraHeight || Number.isFinite(extraBheightRaw)){
+      const extraHeight = Number.isFinite(extraBheightRaw) ? extraBheightRaw : 0;
+      const { whole, fraction } = splitFixedPositionRaw(isKothCenter ? extraHeight - it.z : extraHeight);
+      setValueIf(ui.extraBheight, whole);
+      setValueIf(ui.extraBheightFrac, fraction);
+    } else {
+      setValueIf(ui.extraBheight, "-");
+      setValueIf(ui.extraBheightFrac, "-");
+    }
+
+    setEnabled(ui.lock, canEditHeight);
+    setValueIf(ui.lock, locked);
+    setEnabled(ui.absHeight, canEditHeight);
+    setValueIf(ui.absHeight, canEditHeight && showAbsoluteItemHeight);
+  }
+
+  function commitItemHeightFromWindow(it){
+    const enteredZ = joinFixedPositionRaw(ui.posz.value, ui.poszFrac.value);
+    if (ui.lock.disabled){
+      it.z = enteredZ;
+      return;
+    }
+
+    const locked = ui.lock.checked;
+    const terrainZ = getItemTerrainRawZ(it.x, it.y);
+    it.z = enteredZ + (locked ? terrainZ : 0) - (showAbsoluteItemHeight ? terrainZ : 0);
+    if (locked !== isItemHeightLocked(it)){
+      if (locked) setCanonicalItemKvLine(it, "height_lock", "1");
+      else removeItemKvLine(it, "height_lock");
+    }
+    if (!ui.extraBheight.disabled){
+      const extraHeight = joinFixedPositionRaw(ui.extraBheight.value, ui.extraBheightFrac.value);
+      // KOTH stores the upper endpoint in the same height reference as position Z.
+      const storedExtraHeight = isKothCenterItem(it) ? it.z + extraHeight : extraHeight;
+      if (Number(it.kv.extra_bheight ?? 0) !== storedExtraHeight){
+        setCanonicalItemKvLine(it, "extra_bheight", storedExtraHeight);
+      }
+    }
+  }
+
   function renderItemWindow(){
     const it = getSelected();
     const hasSelection = !!it;
@@ -8650,31 +8754,11 @@ end group
     setEnabled(ui.poszFrac, kvHas(it, "position"));
     const posXSplit = splitFixedPositionRaw(it.x);
     const posYSplit = splitFixedPositionRaw(it.y);
-    const posZSplit = splitFixedPositionRaw(it.z);
     setValueIf(ui.posx, posXSplit.whole);
     setValueIf(ui.posxFrac, posXSplit.fraction);
     setValueIf(ui.posy, posYSplit.whole);
     setValueIf(ui.posyFrac, posYSplit.fraction);
-    setValueIf(ui.posz, posZSplit.whole);
-    setValueIf(ui.poszFrac, posZSplit.fraction);
-
-    const hasExtraBheight = kvHas(it, "extra_bheight");
-    const extraBheightRaw = hasExtraBheight ? Number(it.kv.extra_bheight) : NaN;
-    if (hasExtraBheight && Number.isFinite(extraBheightRaw)){
-      const extraBheightSplit = splitFixedPositionRaw(extraBheightRaw);
-      setValueIf(ui.extraBheight, extraBheightSplit.whole);
-      setValueIf(ui.extraBheightFrac, extraBheightSplit.fraction);
-    } else {
-      setValueIf(ui.extraBheight, "-");
-      setValueIf(ui.extraBheightFrac, "-");
-    }
-
-    // Locks (read-only in UI)
-    setEnabled(ui.lock, false);
-    setValueIf(ui.lock, kvHas(it, "height_lock") && String(it.kv.height_lock) === "1");
-
-    setEnabled(ui.absHeight, false);
-    setValueIf(ui.absHeight, kvHas(it, "absolute_height") ? String(it.kv.absolute_height) === "1" : false);
+    renderItemHeightControls(it);
 
     // Facing (always editable in the window)
     setEnabled(ui.heading, true);
@@ -8796,17 +8880,26 @@ end group
       }
     }
 
+    const originalLayer = Number(it.kv.layer || 0);
+    const originalX = it.x, originalY = it.y;
     if (ui.layer.value === "0")removeItemKvLine(it,"layer");
     else setCanonicalItemKvLine(it,"layer",ui.layer.value);
 
     if (kvHas(it, "position")){
       it.x = joinFixedPositionRaw(ui.posx.value, ui.posxFrac.value);
       it.y = joinFixedPositionRaw(ui.posy.value, ui.posyFrac.value);
-      it.z = joinFixedPositionRaw(ui.posz.value, ui.poszFrac.value);
+      commitItemHeightFromWindow(it);
+      if (it.x !== originalX || it.y !== originalY) syncMapTilePositions([it]);
       it.kv.position = `${it.x} ${it.y} ${it.z}`;
     }
-
-    if (kvHas(it, "absolute_height")) it.kv.absolute_height = ui.absHeight.checked ? "1" : "0";
+    if (isMapTileItem(it) && Number(ui.layer.value) !== originalLayer){
+      const record = mapTileRecordForItem(it);
+      if (record){
+        record.reserved = Number(ui.layer.value);
+        state.mapTiles.dirty = true;
+        scheduleMapTileOverlayRebuild();
+      }
+    }
 
     if (applyOrientation){
       it.heading = parseFloatSafe(ui.heading.value);
@@ -8940,6 +9033,13 @@ end group
 
   // Edits remain pending in the window and are only applied on OK.
 
+  ui.absHeight.addEventListener("change", () => {
+    if (!state.modalOpen || ui.absHeight.checked === showAbsoluteItemHeight) return;
+    showAbsoluteItemHeight = ui.absHeight.checked;
+    const current = joinFixedPositionRaw(ui.posz.value, ui.poszFrac.value);
+    setItemWindowZ(current + (showAbsoluteItemHeight ? 1 : -1) * itemWindowTerrainRaw());
+  });
+
   function openModal(){
     const it = getSelected();
     if (!it) return;
@@ -8960,19 +9060,15 @@ end group
     if (it && state.modalSnapshot && it.id === state.modalSnapshot.id){
       Object.assign(it, state.modalSnapshot);
     }
-    state.modalSnapshot = null;
-    state.modalOpen = false;
-
-    modalOverlay.classList.remove("open");
-    modalOverlay.setAttribute("aria-hidden", "true");
-
-    renderList();
-    requestRender();
-    scheduleLiveMisRefresh();
+    finishClosingItemWindow();
   }
 
   function closeModalOk(){
     commitFromWindow({ applyOrientation: true });
+    finishClosingItemWindow();
+  }
+
+  function finishClosingItemWindow(){
     state.modalSnapshot = null;
     state.modalOpen = false;
 
@@ -9033,15 +9129,7 @@ end group
     if (e.key === "Escape" && state.liveTilOpen) closeLiveTilWindow();
     else if (e.key === "Escape" && state.liveMisOpen) closeLiveMisWindow();
     if (e.key === "Escape" && keyboardShortcutsOverlay.classList.contains("open")) closeKeyboardShortcuts();
-    if (e.key === "Escape") {
-      setCanvasShowPanelOpen(false);
-      setLayerVisibilityPanelOpen(false);
-      setGroupVisibilityPanelOpen(false);
-      setWaypointVisibilityPanelOpen(false);
-      setAreaTriggerVisibilityPanelOpen(false);
-      setViewportToolsPanelOpen(false);
-      setViewModePanelOpen(false);
-    }
+    if (e.key === "Escape") closeViewportPanels();
     if (e.key === "Escape" && state.pastePlacementActive){
       state.pastePlacementActive = false;
       state.pastePreviewWorld = null;
@@ -9163,6 +9251,8 @@ end group
     state.mapTiles.dirty=true;
     setItemKvLine(copiedItem,"extra_val2",recordIndex);
     setItemKvLine(copiedItem,"extra_val1",record.flags);
+    syncMapTilePositions([copiedItem]);
+    copiedItem.kv.position = `${copiedItem.x} ${copiedItem.y} ${copiedItem.z}`;
     const section=getItemSectionByStartFast(copiedItem.start);
     if(section){section.kv={...copiedItem.kv};section.lines=copiedItem.lines.slice();}
     return record;
@@ -9294,7 +9384,7 @@ end group
     for (const entry of state.itemClipboardItems){
       if(isTilOnlyMapTile(entry.item)){
         const source=state.mapTiles.records[Math.trunc(Number(entry.item.kv?.extra_val2))];if(!source)continue;
-        const half=(Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE)*.5,recordIndex=state.mapTiles.records.length;reserveAppendedTilRecordIndex(recordIndex);const record={...structuredClone(source),x:worldToRaw(world.x+entry.dx-half,"x"),y:worldToRaw(world.y+entry.dy+half,"y"),recordIndex};
+        const half=(Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE)*.5,recordIndex=state.mapTiles.records.length;reserveAppendedTilRecordIndex(recordIndex);const record={...structuredClone(source),x:dfbhdmedTilCoordinate(worldToRaw(world.x+entry.dx-half,"x")),y:dfbhdmedTilCoordinate(worldToRaw(world.y+entry.dy+half,"y")),recordIndex};
         state.mapTiles.records.push(record);state.mapTiles.byPosition.set(mapTilePositionKey(record.x,record.y),record);state.mapTiles.dirty=true;
         pastedItems.push({_pendingTilRecordIndex:record.recordIndex});continue;
       }
@@ -9543,6 +9633,11 @@ end group
     return true;
   }
 
+  function syncCameraPose(){
+    const { x, y, z } = cam.pos;
+    Object.assign(state.camera, { x, y, z, yaw: cam.yaw, pitch: cam.pitch });
+  }
+
   function focusCameraNearItem(it,options={}){
     if (!it) return;
     if(topViewLocked){focusTopViewOnItems([it]);return;}
@@ -9558,11 +9653,7 @@ end group
     const horiz = Math.max(1e-6, Math.hypot(dx, dy));
     cam.yaw = Math.atan2(dx, dy);
     cam.pitch = Math.max(-1.55, Math.min(1.55, Math.atan2(dz, horiz)));
-    state.camera.x = cam.pos.x;
-    state.camera.y = cam.pos.y;
-    state.camera.z = cam.pos.z;
-    state.camera.yaw = cam.yaw;
-    state.camera.pitch = cam.pitch;
+    syncCameraPose();
     requestRender();
   }
 
@@ -9582,83 +9673,37 @@ end group
     const dx=x-cam.pos.x,dy=y-cam.pos.y,dz=z-cam.pos.z;
     cam.yaw=Math.atan2(dx,dy);
     cam.pitch=Math.max(-1.55,Math.min(1.55,Math.atan2(dz,Math.max(1e-6,Math.hypot(dx,dy)))));
-    state.camera.x=cam.pos.x;
-    state.camera.y=cam.pos.y;
-    state.camera.z=cam.pos.z;
-    state.camera.yaw=cam.yaw;
-    state.camera.pitch=cam.pitch;
+    syncCameraPose();
     requestRender();
   }
 
-  showPanelBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const next = !canvasShowPanelEl?.classList.contains("open");
-    if (next){
-      setLayerVisibilityPanelOpen(false);
-      setGroupVisibilityPanelOpen(false);
-      setWaypointVisibilityPanelOpen(false);
-      setAreaTriggerVisibilityPanelOpen(false);
-      setViewportToolsPanelOpen(false);
-      setViewModePanelOpen(false);
-    }
-    setCanvasShowPanelOpen(next);
-  });
+  const viewportPanels = [
+    [showPanelBtn, canvasShowPanelEl, setCanvasShowPanelOpen, positionCanvasShowPanel],
+    [showLayersBtn, layerVisibilityPanelEl, setLayerVisibilityPanelOpen, positionLayerVisibilityPanel],
+    [showGroupsBtn, groupVisibilityPanelEl, setGroupVisibilityPanelOpen, positionGroupVisibilityPanel],
+    [showWaypointsBtn, waypointVisibilityPanelEl, setWaypointVisibilityPanelOpen, positionWaypointVisibilityPanel],
+    [showAreaTriggersBtn, areaTriggerVisibilityPanelEl, setAreaTriggerVisibilityPanelOpen, positionAreaTriggerVisibilityPanel],
+    [viewportToolsBtn, viewportToolsPanelEl, setViewportToolsPanelOpen, positionViewportToolsPanel],
+    [viewModeBtn, viewModePanelEl, setViewModePanelOpen, positionViewModePanel],
+    [rotationSnapMenuBtn, rotationSnapPanelEl, setRotationSnapPanelOpen, positionRotationSnapPanel],
+  ];
 
-  showLayersBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const next = !layerVisibilityPanelEl?.classList.contains("open");
-    if (next){
-      setCanvasShowPanelOpen(false);
-      setGroupVisibilityPanelOpen(false);
-      setWaypointVisibilityPanelOpen(false);
-      setAreaTriggerVisibilityPanelOpen(false);
-      setViewportToolsPanelOpen(false);
-      setViewModePanelOpen(false);
+  function closeViewportPanels(except){
+    for (const [button, , setOpen] of viewportPanels){
+      if (except && button === except) continue;
+      if (setOpen === setRotationSnapPanelOpen && except !== viewportToolsBtn) continue;
+      setOpen(false);
     }
-    setLayerVisibilityPanelOpen(next);
-  });
+  }
 
-  showGroupsBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const next = !groupVisibilityPanelEl?.classList.contains("open");
-    if (next){
-      setCanvasShowPanelOpen(false);
-      setLayerVisibilityPanelOpen(false);
-      setWaypointVisibilityPanelOpen(false);
-      setAreaTriggerVisibilityPanelOpen(false);
-      setViewportToolsPanelOpen(false);
-      setViewModePanelOpen(false);
-    }
-    setGroupVisibilityPanelOpen(next);
-  });
-
-  showWaypointsBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const next = !waypointVisibilityPanelEl?.classList.contains("open");
-    if (next){
-      setCanvasShowPanelOpen(false);
-      setLayerVisibilityPanelOpen(false);
-      setGroupVisibilityPanelOpen(false);
-      setAreaTriggerVisibilityPanelOpen(false);
-      setViewportToolsPanelOpen(false);
-      setViewModePanelOpen(false);
-    }
-    setWaypointVisibilityPanelOpen(next);
-  });
-
-  showAreaTriggersBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const next = !areaTriggerVisibilityPanelEl?.classList.contains("open");
-    if (next){
-      setCanvasShowPanelOpen(false);
-      setLayerVisibilityPanelOpen(false);
-      setGroupVisibilityPanelOpen(false);
-      setWaypointVisibilityPanelOpen(false);
-      setViewportToolsPanelOpen(false);
-      setViewModePanelOpen(false);
-    }
-    setAreaTriggerVisibilityPanelOpen(next);
-  });
+  for (const [button, panel, setOpen] of viewportPanels){
+    button?.addEventListener("click", event => {
+      event.stopPropagation();
+      const open = !panel?.classList.contains("open");
+      if (open) closeViewportPanels(button);
+      setOpen(open);
+    });
+  }
 
   rotationSnapToggleBtn?.addEventListener('click',event=>{
     event.stopPropagation();state.rotationSnapEnabled=!state.rotationSnapEnabled;syncRotationSnapButton();updateItemGizmo();
@@ -9674,29 +9719,9 @@ end group
     event.stopPropagation();cycleMeasurementToolMode();
   });
   syncTransformSpaceButton();
-  rotationSnapMenuBtn?.addEventListener('click',event=>{
-    event.stopPropagation();const next=!rotationSnapPanelEl?.classList.contains('open');
-    if(next){setCanvasShowPanelOpen(false);setLayerVisibilityPanelOpen(false);setGroupVisibilityPanelOpen(false);setWaypointVisibilityPanelOpen(false);setAreaTriggerVisibilityPanelOpen(false);setViewportToolsPanelOpen(false);setViewModePanelOpen(false);}
-    setRotationSnapPanelOpen(next);
-  });
   rotationSnapPanelEl?.addEventListener('click',event=>event.stopPropagation());
   syncRotationSnapButton();
   syncGridSnapButton();
-
-  viewportToolsBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const next = !viewportToolsPanelEl?.classList.contains("open");
-    if (next){
-      setCanvasShowPanelOpen(false);
-      setLayerVisibilityPanelOpen(false);
-      setGroupVisibilityPanelOpen(false);
-      setWaypointVisibilityPanelOpen(false);
-      setAreaTriggerVisibilityPanelOpen(false);
-      setViewModePanelOpen(false);
-      setRotationSnapPanelOpen(false);
-    }
-    setViewportToolsPanelOpen(next);
-  });
 
   viewportToolsPanelEl?.addEventListener("click", (event) => event.stopPropagation());
   perspectiveViewBtn?.addEventListener("click", () => setTopView(false));
@@ -9727,20 +9752,6 @@ end group
   cameraGroundClampEl?.addEventListener("change", () => {
     renderUiState.groundClamp=cameraGroundClampEl.checked;
     requestRender();
-  });
-
-  viewModeBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const next = !viewModePanelEl?.classList.contains("open");
-    if (next){
-      setCanvasShowPanelOpen(false);
-      setLayerVisibilityPanelOpen(false);
-      setGroupVisibilityPanelOpen(false);
-      setWaypointVisibilityPanelOpen(false);
-      setAreaTriggerVisibilityPanelOpen(false);
-      setViewportToolsPanelOpen(false);
-    }
-    setViewModePanelOpen(next);
   });
 
   viewModePanelEl?.addEventListener("click", (event) => event.stopPropagation());
@@ -9929,42 +9940,18 @@ end group
     if (!event.target.closest("[data-show-category], [data-show-count-source]")) return;
     applyShowVisibilityChanges(event.target.id === "showMisMapTiles" || event.target.id === "showTilOnlyMapTiles");
   });
-  document.addEventListener("mousedown", (event) => {
-    if (canvasShowPanelEl?.classList.contains("open")){
-      if (!(canvasShowPanelEl.contains(event.target) || showPanelBtn?.contains(event.target))) setCanvasShowPanelOpen(false);
-    }
-    if (layerVisibilityPanelEl?.classList.contains("open")){
-      if (!(layerVisibilityPanelEl.contains(event.target) || showLayersBtn?.contains(event.target))) setLayerVisibilityPanelOpen(false);
-    }
-    if (groupVisibilityPanelEl?.classList.contains("open")){
-      if (!(groupVisibilityPanelEl.contains(event.target) || showGroupsBtn?.contains(event.target))) setGroupVisibilityPanelOpen(false);
-    }
-    if (waypointVisibilityPanelEl?.classList.contains("open")){
-      if (!(waypointVisibilityPanelEl.contains(event.target) || showWaypointsBtn?.contains(event.target))) setWaypointVisibilityPanelOpen(false);
-    }
-    if (areaTriggerVisibilityPanelEl?.classList.contains("open")){
-      if (!(areaTriggerVisibilityPanelEl.contains(event.target) || showAreaTriggersBtn?.contains(event.target))) setAreaTriggerVisibilityPanelOpen(false);
-    }
-    if (viewModePanelEl?.classList.contains("open")){
-      if (!(viewModePanelEl.contains(event.target) || viewModeBtn?.contains(event.target))) setViewModePanelOpen(false);
-    }
-    if (viewportToolsPanelEl?.classList.contains("open")){
-      if (!(viewportToolsPanelEl.contains(event.target) || viewportToolsBtn?.contains(event.target))) setViewportToolsPanelOpen(false);
-    }
-    if(rotationSnapPanelEl?.classList.contains('open')){
-      if(!(rotationSnapPanelEl.contains(event.target)||rotationSnapMenuBtn?.contains(event.target)))setRotationSnapPanelOpen(false);
+  document.addEventListener("mousedown", event => {
+    for (const [button, panel, setOpen] of viewportPanels){
+      if (panel?.classList.contains("open") && !panel.contains(event.target) && !button?.contains(event.target)){
+        setOpen(false);
+      }
     }
   });
 
   addEventListener("resize", () => {
-    if (canvasShowPanelEl?.classList.contains("open")) positionCanvasShowPanel();
-    if (layerVisibilityPanelEl?.classList.contains("open")) positionLayerVisibilityPanel();
-    if (groupVisibilityPanelEl?.classList.contains("open")) positionGroupVisibilityPanel();
-    if (waypointVisibilityPanelEl?.classList.contains("open")) positionWaypointVisibilityPanel();
-    if (areaTriggerVisibilityPanelEl?.classList.contains("open")) positionAreaTriggerVisibilityPanel();
-    if (viewModePanelEl?.classList.contains("open")) positionViewModePanel();
-    if (viewportToolsPanelEl?.classList.contains("open")) positionViewportToolsPanel();
-    if(rotationSnapPanelEl?.classList.contains('open'))positionRotationSnapPanel();
+    for (const [, panel, , position] of viewportPanels){
+      if (panel?.classList.contains("open")) position();
+    }
   });
 
   exportBtn.addEventListener("click", () => {
@@ -10176,7 +10163,8 @@ end group
       for(const it of items){
         const bounds=getItemDropBounds(it);if(!bounds)continue;
         const floorZ=floorHeightBelowBounds(bounds,excluded);if(!Number.isFinite(floorZ))continue;
-        it.z=worldToRaw(floorZ-bounds.baseOffsetZ,'z');changed++;
+        setItemWorldZ(it, floorZ - bounds.baseOffsetZ);
+        changed++;
       }
       return changed;
     });
@@ -10234,7 +10222,7 @@ end group
       { label: "Hide Unselected", disabled: true },
       { label: "Unhide All", disabled: true },
       { separator: true },
-      { label: "Select This Type", disabled: true },
+      { label: "Select This Type", disabled: getSelectableItemTypeId(selected) === null, action: () => selectThisType(selected) },
       { label: "Select This Group", disabled: true },
       { label: "Select This BGRP", disabled: true },
       { label: "Select This WPLIST", disabled: true },
@@ -10310,12 +10298,7 @@ end group
     state.pastePlacementActive = false;
     state.pastePreviewWorld = null;
     state.insertModeActive = false;
-    state.insertDragStart = null;
-    state.insertDragStartScreen = null;
-    state.insertHoverPoint = null;
-    state.insertPreviewWorld = null;
-    state.insertPreviewSamples = [];
-    state.insertPreviewPoints = [];
+    resetInsertPreview();
     state.gizmoDrag = null;
     state.gizmoVisual = null;
     state.hoveredGizmoHandle = null;
@@ -10331,7 +10314,6 @@ end group
     modalOverlay.setAttribute("aria-hidden", "true");
     insertOverlay.classList.remove("open");
     insertOverlay.setAttribute("aria-hidden", "true");
-    insertPreviewLabel.style.display = "none";
     cv.style.cursor = "";
 
     const newMapMis = createDefaultNewMapMis();
@@ -11048,23 +11030,28 @@ end group
     const n=Number(v)||0;
     return Math.round(n*MIS_POS_SCALE);
   }
+  function isItemHeightLocked(it){
+    return (Number(it?.kv?.height_lock) || 0) !== 0;
+  }
+
+  function getItemWorldRawZ(it, x = it?.x, y = it?.y){
+    if (isMapTileItem(it)) return getItemTerrainRawZ(x, y);
+    const rawZ = Number(it?.z) || 0;
+    // The MIS stores absolute Z only for items with height_lock set.
+    if (!kvHas(it, "position") || isItemHeightLocked(it)) return rawZ;
+    return rawZ + getItemTerrainRawZ(x, y);
+  }
+
   function getItemWorldZ(it){
-    if (it && kvHas(it, "extra_bheight")){
-      const rawExtraBheight = Number(it.kv.extra_bheight);
-      if (Number.isFinite(rawExtraBheight) && rawExtraBheight !== 0) return rawToWorld(rawExtraBheight, 'z');
-    }
+    return rawToWorld(getItemWorldRawZ(it));
+  }
 
-    const rawZ = Number(it?.z);
-    if (rawZ === 0){
-      const x = rawToWorld(it?.x || 0, 'x');
-      const y = rawToWorld(it?.y || 0, 'y');
-      const terrainZ = heightAtWorld(x, y, 1.0);
-      if (Number.isFinite(terrainZ) && terrainZ > -1e8) return terrainZ;
-    }
-
-    return rawToWorld(it?.z || 0, 'z');
+  function setItemWorldZ(it, worldZ){
+    const terrainZ = kvHas(it, "position") && !isItemHeightLocked(it) ? getItemTerrainRawZ(it.x, it.y) : 0;
+    it.z = worldToRaw(worldZ) - terrainZ;
   }
   let sectorCount=8, terrainOrigin={x:0,y:0}, wrapX=1, wrapY=1, sectors=null, lastDepth=null, lastImg=null, loadedTrnName=null;
+  let terrainHeightScale = 128;
   let trnInfo={colormap:null,detailmap:null,polydata:null,tilestrip:null,charmap:null,foliagemap:null,waterHeight:null};
   let meshSectorLods=[];
   let cam={pos:vec3(0,1500,400), yaw:Math.PI, pitch:-0.25}, move={w:0,a:0,s:0,d:0,q:0,e:0};
@@ -11144,11 +11131,89 @@ end group
     return {records,byPosition,headerReserved};
   }
 
+  function swapMapTileFileRotation(flags){
+    // The MED swaps these two orientations when reading or writing a TIL.
+    return flags === 4 ? 7 : flags === 7 ? 4 : flags;
+  }
+
+  function mapTileFlagsForFile(record){
+    if (record.flags === record.legacyFileFlags) return record.flags;
+    return swapMapTileFileRotation(record.flags);
+  }
+
+  function mapTileFileOrder(records){
+    // The MED exports in layer order and preserves insertion order within a layer.
+    return records.slice().sort((a,b)=>a.reserved-b.reserved);
+  }
+
+  function linkMissionTileRecords(records, mapItems){
+    const itemsByReference = new Array(records.length);
+    for (const item of mapItems){
+      const index = Number(item.kv.extra_val2);
+      if (Number.isInteger(index) && index >= 0 && index < records.length) itemsByReference[index] = item;
+    }
+
+    const half = MAP_TILE_DEFAULT_SIZE * MIS_POS_SCALE / 2;
+    const key = (x,y,tileIndex) => `${x}:${y}:${tileIndex}`;
+    const candidates = new Map();
+    for (const record of records){
+      const position = key(record.x + half, record.y - half, record.tileIndex);
+      if (!candidates.has(position)) candidates.set(position, []);
+      candidates.get(position).push(record);
+    }
+
+    // MIS references index the MED's in-memory list. The companion file can
+    // contain the same records sorted by layer, with a different set of indices.
+    const linked = Array(records.length).fill(null);
+    const used = new Set();
+    for (const [matchLayer, nativeFlags] of [[true,true], [true,false], [false,true], [false,false]]){
+      itemsByReference.forEach((item,index)=>{
+        if (linked[index]) return;
+        const position = key(item.x & 0xffff0000, item.y & 0xffff0000, Number(item.kv.type_id) - 3);
+        const flags = Number(item.kv.extra_val1 || 0), layer = Number(item.kv.layer || 0);
+        const matches = record => !used.has(record) && (!matchLayer || record.reserved === layer)
+          && (nativeFlags ? swapMapTileFileRotation(record.flags) : record.flags) === flags;
+        const choices = candidates.get(position) || [];
+        const indexed = records[index];
+        const record = choices.includes(indexed) && matches(indexed) ? indexed : choices.find(matches);
+        if (!record) return;
+        linked[index] = record;
+        used.add(record);
+        if (swapMapTileFileRotation(record.flags) !== flags) record.legacyFileFlags = record.flags;
+        record.flags = flags;
+      });
+    }
+
+    records.forEach((record,index)=>{
+      if (linked[index] || used.has(record)) return;
+      linked[index] = record;
+      used.add(record);
+      record.flags = swapMapTileFileRotation(record.flags);
+    });
+    const remaining = records.filter(record=>!used.has(record)).values();
+    linked.forEach((record,index)=>{
+      if (!record){
+        record = remaining.next().value;
+        record.flags = swapMapTileFileRotation(record.flags);
+        linked[index] = record;
+      }
+      record.recordIndex = index;
+    });
+    return linked;
+  }
+
   function serializeTil(records=state.mapTiles.records){
     const out=new ArrayBuffer(16+records.length*12),d=new DataView(out);
     for(const [i,ch] of Array.from("0lit").entries())d.setUint8(i,ch.charCodeAt(0));
     d.setUint32(4,records.length,true);d.setUint32(8,out.byteLength,true);d.setUint32(12,Number(state.mapTiles.headerReserved)||0,true);
-    for(let i=0,off=16;i<records.length;i++,off+=12){const record=records[i];d.setInt32(off,dfbhdmedTilCoordinate(record.x),true);d.setInt32(off+4,dfbhdmedTilCoordinate(record.y),true);d.setUint8(off+8,record.tileIndex);d.setUint8(off+9,record.flags);d.setUint16(off+10,record.reserved,true);}
+    for(const [i,record] of mapTileFileOrder(records).entries()){
+      const off=16+i*12;
+      d.setInt32(off,record.x,true);
+      d.setInt32(off+4,record.y,true);
+      d.setUint8(off+8,record.tileIndex);
+      d.setUint8(off+9,mapTileFlagsForFile(record));
+      d.setUint16(off+10,record.reserved,true);
+    }
     return out;
   }
 
@@ -11224,14 +11289,26 @@ end group
     rebuildLookupIndexes();
   }
 
-  function syncTilOnlyItemRecord(item){
-    if(!isTilOnlyMapTile(item))return;
-    const record=mapTileRecordForItem(item),half=(Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE)*.5;
-    if(!record)return;
-    record.x=worldToRaw(rawToWorld(item.x,"x")-half,"x");record.y=worldToRaw(rawToWorld(item.y,"y")+half,"y");
-    state.mapTiles.byPosition=new Map(state.mapTiles.records.map(entry=>[mapTilePositionKey(entry.x,entry.y),entry]));
-    state.mapTiles.dirty=true;
-    state.mapTiles.selectionOutlineCache.delete(item.id);
+  function syncMapTilePositions(items){
+    const half = MAP_TILE_DEFAULT_SIZE * MIS_POS_SCALE / 2;
+    let changed = false;
+    for (const item of items){
+      if (!isMapTileItem(item)) continue;
+      const record = mapTileRecordForItem(item);
+      if (!record) continue;
+      item.x = dfbhdmedTilCoordinate(item.x);
+      item.y = dfbhdmedTilCoordinate(item.y);
+      const x = item.x - half, y = item.y + half;
+      if (record.x === x && record.y === y) continue;
+      Object.assign(record, {x,y});
+      state.mapTiles.selectionOutlineCache.delete(item.id);
+      changed = true;
+    }
+    if (changed){
+      state.mapTiles.byPosition=new Map(state.mapTiles.records.map(record=>[mapTilePositionKey(record.x,record.y),record]));
+      state.mapTiles.dirty = true;
+      if (!state.mapTiles.dragPreviewIds.size) scheduleMapTileOverlayRebuild();
+    }
   }
 
   async function promptForTilCompanion(tilName){
@@ -11313,11 +11390,12 @@ end group
         addLog(`[map_tiles] no companion TIL found; initialized empty tile set, atlas=${state.mapTiles.atlasName}`);return;
       }
       if(generation!==state.mapTiles.generation)return;
-      const parsed=parseTil(tilBuf);tilParsed=true;state.mapTiles.filename=tilName;state.mapTiles.sourceFilename=tilSourceFilename||tilName;state.mapTiles.records=parsed.records;state.mapTiles.headerReserved=parsed.headerReserved;state.mapTiles.byPosition=parsed.byPosition;updateLoadedMapFilesHint();
-      state.undoCurrentTilFlags=parsed.records.map(record=>record.flags);
-      state.undoCurrentTilRecords=structuredClone(parsed.records);
-      const sizes=mapItems.map(it=>{const r=parsed.records[Math.trunc(Number(it.kv?.extra_val2))];return r?Math.max(Math.abs(it.x-r.x),Math.abs(it.y-r.y))*2/65536:0;}).filter(v=>Number.isFinite(v)&&v>0).sort((a,b)=>a-b);
-      state.mapTiles.tileSize=sizes.length?sizes[Math.floor(sizes.length/2)]:MAP_TILE_DEFAULT_SIZE;
+      const parsed=parseTil(tilBuf);
+      const records=linkMissionTileRecords(parsed.records,mapItems);
+      tilParsed=true;state.mapTiles.filename=tilName;state.mapTiles.sourceFilename=tilSourceFilename||tilName;state.mapTiles.records=records;state.mapTiles.headerReserved=parsed.headerReserved;state.mapTiles.byPosition=parsed.byPosition;updateLoadedMapFilesHint();
+      state.undoCurrentTilFlags=records.map(record=>record.flags);
+      state.undoCurrentTilRecords=structuredClone(records);
+      state.mapTiles.tileSize=MAP_TILE_DEFAULT_SIZE;
       rebuildTilOnlyItems();
       restoreMapTileEditorState();
       renderTilePalette();
@@ -11653,7 +11731,8 @@ end group
     for(const record of state.mapTiles.records){
       if(!referencedRecords.has(record.recordIndex)&&isShowCategoryVisible("tileTilOnly"))entries.push({item:null,record,footprint:getTilRecordFootprint(record)});
     }
-    return entries.filter(entry=>entry.footprint);
+    return entries.filter(entry=>entry.footprint)
+      .sort((a,b)=>a.record.reserved-b.record.reserved || a.record.recordIndex-b.record.recordIndex);
   }
 
   function getItemInteractionAnchor(it){
@@ -11929,7 +12008,7 @@ end group
     if(rebuild&&hadPreview)buildMapTileOverlay();
   }
   function getSectorOffset(sectorIndex){ switch(sectorIndex|0){ case 1:return {x:0,y:0}; case 2:return {x:0,y:512}; case 3:return {x:512,y:0}; case 4:return {x:512,y:512}; default:return {x:0,y:0}; } }
-  function heightSample(sectorIndex,x,y){ if(!lastDepth) return 0; const off=getSectorOffset(sectorIndex); const sx=(x>=SECTOR_SIZE)?(SECTOR_SIZE-1):x, sy=(y>=SECTOR_SIZE)?(SECTOR_SIZE-1):y, ix=off.x+sx, iy=off.y+sy; if(ix<0||iy<0||ix>=DEPTH_W||iy>=DEPTH_H) return 0; return lastDepth[iy*DEPTH_W+ix]/256.0; }
+  function heightSample(sectorIndex,x,y){ if(!lastDepth) return 0; const off=getSectorOffset(sectorIndex); const sx=(x>=SECTOR_SIZE)?(SECTOR_SIZE-1):x, sy=(y>=SECTOR_SIZE)?(SECTOR_SIZE-1):y, ix=off.x+sx, iy=off.y+sy; if(ix<0||iy<0||ix>=DEPTH_W||iy>=DEPTH_H) return 0; return lastDepth[iy*DEPTH_W+ix] * terrainHeightScale * 2 / MIS_POS_SCALE; }
   function buildMeshSingleSector(sectorIndex,step,heightMul){ if(!lastDepth) return {verts:new Float32Array(0),idx:new Uint32Array(0)}; const uvOff=getSectorOffset(sectorIndex); const xs=[],ys=[]; for(let v=0;v<=SECTOR_MESH_MAX;v+=step) xs.push(v); if(xs.at(-1)!==SECTOR_MESH_MAX) xs.push(SECTOR_MESH_MAX); for(let v=0;v<=SECTOR_MESH_MAX;v+=step) ys.push(v); if(ys.at(-1)!==SECTOR_MESH_MAX) ys.push(SECTOR_MESH_MAX); const gw=xs.length,gh=ys.length; const verts=new Float32Array(gw*gh*5), idx=new Uint32Array((gw-1)*(gh-1)*6); let vb=0; for(let y=0;y<gh;y++) for(let x=0;x<gw;x++){ const lx=xs[x],ly=ys[y],sampleY=TERRAIN_BASE_FLIP_Y?(SECTOR_SIZE-ly):ly,h=heightSample(sectorIndex,lx,sampleY)*heightMul; const su=(lx>=SECTOR_SIZE)?(SECTOR_SIZE-1):lx, sv=(sampleY>=SECTOR_SIZE)?(SECTOR_SIZE-1):sampleY; const u=(uvOff.x+su)/1024.0,v=(uvOff.y+sv)/1024.0,o=vb*5; verts[o]=lx;verts[o+1]=ly;verts[o+2]=h;verts[o+3]=u;verts[o+4]=v; vb++; } let ib=0; for(let y=0;y<gh-1;y++) for(let x=0;x<gw-1;x++){ const a=y*gw+x,b=a+1,c=a+gw,d=c+1; idx[ib++]=a;idx[ib++]=b;idx[ib++]=c; idx[ib++]=b;idx[ib++]=d;idx[ib++]=c; } return {verts,idx}; }
   function clearTerrainRenderState(){
     loadedTrnName=null;
@@ -11985,6 +12064,34 @@ end group
   }
 
   function mapSrcIdx(g,wrap){ if(wrap===1) return posMod(g,sectorCount); if(g<0) return 0; if(g>=sectorCount) return sectorCount-1; return g; }
+  function getItemTerrainRawZ(x, y){
+    if (!lastDepth || !sectors || !Number.isFinite(x) || !Number.isFinite(y)) return 0;
+
+    // The MED looks up the sector with -Y and interpolates the CPT in 16.16 units.
+    const rawSectorSize = SECTOR_SIZE * MIS_POS_SCALE;
+    const col = mapSrcIdx(Math.floor(x / rawSectorSize) - terrainOrigin.x, wrapX);
+    const row = mapSrcIdx(Math.floor(-y / rawSectorSize) - terrainOrigin.y, wrapY);
+    const sector = sectors[row * sectorCount + col];
+    if (!(sector > 0)) return 0;
+
+    const offset = getSectorOffset(sector);
+    const localX = posMod(x, rawSectorSize);
+    const localY = posMod(-y, rawSectorSize);
+    const x0 = offset.x + Math.floor(localX / MIS_POS_SCALE);
+    const y0 = offset.y + Math.floor(localY / MIS_POS_SCALE);
+    const x1 = (x0 + 1) % DEPTH_W;
+    const y1 = (y0 + 1) % DEPTH_H;
+    const fx = localX % MIS_POS_SCALE;
+    const fy = localY % MIS_POS_SCALE;
+    const xy = Math.floor(fx * fy / MIS_POS_SCALE);
+    const topLeft = (MIS_POS_SCALE - fx - fy + xy) * lastDepth[y0 * DEPTH_W + x0];
+    const topRight = (fx - xy) * lastDepth[y0 * DEPTH_W + x1];
+    const bottomLeft = (fy - xy) * lastDepth[y1 * DEPTH_W + x0];
+    const bottomRight = xy * lastDepth[y1 * DEPTH_W + x1];
+    const interpolated = Math.floor((topLeft + topRight + bottomLeft + bottomRight) / 256);
+    return Math.trunc(interpolated * terrainHeightScale / 128);
+  }
+
   function heightAtWorld(x,y,heightMul){
     if(!lastDepth || !sectors) return -1e9;
 
@@ -12762,7 +12869,9 @@ end group
       const maxPasteLen = state.itemClipboardItems.length * 3;
       pasteBuf = ensureScratchCapacity('paste', maxPasteLen);
       for(const entry of state.itemClipboardItems){
-        const x=state.pastePreviewWorld.x+entry.dx,y=state.pastePreviewWorld.y+entry.dy,z=state.pastePreviewWorld.z||0;
+        const x = state.pastePreviewWorld.x + entry.dx;
+        const y = state.pastePreviewWorld.y + entry.dy;
+        const z = rawToWorld(getItemWorldRawZ(entry.item, worldToRaw(x), worldToRaw(y)));
         if (!isFinitePosition(x, y, z)){
           warnInvalidGeometryOnce('paste preview');
           continue;
@@ -12798,6 +12907,7 @@ end group
 
     const positions = [];
     const colors = [];
+    const vertexIndicesByItemId = new Map();
     const color = new state.glb.THREE.Color();
     for (const entries of groups.values()){
       if (entries.length < 2) continue;
@@ -12813,14 +12923,15 @@ end group
           warnInvalidGeometryOnce('waypoint lines', `${previous.id}->${current.id}`);
           continue;
         }
-        positions.push(
-          ...previousPosition,
-          ...currentPosition,
-        );
+        for (const [item, position] of [[previous, previousPosition], [current, currentPosition]]){
+          if (!vertexIndicesByItemId.has(item.id)) vertexIndicesByItemId.set(item.id, []);
+          vertexIndicesByItemId.get(item.id).push(positions.length / 3);
+          positions.push(...position);
+        }
         colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
       }
     }
-    return { positions: new Float32Array(positions), colors: new Float32Array(colors) };
+    return { positions: new Float32Array(positions), colors: new Float32Array(colors), vertexIndicesByItemId };
   }
 
   function ensureThreeItemsReady(){
@@ -12934,6 +13045,8 @@ end group
     state.threeItems.waypointDataSignature="";
     state.threeItems.pointOffsetsByItemId.clear();
     state.threeItems.pointTransformDirtyIds.clear();
+    state.threeItems.waypointVertexIndicesByItemId.clear();
+    state.threeItems.waypointTransformDirtyIds.clear();
   }
 
   function updateDirtyThreeItemPoints(){
@@ -12994,13 +13107,40 @@ end group
     state.glb.renderer.resetState();
   }
 
+  function updateDirtyWaypointLinePositions(){
+    const { waypointLines, waypointVertexIndicesByItemId, waypointTransformDirtyIds } = state.threeItems;
+    if (!waypointTransformDirtyIds.size) return true;
+
+    const position = waypointLines.geometry.getAttribute('position');
+    let firstVertex = Infinity;
+    let lastVertex = -Infinity;
+    for (const itemId of waypointTransformDirtyIds){
+      const item = getItemByIdFast(itemId);
+      if (!item) return false;
+      const x = rawToWorld(item.x, 'x'), y = rawToWorld(item.y, 'y'), z = getItemWorldZ(item);
+      if (!isFinitePosition(x, y, z)) return false;
+      for (const vertexIndex of waypointVertexIndicesByItemId.get(itemId)){
+        position.setXYZ(vertexIndex, x, y, z);
+        firstVertex = Math.min(firstVertex, vertexIndex);
+        lastVertex = Math.max(lastVertex, vertexIndex);
+      }
+    }
+    position.updateRange.offset = firstVertex * 3;
+    position.updateRange.count = (lastVertex - firstVertex + 1) * 3;
+    position.needsUpdate = true;
+    waypointTransformDirtyIds.clear();
+    return true;
+  }
+
   function drawWaypointLinesThree(P, V){
     if (!ensureThreeItemsReady()) return;
-    const signature=itemGeometryStateSignature(false);
-    if(signature!==state.threeItems.waypointDataSignature){
+    const signature = `${itemGeometryStateSignature(false)}|${state.terrainLoad.revision}`;
+    if (signature !== state.threeItems.waypointDataSignature || !updateDirtyWaypointLinePositions()){
       const waypointLines = collectWaypointLineData();
       updateThreeLineGeometry(state.threeItems.waypointLines, waypointLines.positions, waypointLines.colors);
-      state.threeItems.waypointDataSignature=signature;
+      state.threeItems.waypointVertexIndicesByItemId = waypointLines.vertexIndicesByItemId;
+      state.threeItems.waypointTransformDirtyIds.clear();
+      state.threeItems.waypointDataSignature = signature;
     }
 
     applyThreeCameraFromPV(P, V);
@@ -13653,7 +13793,7 @@ end group
       `terrain:${state.terrainLoad.revision}`,
       number,
       getAreaTrigColorIndex(getAreaTrigSectionByNumber(number)),
-      ...markers.map(it => `${it.id}:${it.x}:${it.y}:${it.z}`),
+      ...markers.map(it => `${it.id}:${it.x}:${it.y}:${getItemWorldRawZ(it)}`),
     ].join("|")).join(";");
     // An empty map also has an empty cached signature. Dispose first so an
     // empty signature cannot make volumes from the previous mission survive.
@@ -14415,11 +14555,31 @@ end group
 
   function updateItemCircle(circle, it){
     const radiusMeters = getItemCircleRadius(it);
+    const isKothCenter = isKothCenterItem(it);
+    const groundRawZ = isKothCenter ? getItemTerrainRawZ(it.x, it.y) : 0;
+    const baseZ = isKothCenter ? rawToWorld(groundRawZ) : getItemWorldZ(it);
     circle.material.color.setHex(ITEM_CIRCLE_COLOR);
-    circle.position.set(rawToWorld(it.x, "x"), rawToWorld(it.y, "y"), getItemWorldZ(it) + ITEM_CIRCLE_Z_OFFSET);
+    circle.position.set(rawToWorld(it.x, "x"), rawToWorld(it.y, "y"), baseZ + ITEM_CIRCLE_Z_OFFSET);
     circle.rotation.set(0, 0, getItemArrowHeadingRadians(it.heading));
     circle.scale.set(radiusMeters, radiusMeters, 1);
     circle.visible = radiusMeters > 0 && isItemVisibilityFilterMatch(it);
+
+    const extraHeight = Number(it.kv.extra_bheight);
+    // The MED draws a circle at ground level and a second at the KOTH endpoint.
+    const upperOffset = isKothCenter && Number.isFinite(extraHeight)
+      ? rawToWorld(extraHeight - (isItemHeightLocked(it) ? groundRawZ : 0))
+      : 0;
+    let upperCircle = circle.children[0];
+    if (upperOffset && !upperCircle){
+      upperCircle = new state.glb.THREE.LineSegments(circle.geometry, circle.material);
+      upperCircle.renderOrder = circle.renderOrder;
+      upperCircle.raycast = circle.raycast;
+      circle.add(upperCircle);
+    }
+    if (upperCircle){
+      upperCircle.position.z = upperOffset;
+      upperCircle.visible = upperOffset !== 0;
+    }
   }
 
   function syncItemCircles(){
@@ -15125,8 +15285,8 @@ end group
   function commitGizmoUpdates(items, { deferUi = false } = {}){
     const valid = (items || []).filter(Boolean);
     if (!valid.length) return;
+    syncMapTilePositions(valid);
     for (const it of valid){
-      if(isTilOnlyMapTile(it))syncTilOnlyItemRecord(it);
       if (kvHas(it, "position")) it.kv.position = `${it.x} ${it.y} ${it.z}`;
       applyItemOrientationToKv(it);
       const sec = getItemSectionByStartFast(it.start);
@@ -15282,6 +15442,8 @@ end group
     const wxMatch=trnTxt.match(/polytrn_wrapx\s+([01])/i), wyMatch=trnTxt.match(/polytrn_wrapy\s+([01])/i);
     wrapX=wxMatch?parseInt(wxMatch[1],10):1;
     wrapY=wyMatch?parseInt(wyMatch[1],10):1;
+    const scaleMatch=trnTxt.match(/^\s*polytrn_scale\s+(-?\d+)/im);
+    terrainHeightScale=scaleMatch ? Number(scaleMatch[1]) : 128;
 
     const rows=[];
     trnTxt.split(/\r\n|\r|\n/).forEach(line=>{
@@ -15401,15 +15563,6 @@ end group
   function fitView(){
     const items = state.items || [];
     const positionedItems = getCameraFitItems(items);
-    if (!positionedItems.length){
-      resetCamera();
-      state.camera.x = cam.pos.x;
-      state.camera.y = cam.pos.y;
-      state.camera.z = cam.pos.z;
-      state.camera.yaw = cam.yaw;
-      state.camera.pitch = cam.pitch;
-      return;
-    }
     let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,maxZ=0;
     for (const it of positionedItems){
       const x = rawToWorld(it.x||0,'x');
@@ -15422,11 +15575,7 @@ end group
     }
     if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)){
       resetCamera();
-      state.camera.x = cam.pos.x;
-      state.camera.y = cam.pos.y;
-      state.camera.z = cam.pos.z;
-      state.camera.yaw = cam.yaw;
-      state.camera.pitch = cam.pitch;
+      syncCameraPose();
       return;
     }
     const cx=(minX+maxX)*0.5;
@@ -15436,11 +15585,7 @@ end group
     cam.yaw = Math.PI;
     cam.pitch = -0.25;
 
-    state.camera.x = cam.pos.x;
-    state.camera.y = cam.pos.y;
-    state.camera.z = cam.pos.z;
-    state.camera.yaw = cam.yaw;
-    state.camera.pitch = cam.pitch;
+    syncCameraPose();
   }
   window.addEventListener('resize',scheduleResizeCanvas);
   const canvasResizeObserver=typeof ResizeObserver==='function'
@@ -15886,7 +16031,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     }
 
     if (state.pastePlacementActive){
-      const z = state.selectedId ? rawToWorld(getSelected()?.z || 0, 'z') : 0;
+      const z = getItemWorldZ(getSelected());
       state.pastePreviewWorld = screenToWorld(sx, sy, z);
     }
     if (topViewLocked && state.pendingLeftClick && (e.buttons & 1) && !state.boxSelecting){
@@ -15907,7 +16052,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       boxSelectionEl.style.height = `${Math.abs(sy - state.boxStart.sy)}px`;
     } else if (state.draggingItem && state.selectedId){
       const active = state.items.filter(it => it.id === state.selectedId || state.multiSelectedIds.has(it.id));
-      const zPlane = rawToWorld(active[0]?.z || 0, 'z');
+      const zPlane = getItemWorldZ(active[0]);
       const nowW = screenToWorld(sx, sy, zPlane);
       const prevW = state.dragAnchor || nowW;
       const dx = nowW.x - prevW.x, dy = nowW.y - prevW.y;
@@ -15915,8 +16060,9 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
         if (!kvHas(it, 'position')) continue;
         it.x = worldToRaw(rawToWorld(it.x, 'x') + dx, 'x');
         it.y = worldToRaw(rawToWorld(it.y, 'y') + dy, 'y');
-        it.kv.position = `${it.x} ${it.y} ${it.z}`;
       }
+      syncMapTilePositions(active);
+      for (const it of active) if (kvHas(it, 'position')) it.kv.position = `${it.x} ${it.y} ${it.z}`;
       markItemTransformsChanged(active);
       state.dragAnchor = nowW;
       state.dragUiDirty = true;
@@ -15959,13 +16105,7 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
       const end = screenToTerrain(sx, sy);
       if (!end){
-        state.insertDragStart = null;
-        state.insertDragStartScreen = null;
-        state.insertHoverPoint = null;
-        state.insertPreviewWorld = null;
-        state.insertPreviewSamples = [];
-        state.insertPreviewPoints = [];
-        insertPreviewLabel.style.display = 'none';
+        resetInsertPreview();
         requestRender();
         statusEl.textContent = 'The cursor is not over the terrain.';
         return;
@@ -16060,7 +16200,8 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
     const gridStep=state.gridSnapEnabled?gridSizeMeters():0;
     if(Math.abs(delta.x)>1e-9)it.x=worldToRaw(snapValue(start.world.x+delta.x,gridStep),'x');else it.x=start.x;
     if(Math.abs(delta.y)>1e-9)it.y=worldToRaw(snapValue(start.world.y+delta.y,gridStep),'y');else it.y=start.y;
-    if(Math.abs(delta.z)>1e-9)it.z=worldToRaw(snapValue(start.world.z+delta.z,gridStep),'z');else it.z=start.z;
+    if (Math.abs(delta.z) > 1e-9) setItemWorldZ(it, snapValue(start.world.z + delta.z, gridStep));
+    else it.z = start.z;
   }
   function getGizmoTransformTarget(id){
     return id === "__reference_glb__" ? state.referenceGlb?.item : getItemByIdFast(id);
@@ -16106,7 +16247,24 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       let valueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);
       if(state.rotationSnapEnabled){if(state.rotationSnapMode==='absolute'){const initial=d.mode==='rotX'?reference.pitch:reference.heading;valueDegrees=snapValue(initial+valueDegrees,state.rotationSnap)-initial;}else valueDegrees=snapValue(valueDegrees,state.rotationSnap);}
       const geometryDegrees=gizmoRotationGeometryDegrees(d.mode,valueDegrees),angle=geometryDegrees*Math.PI/180;d.appliedAngle=angle;d.currentVector=vec3Norm(rotateAroundAxis(d.startVector,d.handle.axis,angle));d.label=`${valueDegrees.toFixed(1)}°`;
-      for(const start of d.snapshots){const it=getGizmoTransformTarget(start.id);if(!it)continue;let itemDegrees=valueDegrees;if(state.rotationSnapEnabled&&state.rotationSnapMode==='absolute'&&state.transformPivot==='individual'){const initial=d.mode==='rotX'?start.pitch:start.heading,rawValueDegrees=gizmoRotationValueDegrees(d.mode,rawDegrees);itemDegrees=snapValue(initial+rawValueDegrees,state.rotationSnap)-initial;}if(d.mode==='rotX')it.pitch=start.pitch+itemDegrees;else it.heading=start.heading+itemDegrees;if(state.transformPivot!=='individual'&&d.snapshots.length>1){const p=vec3Add(d.pivot,rotateAroundAxis(vec3Sub(start.world,d.pivot),d.handle.axis,angle));it.x=worldToRaw(p.x,'x');it.y=worldToRaw(p.y,'y');it.z=worldToRaw(p.z,'z');}}
+      for (const start of d.snapshots){
+        const it = getGizmoTransformTarget(start.id);
+        if (!it) continue;
+        let itemDegrees = valueDegrees;
+        if (state.rotationSnapEnabled && state.rotationSnapMode === 'absolute' && state.transformPivot === 'individual'){
+          const initial = d.mode === 'rotX' ? start.pitch : start.heading;
+          const rawValueDegrees = gizmoRotationValueDegrees(d.mode, rawDegrees);
+          itemDegrees = snapValue(initial + rawValueDegrees, state.rotationSnap) - initial;
+        }
+        if (d.mode === 'rotX') it.pitch = start.pitch + itemDegrees;
+        else it.heading = start.heading + itemDegrees;
+        if (state.transformPivot !== 'individual' && d.snapshots.length > 1){
+          const p = vec3Add(d.pivot, rotateAroundAxis(vec3Sub(start.world, d.pivot), d.handle.axis, angle));
+          it.x = worldToRaw(p.x, 'x');
+          it.y = worldToRaw(p.y, 'y');
+          setItemWorldZ(it, p.z);
+        }
+      }
     }
     if (state.referenceGlb?.selected) syncReferenceGlbTransform();
     else commitGizmoUpdates(d.snapshots.map(x=>getItemByIdFast(x.id)).filter(Boolean), { deferUi: true });updateMapTileDragPreview();updateItemGizmo();
