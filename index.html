@@ -2586,6 +2586,7 @@ end group
   }
 
   const MAP_TILE_DEFAULT_SIZE=16;
+  const MAP_TILE_TEXTURE_SIZE=64;
   const state = {
     rawText: "",
     items: [],
@@ -10180,14 +10181,15 @@ end group
       overlay.addEventListener("mousedown",e=>{if(e.target===overlay)overlay.querySelector("[data-close]").click();});
     }
     const content=overlay.querySelector("[data-content]"),index=mapTileAtlasIndex(it),recordIndex=Math.trunc(Number(it?.kv?.extra_val2));
+    const img=state.mapTiles.atlasImage,cell=getMapTileAtlasCell(img,index);
     const flags=record?.flags??0,flagsHex=`0x${flags.toString(16).padStart(2,"0").toUpperCase()}`;
-    content.innerHTML=`<dl style="display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0 0 16px"><dt>TIL file</dt><dd>${escapeHtml(state.mapTiles.filename||"Not loaded")}</dd><dt>TIL record</dt><dd>${record?recordIndex:"No matching TIL record"}</dd><dt>Texture</dt><dd>${escapeHtml(state.mapTiles.atlasName||"Not loaded")}</dd><dt>Tile index</dt><dd>${Number.isInteger(index)?index:"Invalid TIL tile_index value"}</dd><dt>Atlas cell</dt><dd>${Number.isInteger(index)?`column ${index%8+1} / row ${Math.floor(index/8)+1} (zero-based ${index%8}, ${Math.floor(index/8)})`:"—"}</dd><dt>Flags</dt><dd>${record?`${flagsHex} — ${escapeHtml(mapTileFlagLabels(flags))}`:"—"}</dd><dt>Reserved</dt><dd>${record?record.reserved:"—"}</dd></dl>${state.mapTiles.error?`<p class="dangerText">${escapeHtml(state.mapTiles.error)}</p>`:""}<canvas width="256" height="256" aria-label="Tile texture preview" style="width:256px;max-width:100%;image-rendering:auto;border:1px solid var(--border)"></canvas>`;
-    const canvas=content.querySelector("canvas"),img=state.mapTiles.atlasImage;
-    if(img&&Number.isInteger(index)){
-      const sw=img.w/8,sh=img.h/8,ctx=canvas.getContext("2d"),preview=ctx.createImageData(canvas.width,canvas.height);
+    content.innerHTML=`<dl style="display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0 0 16px"><dt>TIL file</dt><dd>${escapeHtml(state.mapTiles.filename||"Not loaded")}</dd><dt>TIL record</dt><dd>${record?recordIndex:"No matching TIL record"}</dd><dt>Texture</dt><dd>${escapeHtml(state.mapTiles.atlasName||"Not loaded")}</dd><dt>Tile index</dt><dd>${Number.isInteger(index)?index:"Invalid TIL tile_index value"}</dd><dt>Atlas cell</dt><dd>${cell?`column ${cell.column+1} / row ${cell.row+1} (zero-based ${cell.column}, ${cell.row})`:"—"}</dd><dt>Flags</dt><dd>${record?`${flagsHex} — ${escapeHtml(mapTileFlagLabels(flags))}`:"—"}</dd><dt>Reserved</dt><dd>${record?record.reserved:"—"}</dd></dl>${state.mapTiles.error?`<p class="dangerText">${escapeHtml(state.mapTiles.error)}</p>`:""}<canvas width="256" height="256" aria-label="Tile texture preview" style="width:256px;max-width:100%;image-rendering:auto;border:1px solid var(--border)"></canvas>`;
+    const canvas=content.querySelector("canvas");
+    if(cell){
+      const size=MAP_TILE_TEXTURE_SIZE,ctx=canvas.getContext("2d"),preview=ctx.createImageData(canvas.width,canvas.height);
       for(let py=0;py<canvas.height;py++)for(let px=0;px<canvas.width;px++){
         const uv=transformMapTileUv((px+.5)/canvas.width,1-(py+.5)/canvas.height,flags);
-        const sx=Math.min(img.w-1,Math.floor((index%8)*sw+uv.u*sw)),sy=Math.min(img.h-1,Math.floor(Math.floor(index/8)*sh+(1-uv.v)*sh));
+        const sx=cell.x+Math.floor(uv.u*size),sy=cell.y+Math.floor((1-uv.v)*size);
         const src=(sy*img.w+sx)*4,dst=(py*canvas.width+px)*4;
         preview.data[dst]=img.pixels[src];preview.data[dst+1]=img.pixels[src+1];preview.data[dst+2]=img.pixels[src+2];preview.data[dst+3]=img.pixels[src+3];
       }
@@ -11113,9 +11115,8 @@ end group
   function dfbhdmedTilCoordinate(value){
     const raw=Number(value);
     if(!Number.isFinite(raw))return 0;
-    // DFBHD MED places TIL records on whole world-unit boundaries. Keep the
-    // binary fixed-point representation, but discard cursor sub-unit noise.
-    return Math.round(raw/MIS_POS_SCALE)*MIS_POS_SCALE;
+    // The MED clears the fractional bits of the signed fixed-point coordinate.
+    return Math.floor(raw/MIS_POS_SCALE)*MIS_POS_SCALE;
   }
   function parseTil(buf){
     if(!(buf instanceof ArrayBuffer)||buf.byteLength<16)throw new Error("TIL header is truncated");
@@ -11157,7 +11158,7 @@ end group
     const key = (x,y,tileIndex) => `${x}:${y}:${tileIndex}`;
     const candidates = new Map();
     for (const record of records){
-      const position = key(record.x + half, record.y - half, record.tileIndex);
+      const position = key(dfbhdmedTilCoordinate(record.x) + half, dfbhdmedTilCoordinate(record.y) - half, record.tileIndex);
       if (!candidates.has(position)) candidates.set(position, []);
       candidates.get(position).push(record);
     }
@@ -11169,7 +11170,7 @@ end group
     for (const [matchLayer, nativeFlags] of [[true,true], [true,false], [false,true], [false,false]]){
       itemsByReference.forEach((item,index)=>{
         if (linked[index]) return;
-        const position = key(item.x & 0xffff0000, item.y & 0xffff0000, Number(item.kv.type_id) - 3);
+        const position = key(dfbhdmedTilCoordinate(item.x), dfbhdmedTilCoordinate(item.y), Number(item.kv.type_id) - 3);
         const flags = Number(item.kv.extra_val1 || 0), layer = Number(item.kv.layer || 0);
         const matches = record => !used.has(record) && (!matchLayer || record.reserved === layer)
           && (nativeFlags ? swapMapTileFileRotation(record.flags) : record.flags) === flags;
@@ -11279,10 +11280,10 @@ end group
 
   function rebuildTilOnlyItems(){
     const referenced=new Set(state.items.filter(isMapTileItem).map(it=>Math.trunc(Number(it?.kv?.extra_val2))).filter(Number.isInteger));
-    const half=(Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE)*.5;
+    const half=MAP_TILE_DEFAULT_SIZE * MIS_POS_SCALE / 2;
     state.tilOnlyItems=state.mapTiles.records.filter(record=>!referenced.has(record.recordIndex)).map(record=>({
       id:`til-record:${record.recordIndex}`,_tilOnly:true,start:null,end:null,beginLine:`TIL record ${record.recordIndex}`,
-      x:worldToRaw(rawToWorld(record.x,"x")+half,"x"),y:worldToRaw(rawToWorld(record.y,"y")-half,"y"),z:0,heading:0,pitch:0,
+      x:dfbhdmedTilCoordinate(record.x)+half,y:dfbhdmedTilCoordinate(record.y)-half,z:0,heading:0,pitch:0,
       kv:{name:"MapTile",extra_val2:String(record.recordIndex)},lines:[]
     }));
     state.mapTiles.selectionOutlineCache.clear();
@@ -11463,10 +11464,27 @@ end group
     data.data.set(img.pixels);ctx.putImageData(data,0,0);
     tileThumbnailAtlasSource=img;tileThumbnailAtlasCanvas=atlas;return atlas;
   }
+  function getMapTileAtlasCell(image, index){
+    if (!image || !Number.isInteger(index) || index < 0) return null;
+    const columns = Math.floor(image.w / MAP_TILE_TEXTURE_SIZE);
+    const rows = Math.floor(image.h / MAP_TILE_TEXTURE_SIZE);
+    if (index >= columns * rows) return null;
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    return { column, row, x: column * MAP_TILE_TEXTURE_SIZE, y: row * MAP_TILE_TEXTURE_SIZE };
+  }
+
   function drawMapTileThumbnail(canvas,tileIndex){
-    const img=state.mapTiles.atlasImage,atlas=mapTileThumbnailAtlasCanvas(),ctx=canvas?.getContext?.("2d");if(!img||!atlas||!ctx||tileIndex===null)return;
-    const cellW=Math.floor(img.w/8),cellH=Math.floor(img.h/8),col=tileIndex%8,row=Math.floor(tileIndex/8);
-    canvas.width=cellW;canvas.height=cellH;ctx.drawImage(atlas,col*cellW,row*cellH,cellW,cellH,0,0,cellW,cellH);
+    const cell = getMapTileAtlasCell(state.mapTiles.atlasImage, tileIndex);
+    if (!cell) return false;
+    const atlas = mapTileThumbnailAtlasCanvas();
+    const ctx = canvas?.getContext?.("2d");
+    if (!atlas || !ctx) return false;
+    const size = MAP_TILE_TEXTURE_SIZE;
+    canvas.width = size;
+    canvas.height = size;
+    ctx.drawImage(atlas, cell.x, cell.y, size, size, 0, 0, size, size);
+    return true;
   }
   function mapTileOverlapKey(it){const f=getMapTileFootprint(it);return f?`${f.centerX.toFixed(4)},${f.centerY.toFixed(4)}`:`${it.x},${it.y}`;}
   function mapTileDisplayNumber(it){if(isTilOnlyMapTile(it))return `TIL ${Number(it.kv?.extra_val2)+1}`;const match=String(it.beginLine||"").match(/^begin\s+item\s+(.+)$/i);return match?.[1]?.trim()||it.id;}
@@ -11579,9 +11597,9 @@ end group
   }
 
   function tileInsertPosition(world){
-    if(!world||!state.gridSnapEnabled)return world;
-    const step=gridSizeMeters();
-    return {...world,x:snapValue(world.x,step),y:snapValue(world.y,step)};
+    if (!world) return world;
+    const step = state.gridSnapEnabled ? gridSizeMeters() : 0;
+    return { ...world, x: Math.floor(snapValue(world.x,step)), y: Math.floor(snapValue(world.y,step)) };
   }
 
   function insertPaletteTileAt(world){
@@ -11642,12 +11660,12 @@ end group
       return;
     }
     tilePaletteMessageEl.hidden=true;
-    const columns=8,rows=8,cellW=Math.floor(img.w/columns),cellH=Math.floor(img.h/rows);
+    const columns=Math.floor(img.w/MAP_TILE_TEXTURE_SIZE),rows=Math.floor(img.h/MAP_TILE_TEXTURE_SIZE);
     for(let index=0;index<columns*rows;index++){
       const button=document.createElement("button");button.type="button";button.className="tilePaletteTile";button.dataset.tileIndex=String(index);button.setAttribute("aria-pressed","false");
-      const canvas=document.createElement("canvas");canvas.width=cellW;canvas.height=cellH;canvas.setAttribute("aria-hidden","true");
-      const ctx=canvas.getContext("2d"),data=ctx?.createImageData(cellW,cellH),col=index%columns,row=Math.floor(index/columns);
-      if(data&&ctx){for(let y=0;y<cellH;y++)for(let x=0;x<cellW;x++){const src=((row*cellH+y)*img.w+col*cellW+x)*4,dst=(y*cellW+x)*4;data.data[dst]=img.pixels[src];data.data[dst+1]=img.pixels[src+1];data.data[dst+2]=img.pixels[src+2];data.data[dst+3]=img.pixels[src+3];}ctx.putImageData(data,0,0);}
+      const canvas=document.createElement("canvas");
+      canvas.setAttribute("aria-hidden","true");
+      drawMapTileThumbnail(canvas,index);
       button.append(canvas);button.addEventListener("click",event=>selectMapTilesFromPalette(index,event.shiftKey));tilePaletteGridEl.appendChild(button);
     }
     renderTilePaletteSelection();
@@ -11706,17 +11724,17 @@ end group
     if(!isMapTileItem(it))return null;
     const record=mapTileRecordForItem(it),size=Number(state.mapTiles.tileSize);
     if(!record||!Number.isFinite(size)||size<=0)return null;
-    const itemX=rawToWorld(it?.x,"x"),itemY=rawToWorld(it?.y,"y");
+    const itemX=rawToWorld(dfbhdmedTilCoordinate(it.x),"x"),itemY=rawToWorld(dfbhdmedTilCoordinate(it.y),"y");
     const hasItemPosition=Number.isFinite(Number(it?.x))&&Number.isFinite(Number(it?.y));
-    const left=hasItemPosition?itemX-size*.5:rawToWorld(record.x,"x");
-    const top=hasItemPosition?itemY+size*.5:rawToWorld(record.y,"y");
+    const left=hasItemPosition?itemX-size*.5:rawToWorld(dfbhdmedTilCoordinate(record.x),"x");
+    const top=hasItemPosition?itemY+size*.5:rawToWorld(dfbhdmedTilCoordinate(record.y),"y");
     return {left,right:left+size,bottom:top-size,top,size,centerX:left+size*.5,centerY:top-size*.5};
   }
 
   function getTilRecordFootprint(record){
     const size=Number(state.mapTiles.tileSize);
     if(!record||!Number.isFinite(size)||size<=0)return null;
-    const left=rawToWorld(record.x,"x"),top=rawToWorld(record.y,"y");
+    const left=rawToWorld(dfbhdmedTilCoordinate(record.x),"x"),top=rawToWorld(dfbhdmedTilCoordinate(record.y),"y");
     return {left,right:left+size,bottom:top-size,top,size,centerX:left+size*.5,centerY:top-size*.5};
   }
 
@@ -11791,16 +11809,16 @@ end group
     const canvas=document.createElement('canvas');canvas.width=resolution;canvas.height=resolution;
     const ctx=canvas.getContext('2d',{alpha:true});if(!ctx)return null;
     ctx.clearRect(0,0,canvas.width,canvas.height);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
-    const cellW=Math.floor(img.w/8),cellH=Math.floor(img.h/8),orientedCells=state.mapTiles.overlayCellCache;
+    const cellSize=MAP_TILE_TEXTURE_SIZE,orientedCells=state.mapTiles.overlayCellCache;
     const orientedCell=(tileIndex,flags)=>{
       const orientation=Number(flags)&0x07,key=`${tileIndex}:${orientation}`;if(orientedCells.has(key))return orientedCells.get(key);
-      const cell=document.createElement('canvas');cell.width=cellW;cell.height=cellH;
-      const cellCtx=cell.getContext('2d'),data=cellCtx?.createImageData(cellW,cellH);if(!cellCtx||!data)return null;
-      const col=tileIndex%8,row=Math.floor(tileIndex/8);
-      for(let y=0;y<cellH;y++)for(let x=0;x<cellW;x++){
-        const uv=transformMapTileUv((x+.5)/cellW,1-(y+.5)/cellH,orientation);
-        const sourceX=Math.max(0,Math.min(cellW-1,Math.floor(uv.u*cellW))),sourceY=Math.max(0,Math.min(cellH-1,Math.floor((1-uv.v)*cellH)));
-        const src=((row*cellH+sourceY)*img.w+col*cellW+sourceX)*4,dst=(y*cellW+x)*4;
+      const atlasCell=getMapTileAtlasCell(img,tileIndex);if(!atlasCell)return null;
+      const cell=document.createElement('canvas');cell.width=cellSize;cell.height=cellSize;
+      const cellCtx=cell.getContext('2d'),data=cellCtx?.createImageData(cellSize,cellSize);if(!cellCtx||!data)return null;
+      for(let y=0;y<cellSize;y++)for(let x=0;x<cellSize;x++){
+        const uv=transformMapTileUv((x+.5)/cellSize,1-(y+.5)/cellSize,orientation);
+        const sourceX=Math.floor(uv.u*cellSize),sourceY=Math.floor((1-uv.v)*cellSize);
+        const src=((atlasCell.y+sourceY)*img.w+atlasCell.x+sourceX)*4,dst=(y*cellSize+x)*4;
         data.data[dst]=img.pixels[src];data.data[dst+1]=img.pixels[src+1];data.data[dst+2]=img.pixels[src+2];data.data[dst+3]=img.pixels[src+3];
       }
       cellCtx.putImageData(data,0,0);orientedCells.set(key,cell);return cell;
@@ -11888,14 +11906,14 @@ end group
     const started=performance.now();
     const img=state.mapTiles.atlasImage,THREE=state.glb.THREE;
     if(!img||!THREE||!state.mapTiles.records.length){disposeMapTileOverlayChunks();buildMapTileBorders();requestRender();return;}
-    const cellW=Math.floor(img.w/8),cellH=Math.floor(img.h/8),tileSize=Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE;
+    const tileSize=Number(state.mapTiles.tileSize)||MAP_TILE_DEFAULT_SIZE;
     const rendererLimit=Number(state.glb.renderer?.capabilities?.maxTextureSize)||MAP_TILE_OVERLAY_CHUNK_RESOLUTION;
-    const desiredDensity=Math.max(1,Math.min(cellW,cellH)/tileSize),resolution=Math.max(1,Math.min(rendererLimit,MAP_TILE_OVERLAY_CHUNK_RESOLUTION,Math.ceil(SECTOR_STRIDE*desiredDensity)));
+    const desiredDensity=Math.max(1,MAP_TILE_TEXTURE_SIZE/tileSize),resolution=Math.max(1,Math.min(rendererLimit,MAP_TILE_OVERLAY_CHUNK_RESOLUTION,Math.ceil(SECTOR_STRIDE*desiredDensity)));
     const nextEntries=new Map();let painted=0;
     for(const entry of mapTileRenderEntries()){
       const {item,record,footprint}=entry;
       if(item&&state.mapTiles.dragPreviewIds.has(item.id))continue;
-      const tileIndex=Number(record.tileIndex);if(!Number.isInteger(tileIndex)||tileIndex<0||tileIndex>255)continue;
+      if(!getMapTileAtlasCell(img,record.tileIndex))continue;
       const gx0=Math.floor((footprint.left-originWorldX())/SECTOR_STRIDE),gx1=Math.floor((footprint.right-originWorldX()-1e-9)/SECTOR_STRIDE),gy0=Math.floor((footprint.bottom-originWorldY())/SECTOR_STRIDE),gy1=Math.floor((footprint.top-originWorldY()-1e-9)/SECTOR_STRIDE);
       for(let gy=gy0;gy<=gy1;gy++)for(let gx=gx0;gx<=gx1;gx++){const key=`${gx}:${gy}`;if(!nextEntries.has(key))nextEntries.set(key,[]);nextEntries.get(key).push(entry);}
       painted++;
@@ -11926,16 +11944,9 @@ end group
   }
 
   function createMapTilePreviewTexture(tileIndex){
-    const img=state.mapTiles.atlasImage,THREE=state.glb.THREE;if(!img||!THREE)return null;
-    const cellW=Math.floor(img.w/8),cellH=Math.floor(img.h/8),col=tileIndex%8,row=Math.floor(tileIndex/8);
-    const canvas=document.createElement('canvas');canvas.width=cellW;canvas.height=cellH;
-    const ctx=canvas.getContext('2d');if(!ctx)return null;
-    const data=ctx.createImageData(cellW,cellH);
-    for(let y=0;y<cellH;y++)for(let x=0;x<cellW;x++){
-      const src=((row*cellH+y)*img.w+col*cellW+x)*4,dst=(y*cellW+x)*4;
-      data.data[dst]=img.pixels[src];data.data[dst+1]=img.pixels[src+1];data.data[dst+2]=img.pixels[src+2];data.data[dst+3]=img.pixels[src+3];
-    }
-    ctx.putImageData(data,0,0);
+    const THREE=state.glb.THREE;if(!THREE)return null;
+    const canvas=document.createElement('canvas');
+    if(!drawMapTileThumbnail(canvas,tileIndex))return null;
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;return texture;
   }
 
