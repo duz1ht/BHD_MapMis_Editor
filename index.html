@@ -1652,7 +1652,7 @@
 
   <div id="appLayout">
   <div id="sidebar">
-    <input id="fileMis" type="file" accept=".mis,.txt" style="display:none;" />
+    <input id="fileMis" type="file" accept=".mis,.bms,.txt" style="display:none;" />
     <input id="fileReferenceGlb" type="file" accept=".glb,model/gltf-binary" style="display:none;" />
 
     <div id="sidebarHeaderActions">
@@ -1682,7 +1682,7 @@
         <div id="misRealtimeTitle">MIS Realtime Changes</div>
         <button id="misRealtimeClearBtn" type="button">Clear</button>
       </div>
-      <pre id="misRealtimeConsole">// Open a .mis file to track live code changes here.</pre>
+      <pre id="misRealtimeConsole">// Open a .mis or .bms file to track live code changes here.</pre>
     </div>
   </div>
 
@@ -2695,6 +2695,9 @@ end group
     isLocalRuntime: window.location.protocol === "file:",
     editorFolderHandle: null,
     currentMisFileHandle: null,
+    missionFormat: "mis",
+    missionLoadRequest: 0,
+    bmsSource: null,
     currentTilFileHandle: null,
     tilOnlyItems: [],
     generalTerrainNames: [],
@@ -3821,7 +3824,7 @@ end group
 
       const mBegin = t.match(/^weapon\s+"([^"]+)"/i);
       if (mBegin){
-        cur = { id: mBegin[1], menuTextKey: "", weaponClass: "" };
+        cur = { id: mBegin[1], menuTextKey: "", weaponClass: "", subclassCount: 0, subclasses: [] };
         continue;
       }
 
@@ -3839,8 +3842,13 @@ end group
       const value = stripOuterQuotes(mKV[2].trim());
       if (key === "loadout_menu_textid") cur.menuTextKey = value;
       if (key === "weapon_class") cur.weaponClass = value;
+      if (key === "loadout_subclasses") cur.subclassCount = Math.max(0, Math.trunc(Number(value) || 0));
     }
 
+    const weapons = [...out.values()];
+    weapons.forEach((weapon,i)=>{
+      weapon.subclasses = weapons.slice(i+1,i+1+weapon.subclassCount).map(next=>next.id);
+    });
     return out;
   }
 
@@ -6768,7 +6776,9 @@ end group
         const blockLines = [];
         i++;
         const endToken = `end ${kind}`;
-        while (i < lines.length && lines[i].trim().toLowerCase() !== endToken){
+        while (i < lines.length){
+          const token = lines[i].trim().toLowerCase();
+          if (token === endToken || (kind === "briefing" && token === "endbriefing")) break;
           blockLines.push(lines[i]);
           i++;
         }
@@ -6849,11 +6859,9 @@ end group
       const kv = { ...(it ? it.kv : liveSec.kv) };
       const srcLines = (it ? it.lines : liveSec.lines) || [];
 
-      // Event blocks contain nested trigger/action blocks. Treat their maintained
-      // lines as authoritative so the generic flat key/value writer cannot
-      // mistake "begin triggers" and "begin actions" for duplicate keys.
-      if (liveSec.kind === "event"){
-        newBlock.push(...srcLines, "end event");
+      // Events have nested rows, and briefings can repeat the same key.
+      if (liveSec.kind === "event" || liveSec.kind === "briefing"){
+        newBlock.push(...srcLines, liveSec.kind === "event" ? "end event" : "endbriefing");
         return newBlock;
       }
 
@@ -7886,9 +7894,9 @@ end group
   function formatLiveTilText(){
     const records=mapTileFileOrder(state.mapTiles.records);
     if(!state.filename && !state.mapTiles.filename && !state.mapTiles.sourceFilename){
-      return "// No map is loaded.\n// Open a .mis file to view its companion .til content.";
+      return "// No map is loaded.\n// Open a .mis or .bms file to view its companion .til content.";
     }
-    const filename=state.mapTiles.sourceFilename || state.mapTiles.filename || String(state.filename || "edited.mis").replace(/\.mis$/i,".til");
+    const filename=state.mapTiles.sourceFilename || state.mapTiles.filename || missionFileStem()+".til";
     const byteLength=16+records.length*12;
     const lines=[
       `// ${filename}`,
@@ -10281,6 +10289,7 @@ end group
   }
 
   async function clearEditorMap(){
+    state.missionLoadRequest += 1;
     resetMapTiles();
     clearGlbItemInstances();
     // Cancel every interaction that belongs to the previous mission before its
@@ -10333,6 +10342,8 @@ end group
     state.multiSelectedIds.clear();
     state.filename = "";
     state.currentMisFileHandle = null;
+    state.missionFormat = "mis";
+    state.bmsSource = null;
     state.currentTilFileHandle = null;
     state.currentReferenceSidecarHandle = null;
     updateLoadedMapFilesHint();
@@ -10373,49 +10384,64 @@ end group
     refreshLiveMisWindow(true, { force: true });
   }
 
+  function missionFileStem(name=state.filename){
+    return String(name || "edited").replace(/\.(?:mis|bms|txt)$/i,"");
+  }
+
   async function saveCurrentMap(options = {}){
-    const forcePicker = Boolean(options?.forcePicker);
     if (!state.rawText) return false;
-    const out = rebuildMIS(state.rawText, state.items, state.sectionBlocks);
-    if (window.showSaveFilePicker){
-      try{
-        const previousMisHandle=state.currentMisFileHandle;
-        const handle = (!forcePicker && state.currentMisFileHandle) ? state.currentMisFileHandle : await window.showSaveFilePicker({
-          suggestedName: state.filename || "edited.mis",
-          ...(state.currentMisFileHandle?{startIn:state.currentMisFileHandle}:{}),
-          types: [{
-            description: "Mission Files",
-            accept: { "text/plain": [".mis"] }
-          }]
+    const format=options.format || state.missionFormat;
+    const forcePicker=Boolean(options.forcePicker || format!==state.missionFormat);
+    const name=missionFileStem()+"."+format;
+    const binary=format==="bms";
+    try{
+      const mapTiles=state.items.filter(isMapTileItem);
+      if (binary && mapTiles.length) validateTilCompanionRecords(mapTiles);
+      const text=rebuildMIS(state.rawText,state.items,state.sectionBlocks);
+      const out=binary?compileBms(text,state.bmsSource):appendBmsSource(misWithBmsTiles(text),state.bmsSource);
+      let handle=null;
+      if (window.showSaveFilePicker){
+        const previous=state.currentMisFileHandle;
+        const extension=new RegExp(`\\.${format}$`,"i");
+        handle=(!forcePicker && previous && extension.test(previous.name))?previous:await window.showSaveFilePicker({
+          suggestedName:name,
+          ...(previous?{startIn:previous}:{}),
+          types:[{
+            description:binary?"DFBHD Binary Mission":"MIS Mission",
+            accept:binary?{"application/octet-stream":[".bms"]}:{"text/plain":[".mis"]}
+          }],
         });
-        const writable = await handle.createWritable();
+        if (!extension.test(handle.name)) throw new Error(`The destination must end in .${format}.`);
+        const writable=await handle.createWritable();
         await writable.write(out);
         await writable.close();
-        state.currentMisFileHandle = handle;
-        state.filename = handle.name || state.filename;
-        updateLoadedMapFilesHint();
-        // A companion handle belongs to the previous mission name/location.  It
-        // must never be reused after Save As, even when both missions use tiles.
-        if(forcePicker||previousMisHandle!==handle){state.currentTilFileHandle=null;state.currentReferenceSidecarHandle=null;}
-        const tilResult=await saveTilCompanion(forcePicker,handle);
-        const referenceSaved=state.referenceGlb ? await saveReferenceGlbCompanion({forcePicker,misHandle:handle}) : false;
-        if(tilResult!==false)statusEl.textContent = referenceSaved ? "Map and reference GLB sidecar saved." : (tilResult ? "MIS and TIL files saved." : "File saved.");
-        return true;
-      } catch (err){
-        if (err?.name === "AbortError"){
-          statusEl.textContent = "Save canceled.";
-          return false;
+        if (forcePicker || previous!==handle){
+          state.currentTilFileHandle=null;
+          state.currentReferenceSidecarHandle=null;
         }
-        addLog(`ERROR saving .mis: ${err?.message || "unknown error"}`);
-        statusEl.textContent = "Failed to save file (see Logs).";
-        return false;
+      } else if (binary) downloadBinary(name,out);
+      else downloadText(name,out);
+      state.currentMisFileHandle=handle;
+      state.filename=handle?.name || name;
+      state.missionFormat=format;
+      updateLoadedMapFilesHint();
+      renderMenuBar();
+      const tilResult=await saveTilCompanion(forcePicker,handle);
+      const referenceSaved=state.referenceGlb ? await saveReferenceGlbCompanion({forcePicker,misHandle:handle}) : false;
+      if (tilResult!==false){
+        const result=handle?"saved":"downloaded";
+        const companions=(tilResult?" and TIL":"")+(referenceSaved?" with reference GLB sidecar":"");
+        statusEl.textContent=`${format.toUpperCase()}${companions} ${result}.`;
       }
+      return tilResult!==false;
+    } catch (err){
+      if (err?.name==="AbortError") statusEl.textContent="Save canceled.";
+      else {
+        addLog(`ERROR saving .${format}: ${err?.message || "unknown error"}`);
+        statusEl.textContent=`Failed to save .${format}: ${err?.message || "unknown error"}`;
+      }
+      return false;
     }
-    downloadText(state.filename || "edited.mis", out);
-    const tilResult=await saveTilCompanion(forcePicker);
-    const referenceSaved=state.referenceGlb ? await saveReferenceGlbCompanion({forcePicker}) : false;
-    if(tilResult!==false)statusEl.textContent = referenceSaved ? "Map and reference GLB sidecar downloaded." : (tilResult ? "MIS and TIL files downloaded." : "File saved.");
-    return true;
   }
 
   function showNewMapConfirmation(){
@@ -10503,8 +10529,8 @@ end group
           const [handle] = await window.showOpenFilePicker({
             multiple: false,
             types: [{
-              description: "Mission Files",
-              accept: { "text/plain": [".mis"] }
+              description: "DFBHD Mission Files",
+              accept: { "text/plain": [".mis"], "application/octet-stream": [".bms"] }
             }]
           });
           if (!handle) return;
@@ -10513,16 +10539,16 @@ end group
           return;
         } catch (err){
           if (err?.name === "AbortError") return;
-          addLog(`ERROR opening .mis: ${err?.message || "unknown error"}`);
-          statusEl.textContent = "Failed to open file (see Logs).";
+          addLog(`ERROR opening mission: ${err?.message || "unknown error"}`);
+          statusEl.textContent = `Failed to open mission: ${err?.message || "unknown error"}`;
           return;
         }
       }
       fileMisEl.click();
     },
-    "file.saveAs": async () => {
-      if (!await saveCurrentMap({ forcePicker: true })) return showNotImplemented("Save As");
-    },
+    "file.saveAs": () => saveCurrentMap({forcePicker:true}),
+    "file.saveAsMis": () => saveCurrentMap({forcePicker:true,format:"mis"}),
+    "file.saveAsBms": () => saveCurrentMap({forcePicker:true,format:"bms"}),
     "file.save": async () => {
       await saveCurrentMap();
     },
@@ -10587,10 +10613,9 @@ end group
       ] : []),
       { label: "Create New Map", command: "file.new" },
       { label: "Open", command: "file.open" },
-      { label: "Save (.mis)", shortcut: "Ctrl + S", command: "file.save" },
-      { label: "Save As (.mis)", shortcut: "Ctrl + Shift + S", command: "file.saveAs" },
-      { label: "Export Binary (.bms)", command: "file.exportBinaryMission", disabled: true },
-      { label: "Save (.mis) and export (.bms)", command: "file.saveAndExport", disabled: true }
+      { label: `Save (.${state.missionFormat})`, shortcut: "Ctrl + S", command: "file.save" },
+      { label: "Save As (.mis)", shortcut: state.missionFormat==="mis"?"Ctrl + Shift + S":"", command: "file.saveAsMis" },
+      { label: "Save As (.bms)", shortcut: state.missionFormat==="bms"?"Ctrl + Shift + S":"", command: "file.saveAsBms" }
     ];
 
     return [
@@ -10879,6 +10904,456 @@ end group
     if (!itemContextMenu.contains(e.target)) closeItemContextMenu();
   });
 
+
+  // DFBHD mission format BMS 0x11. Preserve raw records for fields without an MIS equivalent.
+  const BMS_ENTITY_LIMITS = [1200, 1200, 768, 256];
+  const BMS_HEADER_FIELDS = [
+    ["terrain_color",132,"Int32"], ["attrib",136,"Uint32"], ["visible_if",140,"Int32"],
+    ["notvisible_if",144,"Int32"], ["arty",148,"Int32"], ["water_level",152,"Int32"],
+    ["fog_level",156,"Int32"], ["fog_color",160,"Uint32"], ["weather_type",184,"Int32"],
+    ["gen_def_val1",264,"Int32"], ["gen_def_val2",268,"Int32"], ["gen_def_val3",272,"Int32"], ["gen_def_val4",276,"Int32"],
+    ["hardwin",262,"Uint8"], ["hardlose",263,"Uint8"], ["player_type",554,"Uint8"],
+    ["max_saves",555,"Uint8"], ["map_zoom",572,"Float32"], ["bonus_expiration",580,"Uint16"],
+    ["start_time",584,"Uint16"], ["minutes_per_day",586,"Uint16"],
+  ];
+  const BMS_HEADER_STRINGS = [["name",4,32],["designer",36,32],["terrain",68,16],["cnv_file",84,16],
+    ["tt_file",100,16],["loadoutfile",116,16],["sunset",220,16],["terrain_tile_tga",280,16]];
+  const BMS_ENTITY_FIELDS = [
+    ["type_id",0,"Int32"], ["name_index",4,"Int32"], ["id",8,"Int32"], ["bmsi_attributes",12,"Uint32"],
+    ["wpdistance",28,"Int32"], ["waccuracy2",32,"Int16"], ["waccuracy1",34,"Int16"],
+    ["perception2",36,"Int32"], ["perfectionist2",40,"Int32"], ["fov",56,"Uint16"], ["movetimer",58,"Int16"],
+    ["crouchtimer",60,"Int16"], ["shoottimer",62,"Int16"], ["attention",64,"Int16"], ["alert_state",66,"Uint8"],
+    ["team",67,"Uint8"], ["nomorethan",68,"Uint8"], ["nolessthan",69,"Uint8"], ["weapon_type",70,"Uint8"],
+    ["sweapon_type",71,"Uint8"], ["group_id",72,"Uint8"], ["waypoint_id",73,"Uint8"], ["wpnumber",74,"Uint8"],
+    ["obliqueness",75,"Uint8"], ["group_rel",80,"Int32"], ["advancetimer",84,"Int32"], ["ttoolindex",88,"Int32"],
+    ["blink_parent_a",92,"Uint8"], ["blink_parent_b",93,"Uint8"], ["blink_group_b",94,"Uint8"], ["blink_group_a",95,"Uint8"],
+    ["grenades",96,"Uint8"], ["wpgoal0",97,"Uint8"], ["wpgoal1",98,"Uint8"], ["wpgoal2",99,"Uint8"], ["wpgoal3",100,"Uint8"],
+    ["mission_critical",150,"Uint8"], ["wp_adv_trigger",152,"Int16"], ["max_attack_distance",156,"Int32"],
+    ["next_ssn",160,"Int32"], ["active_area",164,"Int32"], ["color_override",168,"Uint8"],
+  ];
+  const BMS_ENTITY_STRINGS = [["iai_name",101,8],["ai_textfile",109,8],["gen_string",117,31]];
+  const BMS_HEADER_LISTS = [["subgoals_win",188,-1,1],["subgoals_lose",196,-1,1],["win_scores",556,0,100],["lose_scores",564,0,100]];
+  const BMS_WEAPON_KEYS = ["default_primary","default_secondary","default_accessory"];
+  const BMS_WEAPON_MODES = ["ALWAYS_OFF","ALWAYS_ON","ARMORY_ONLY"];
+  const BMS_BOUND_FIELDS = [[2,1,"extra_val1"],[4,2,"extra_val2"],[32,5,"extra_val3"],
+    [16,4,"extra_val4"],[8,3,"extra_mlink"],[64,6,"extra_val5"]];
+  // MIS places the action's third binary field after its four arguments.
+  const BMS_ACTION_TO_MIS = [0,1,3,4,5,6,2,7];
+  const MIS_ACTION_TO_BMS = [0,1,6,2,3,4,5,7];
+  const BMS_SOURCE_COMMENT = /^\/\/ BHD_BMS_SOURCE ([A-Za-z0-9+/=]+)$/gm;
+  const bmsDecoder = new TextDecoder("windows-1252");
+  const bmsCharacterBytes = new Map(Array.from(bmsDecoder.decode(Uint8Array.from({length:256},(_,i)=>i)),(char,i)=>[char,i]));
+  const bmsView = bytes=>new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  const bmsString = value=>unescapeMisString(stripOuterQuotes(String(value ?? "")));
+  const bmsNumbers = value=>String(value ?? "").trim().split(/\s+/).map(Number);
+  const bmsNumber = (value,fallback=0)=>value === undefined || value === "" ? fallback : Number(value) || 0;
+
+  function readBmsString(bytes,offset,length){
+    const field=bytes.subarray(offset,offset+length), end=field.indexOf(0);
+    return bmsDecoder.decode(end<0?field:field.subarray(0,end));
+  }
+
+  function encodeBmsText(text){
+    return Uint8Array.from(text,char=>bmsCharacterBytes.get(char) ?? 63);
+  }
+
+  function writeBmsString(bytes,offset,length,text){
+    if (readBmsString(bytes,offset,length) === text) return;
+    bytes.fill(0,offset,offset+length);
+    bytes.set(encodeBmsText(text).subarray(0,length),offset);
+  }
+
+  function bmsIntegers(bytes){
+    const view=bmsView(bytes);
+    return Array.from({length:bytes.length/4},(_,i)=>view.getInt32(i*4,true));
+  }
+
+  function bmsIntegerBytes(values){
+    const raw=new Uint8Array(values.length*4), view=bmsView(raw);
+    values.forEach((value,i)=>view.setInt32(i*4,value,true));
+    return raw;
+  }
+
+  function parseBms(buffer){
+    const bytes=new Uint8Array(buffer);
+    if (bytes.length<616 || bytes[0]!==66 || bytes[1]!==77 || bytes[2]!==83 || bytes[3]!==17){
+      throw new Error("Invalid mission header. DFBHD BMS version 0x11 is required.");
+    }
+    let offset=0;
+    const take=(length,label)=>{
+      if (length>bytes.length-offset) throw new Error(`Truncated BMS ${label}.`);
+      const part=bytes.subarray(offset,offset+length);
+      offset+=length;
+      return part;
+    };
+    const rows=(count,size,label)=>{
+      const block=take(count*size,label);
+      return Array.from({length:count},(_,i)=>block.subarray(i*size,(i+1)*size));
+    };
+    const header=take(616,"header"), view=bmsView(header);
+    const loadout=take(view.getUint16(578,true),"loadout");
+    const availability=take(view.getUint16(582,true),"weapon availability");
+    const entities=Array.from({length:4},(_,i)=>rows(view.getUint32(164+i*4,true),176,"entities"));
+    const waypoints=rows(128,136,"waypoints"), groups=rows(64,32,"groups"), layers=rows(32,20,"layers");
+    const areas=rows(view.getUint16(576,true),32,"area triggers");
+    const counts=bmsView(take(12,"event counts"));
+    const events=rows(counts.getUint32(0,true),24,"events");
+    const triggers=rows(counts.getUint32(4,true),32,"triggers"), actions=rows(counts.getUint32(8,true),32,"actions");
+    const bounds=rows(bmsView(take(4,"bounding box count")).getUint32(0,true),36,"bounding boxes");
+    for (const bytes of events){
+      const event=bmsView(bytes);
+      if (event.getUint32(4,true)+event.getUint8(21)>triggers.length || event.getUint32(8,true)+event.getUint8(22)>actions.length){
+        throw new Error("BMS event references a row outside its trigger or action table.");
+      }
+    }
+    if (offset!==bytes.length) throw new Error(`Unexpected bytes after the BMS mission (${bytes.length-offset}).`);
+    return {bytes,header,loadout,availability,entities,waypoints,groups,layers,areas,events,triggers,actions,bounds};
+  }
+
+  function bmsWeaponAvailability(bytes){
+    const entries=[];
+    for (let offset=0;offset<bytes.length && bytes[offset];){
+      const end=bytes.indexOf(0,offset);
+      if (end<0 || end+1>=bytes.length) break;
+      entries.push([readBmsString(bytes,offset,end-offset),BMS_WEAPON_MODES[bytes[end+1]] ?? String(bytes[end+1])]);
+      offset=end+2;
+    }
+    return entries;
+  }
+
+  function bmsWeaponDefaults(bytes, weapons){
+    const list=bmsDecoder.decode(bytes).split("\0");
+    return BMS_WEAPON_KEYS.map(()=>{
+      const id=list.shift() || "";
+      list.splice(0,weapons.get(id.toLowerCase())?.subclasses?.length ?? 0);
+      return id;
+    });
+  }
+
+  function bmsBoundAreaIds(mission){
+    const used=new Set(mission.areas.map(raw=>bmsView(raw).getInt32(0,true)));
+    let id=1;
+    return mission.bounds.map(raw=>{
+      if (!BMS_BOUND_FIELDS.some(([,kind])=>kind===bmsView(raw).getInt32(24,true))) return 0;
+      while (used.has(id)) id++;
+      return id<=100?id++:0;
+    });
+  }
+
+  function bmsToMisText(mission){
+    const {header,entities}=mission, view=bmsView(header);
+    const quote=value=>quoteMisString(String(value).replace(/[\r\n]+/g," "));
+    const block=(kind,num,fields)=>[
+      `begin ${kind}${num===null?"":" "+num}`,...fields.map(line=>"  "+line),
+      kind==="briefing"?"endbriefing":`end ${kind}`,"",
+    ];
+    const boundAreaIds=bmsBoundAreaIds(mission);
+    const general=["file_version 2",`num_items ${entities.flat().length+(mission.areas.length+boundAreaIds.filter(Boolean).length)*2}`,
+      `num_events ${mission.events.length}`,`wind ${view.getInt32(252,true)} ${view.getInt32(256,true)}`,"viewzoom 0.001"];
+    for (const [key,offset,length] of BMS_HEADER_STRINGS){
+      const text=readBmsString(header,offset,length);
+      general.push(`${key} ${["name","designer"].includes(key)?quote(text):text}`);
+    }
+    for (const [key,offset,type] of BMS_HEADER_FIELDS) general.push(`${key} ${view["get"+type](offset,true)}`);
+    for (const [key,offset,fallback,scale] of BMS_HEADER_LISTS){
+      general.push(`${key} ${Array.from({length:8},(_,i)=>(fallback<0?view.getInt8(offset+i):view.getUint8(offset+i))*scale).join(" ")}`);
+    }
+    const weapons=new Map([...state.weaponDefs.values()].map(def=>[def.id.toLowerCase(),def]));
+    const defaults=bmsWeaponDefaults(mission.loadout,weapons);
+    BMS_WEAPON_KEYS.forEach((key,i)=>general.push(`${key} ${defaults[i]}`));
+    const lines=block("general_information",null,general);
+    if (mission.availability.length) lines.push(...block("weapon_availability",null,bmsWeaponAvailability(mission.availability).map(row=>row.join(" "))));
+    const briefing=readBmsString(header,296,256).trimEnd();
+    if (briefing) lines.push(...block("briefing",null,briefing.split(/\r?\n/).map(line=>`brief ${quote(line)}`)));
+    mission.waypoints.forEach((raw,i)=>{
+      const wp=bmsView(raw), flags=wp.getUint32(0,true);
+      if (i && (flags || wp.getUint32(4,true))) lines.push(...block("waypoint",i,[`description "Waypoint ${i}"`,`attrib ${flags}`]));
+    });
+    mission.groups.forEach((raw,i)=>{
+      const group=bmsView(raw),flags=group.getUint32(0,true),value=group.getInt32(8,true);
+      if (i && (flags || value)) lines.push(...block("group",i,[`description "Group ${i}"`,`attrib ${flags}`,`group_value ${value}`]));
+    });
+    mission.layers.forEach((raw,i)=>{
+      const description=readBmsString(raw,4,16);
+      if (description) lines.push(...block("layer",i,[`description ${quote(description)}`]));
+    });
+    let itemNumber=0,maxSsn=0;
+    for (const raw of entities.flat()){
+      const entry=bmsView(raw),typeId=entry.getInt32(0,true);
+      maxSsn=Math.max(maxSsn,entry.getInt32(8,true));
+      const name=getCatalogDefForItem({kv:{type_id:typeId}})?.name || `Item type ${typeId}`;
+      const fields=[`type_id ${typeId}`,`name ${quote(name)}`,`position ${entry.getInt32(16,true)} ${entry.getInt32(20,true)} ${entry.getInt32(24,true)}`,
+        `facing ${entry.getInt16(52,true)} ${entry.getInt16(54,true)}`,"height_lock 1",
+        `edistances ${entry.getInt32(44,true)} ${entry.getInt32(48,true)}`];
+      for (const [key,offset,type] of BMS_ENTITY_FIELDS.slice(1)) fields.push(`${key} ${entry["get"+type](offset,true)}`);
+      for (const [key,offset,length] of BMS_ENTITY_STRINGS) fields.push(`${key} ${quote(readBmsString(raw,offset,length))}`);
+      lines.push(...block("item",itemNumber++,fields));
+    }
+    const addArea=(id,points,extra=[])=>{
+      lines.push(...block("areatrig",id,[`description "Area ${id}"`]));
+      for (const [x,y,z] of points){
+        lines.push(...block("item",itemNumber++,["type_id 6013",'name "Area Trigger"',`id ${++maxSsn}`,
+          `position ${x} ${y} ${z}`,"height_lock 1",`wpnumber ${id}`,...extra]));
+      }
+    };
+    for (const raw of mission.areas){
+      const [id,x1,x2,y1,y2,z1,z2]=bmsIntegers(raw);
+      addArea(id,[[x1,y1,z1],[x2,y2,z2]]);
+    }
+    mission.bounds.forEach((raw,index)=>{
+      const id=boundAreaIds[index];
+      if (!id) return;
+      const [x1,y1,z1,x2,y2,z2,type,value]=bmsIntegers(raw);
+      const [mode,,key]=BMS_BOUND_FIELDS.find(([,kind])=>kind===type);
+      addArea(id,[[x1,y1,z1],[x2,y2,z2]],[`extra_valmode ${mode}`,`${key} ${type===3?quote(readBmsString(raw,28,8)):value}`]);
+    });
+    mission.events.forEach((raw,i)=>{
+      const event=bmsView(raw), entry={kv:{},lines:[],label:String(i)};
+      const extract=(rows,offset,count)=>rows.slice(offset,offset+count).map(bmsIntegers);
+      writeEventData(entry,{
+        triggers:extract(mission.triggers,event.getUint32(4,true),event.getUint8(21)),
+        actions:extract(mission.actions,event.getUint32(8,true),event.getUint8(22)).map(row=>BMS_ACTION_TO_MIS.map(index=>row[index])),
+      },{name:`Event ${i}`,attrib:event.getUint32(0,true),reset:event.getUint32(12,true)>>>22,delay:event.getUint32(16,true)>>>22});
+      lines.push(...block("event",i,entry.lines.map(line=>line.slice(2))));
+    });
+    return lines.join("\n");
+  }
+
+  // MIS ignores these comments. They allow a converted file to retain its binary-only data.
+  function readMissionTextSource(text){
+    const normalized=text.replace(/\r\n/g,"\n");
+    const parts=Array.from(normalized.matchAll(BMS_SOURCE_COMMENT),match=>match[1]);
+    if (!parts.length) return {text,bms:null};
+    const bytes=Uint8Array.from(atob(parts.join("")),char=>char.charCodeAt(0));
+    return {text:normalized.replace(/^\/\/ BHD_BMS_SOURCE [A-Za-z0-9+/=]+\n?/gm,""),bms:parseBms(bytes.buffer)};
+  }
+
+  function appendBmsSource(text,mission){
+    if (!mission) return text;
+    const chunks=[];
+    for (let i=0;i<mission.bytes.length;i+=144) chunks.push("// BHD_BMS_SOURCE "+btoa(String.fromCharCode(...mission.bytes.subarray(i,i+144))));
+    return text.trimEnd()+"\n\n"+chunks.join("\n")+"\n";
+  }
+
+  function misWithBmsTiles(text){
+    if (!state.bmsSource || !state.tilOnlyItems.length) return text;
+    let blockNumber=getNextBeginItemNumber(), ssn=getNextMisItemId();
+    const tileBlocks=state.tilOnlyItems.map(item=>{
+      const record=mapTileRecordForItem(item);
+      return [
+        `begin item ${blockNumber++}`,`  type_id ${record.tileIndex+3}`,'  name "MapTile"',
+        `  id ${ssn++}`,`  position ${item.x} ${item.y} 0`,`  layer ${record.reserved}`,
+        `  extra_val1 ${record.flags}`,`  extra_val2 ${record.recordIndex}`,`  extra_bheight ${record.tileIndex}`,"end item",
+      ].join("\n");
+    });
+    return text.replace(/^(\s*num_items\s+)\d+/m, (_,prefix)=>prefix+(state.items.length+tileBlocks.length)).trimEnd()
+      +"\n\n"+tileBlocks.join("\n\n")+"\n";
+  }
+
+  function bmsMissionFingerprint({items,sectionBlocks}){
+    const missionItems=items.filter(item=>!isMapTileItem(item)).map(item=>item.kv);
+    const sections=sectionBlocks.filter(section=>section.kind!=="item").map(section=>{
+      const {kind,label,kv}=section;
+      const {num_items,...fields}=kv;
+      return [kind,label,fields,kind==="event"?parseEventData(section):kind==="briefing"?section.lines.map(line=>line.trim()):null];
+    });
+    return JSON.stringify([missionItems,sections]);
+  }
+
+  function compileBms(text,source=null){
+    const parsed=parseMIS(text);
+    if (source && bmsMissionFingerprint(parsed)===source.fingerprint) return source.bytes;
+    const {items,sectionBlocks}=parsed;
+    const section=kind=>sectionBlocks.find(entry=>entry.kind===kind);
+    const sectionsFor=kind=>new Map(sectionBlocks.filter(entry=>entry.kind===kind).map(entry=>[Number(entry.label),entry.kv]));
+    const general=section("general_information")?.kv;
+    if (!general?.terrain) throw new Error("A terrain is required to export a DFBHD BMS.");
+    const header=source?source.header.slice():new Uint8Array(616), view=bmsView(header);
+    header.set([66,77,83,17]);
+    for (const [key,offset,length] of BMS_HEADER_STRINGS){
+      writeBmsString(header,offset,length,bmsString(general[key] ?? (key==="loadoutfile"?"Default":"")));
+    }
+    for (const [key,offset,type] of BMS_HEADER_FIELDS){
+      if (!source || general[key]!==undefined) view["set"+type](offset,bmsNumber(general[key],key==="map_zoom"?0.5:0),true);
+    }
+    const wind=bmsNumbers(general.wind);
+    view.setInt32(252,wind[0],true);
+    view.setInt32(256,wind[1]??0,true);
+    for (const [key,offset,fallback,scale] of BMS_HEADER_LISTS){
+      const list=general[key]===undefined?[]:bmsNumbers(general[key]);
+      for (let i=0;i<8;i++) view.setUint8(offset+i,Math.trunc((list[i]??fallback)/scale));
+    }
+    const briefing=section("briefing")?.lines.map(line=>line.match(/^\s*brief\s+(.+)$/i)?.[1]).filter(Boolean).map(bmsString).join(" ");
+    const previousBriefing=source?readBmsString(source.header,296,256).trimEnd().replace(/\r?\n/g," "):"";
+    if ((briefing||"")!==previousBriefing) writeBmsString(header,296,256,briefing||"");
+
+    const weapons=new Map([...state.weaponDefs.values()].map(def=>[def.id.toLowerCase(),def]));
+    const defaults=BMS_WEAPON_KEYS.map(key=>bmsString(general[key]));
+    const oldDefaults=source?bmsWeaponDefaults(source.loadout,weapons):[];
+    const loadout=source && defaults.every((id,i)=>id===oldDefaults[i])?source.loadout:
+      encodeBmsText([...defaults.flatMap(id=>[id,...(weapons.get(id.toLowerCase())?.subclasses??[])]),
+        "WPN_GRENADEFB","WPN_GRENADEHE","WPN_GRENADESM","WPN_KNIFE","",""].join("\0"));
+    const allowed=(section("weapon_availability")?.lines||[]).map(line=>line.trim().match(/^(\w+)\s+(\w+)$/)?.slice(1)).filter(Boolean);
+    const oldAllowed=source?bmsWeaponAvailability(source.availability):[];
+    const availability=source && JSON.stringify(allowed)===JSON.stringify(oldAllowed)?source.availability:
+      allowed.some(([,mode])=>mode!=="ALWAYS_ON")?encodeBmsText(allowed.map(([id,mode])=>
+        `${id}\0${String.fromCharCode(BMS_WEAPON_MODES.includes(mode)?BMS_WEAPON_MODES.indexOf(mode):bmsNumber(mode))}`).join("")+"\0"):new Uint8Array();
+    view.setUint16(578,loadout.length,true);
+    view.setUint16(582,availability.length,true);
+
+    const originalEntities=new Map(), entities=Array.from({length:4},()=>[]), areaMarkers=new Map();
+    source?.entities.forEach((records,category)=>records.forEach(raw=>{
+      const entry=bmsView(raw),key=`${entry.getInt32(0,true)}:${entry.getInt32(8,true)}`;
+      if (!originalEntities.has(key)) originalEntities.set(key,[]);
+      originalEntities.get(key).push({raw,category});
+    }));
+    const zForItem=item=>{
+      if (isItemHeightLocked(item)) return item.z;
+      if (!lastDepth || !sectors) throw new Error("Load the mission terrain before exporting terrain-relative item heights.");
+      return getItemWorldRawZ(item);
+    };
+    for (const item of items){
+      const kv=item.kv;
+      if (isMapTileItem(item) || String(kv.name||"").trim().toLowerCase()==="ruler") continue;
+      if (isAreaTriggerItem(item)){
+        const id=bmsNumber(kv.wpnumber);
+        if (id>0 && id<=100){
+          if (!areaMarkers.has(id)) areaMarkers.set(id,[]);
+          areaMarkers.get(id).push(item);
+        }
+        continue;
+      }
+      const id=bmsNumber(kv.type_id,-1),def=getCatalogDefForItem(item);
+      if (id<0) throw new Error(`Item ${kv.id??item.id} lacks a valid type_id.`);
+      const typeId=def && id>=100000 && Number(def.id)===id?id-100000:id;
+      const old=originalEntities.get(`${typeId}:${bmsNumber(kv.id)}`)?.shift();
+      const type=String(def?.type||"").trim().toLowerCase();
+      const category=old?.category??(["person","people"].includes(type)?3:type==="marker"?2:
+        ["building","decoration","foliage"].includes(type)?1:0);
+      const raw=old?old.raw.slice():new Uint8Array(176), entry=bmsView(raw);
+      const overrides={type_id:typeId,bmsi_attributes:getItemAttribValue(item),nolessthan:kv.nolessthan??kv.remove_if_less_than,
+        nomorethan:kv.nomorethan??kv.remove_if_more_than};
+      for (const [key,offset,encoding] of BMS_ENTITY_FIELDS){
+        entry["set"+encoding](offset,bmsNumber(overrides[key]??kv[key],key==="wp_adv_trigger"?-1:0),true);
+      }
+      entry.setInt32(16,item.x,true);
+      entry.setInt32(20,item.y,true);
+      entry.setInt32(24,zForItem(item),true);
+      entry.setInt16(52,Math.trunc(item.heading)%360,true);
+      entry.setInt16(54,item.pitch,true);
+      const distances=bmsNumbers(kv.edistances);
+      entry.setInt32(44,distances[0],true);
+      entry.setInt32(48,distances[1]??0,true);
+      for (const [key,offset,length] of BMS_ENTITY_STRINGS){
+        writeBmsString(raw,offset,length,bmsString(key==="iai_name" && !old?kv[key]||def?.kv?.ai_name:kv[key]));
+      }
+      entities[category].push({raw,item,typeId});
+    }
+    entities.forEach((rows,category)=>{
+      if (rows.length>BMS_ENTITY_LIMITS[category]) throw new Error(`DFBHD limit exceeded for ${["items","buildings","markers","people"][category]} (${rows.length}/${BMS_ENTITY_LIMITS[category]}).`);
+      if (!source) rows.sort((a,b)=>a.typeId-b.typeId);
+      view.setUint32(164+category*4,rows.length,true);
+    });
+
+    const routeMarkers=new Map(), waypointSections=sectionsFor("waypoint");
+    entities[2].forEach(({item,typeId},index)=>{
+      const id=bmsNumber(item.kv.waypoint_id);
+      if (typeId!==6005 || id<1 || id>127) return;
+      if (!routeMarkers.has(id)) routeMarkers.set(id,[]);
+      routeMarkers.get(id).push({index,order:bmsNumber(item.kv.wpnumber)});
+    });
+    const waypoints=Array.from({length:128},(_,id)=>{
+      const route=(routeMarkers.get(id)||[]).sort((a,b)=>a.order-b.order);
+      if (route.length>32) throw new Error(`Waypoint list ${id} exceeds 32 markers.`);
+      const original=source?.waypoints[id],old=original&&bmsView(original);
+      const flags=bmsNumber(waypointSections.get(id)?.attrib,id===0?(old?.getUint32(0,true)??0):0);
+      if (old && old.getUint32(0,true)===flags && old.getUint32(4,true)===route.length &&
+          route.every(({index},i)=>index===old.getUint32(8+i*4,true))) return original;
+      const raw=new Uint8Array(136),entry=bmsView(raw);
+      entry.setUint32(0,flags,true);
+      entry.setUint32(4,route.length,true);
+      route.forEach(({index},i)=>entry.setUint32(8+i*4,index,true));
+      return raw;
+    });
+    const groupSections=sectionsFor("group"),layerSections=sectionsFor("layer");
+    const groups=Array.from({length:64},(_,id)=>{
+      const raw=source?source.groups[id].slice():bmsIntegerBytes([0,0,0,10,0,0,0,0]);
+      const fields=groupSections.get(id),entry=bmsView(raw);
+      if (id>0 || fields){
+        entry.setUint32(0,bmsNumber(fields?.attrib),true);
+        entry.setInt32(8,bmsNumber(fields?.group_value),true);
+      }
+      return raw;
+    });
+    const layers=Array.from({length:32},(_,id)=>{
+      const raw=source?source.layers[id].slice():new Uint8Array(20),description=layerSections.get(id)?.description;
+      writeBmsString(raw,4,16,bmsString(description));
+      return raw;
+    });
+    const originalAreas=new Map((source?.areas||[]).map(raw=>[bmsView(raw).getInt32(0,true),raw]));
+    const areas=[],bounds=[...(source?.bounds||[])];
+    const boundIndexes=new Map((source?bmsBoundAreaIds(source):[]).flatMap((id,index)=>id?[[id,index]]:[]));
+    for (const index of boundIndexes.values()) bounds[index]=null;
+    for (const [id,markers] of [...areaMarkers].sort(([a],[b])=>a-b)){
+      if (markers.length<2) continue;
+      const points=markers.map(item=>[item.x,item.y,zForItem(item)]);
+      const extents=[0,1,2].flatMap(axis=>[Math.min(...points.map(point=>point[axis])),Math.max(...points.map(point=>point[axis]))]);
+      const primary=markers.find(item=>bmsNumber(item.kv.extra_valmode))||markers[0];
+      const mode=bmsNumber(primary.kv.extra_valmode),original=originalAreas.get(id);
+      if (!mode) areas.push(bmsIntegerBytes([id,...extents,original?bmsView(original).getInt32(28,true):0]));
+      const [x1,x2,y1,y2,z1,z2]=extents,expanded=z2-z1<32768;
+      const corners=[x1,y1,expanded?0:z1,x2,y2,expanded?1073741824:z2];
+      for (const [bit,type,key] of BMS_BOUND_FIELDS){
+        if (!(mode & bit) || (type===3 && !primary.kv[key])) continue;
+        const index=boundIndexes.get(id),old=source?.bounds[index];
+        const originalBound=old && bmsView(old).getInt32(24,true)===type ? old : null;
+        const raw=originalBound?.slice()||new Uint8Array(36),entry=bmsView(raw);
+        const originalCorners=originalBound&&bmsIntegers(originalBound).slice(0,6);
+        const coordinates=[x1,y1,z1,x2,y2,z2];
+        if (!originalCorners?.every((value,i)=>value===coordinates[i])){
+          corners.forEach((value,i)=>entry.setInt32(i*4,value,true));
+        }
+        entry.setInt32(24,type,true);
+        if (type===3) writeBmsString(raw,28,8,bmsString(primary.kv[key]));
+        else entry.setInt32(28,bmsNumber(primary.kv[key]),true);
+        if (originalBound) bounds[index]=raw;
+        else bounds.push(raw);
+      }
+    }
+    view.setUint16(576,areas.length,true);
+
+    const eventSections=new Map(sectionBlocks.filter(entry=>entry.kind==="event").map(entry=>[Number(entry.label),entry]));
+    if ([...eventSections.keys()].some(id=>!Number.isInteger(id)||id<0||id>=256)) throw new Error("BMS event numbers must be between 0 and 255.");
+    const eventCount=Math.max(-1,...eventSections.keys())+1,events=[],triggers=[],actions=[];
+    for (let i=0;i<eventCount;i++){
+      const event=eventSections.get(i),fields=event?.kv||{},rows=parseEventData(event);
+      if (rows.triggers.length>20||rows.actions.length>20) throw new Error(`Event ${i} exceeds 20 triggers or actions.`);
+      const raw=source?.events[i]?.slice()||new Uint8Array(24),entry=bmsView(raw);
+      entry.setUint32(0,bmsNumber(fields.attrib),true);
+      entry.setUint32(4,triggers.length,true);
+      entry.setUint32(8,actions.length,true);
+      entry.setUint32(12,Math.max(0,Math.min(1023,bmsNumber(fields.reset_value)))<<22,true);
+      entry.setUint32(16,Math.max(0,Math.min(1023,bmsNumber(fields.delay_value)))<<22,true);
+      entry.setUint8(21,rows.triggers.length);
+      entry.setUint8(22,rows.actions.length);
+      events.push(raw);
+      for (const [target,entries] of [[triggers,rows.triggers],[actions,rows.actions]]){
+        for (const row of entries){
+          const binaryRow=target===actions?MIS_ACTION_TO_BMS.map(index=>row[index]):row;
+          target.push(bmsIntegerBytes(binaryRow.map((value,index)=>index===1?value&0x3fffffff:value)));
+        }
+      }
+    }
+    view.setUint32(180,events.length,true);
+    const compiledBounds=bounds.filter(Boolean);
+    const parts=[header,loadout,availability,...entities.flat().map(entry=>entry.raw),...waypoints,...groups,...layers,...areas,
+      bmsIntegerBytes([events.length,triggers.length,actions.length]),...events,...triggers,...actions,bmsIntegerBytes([compiledBounds.length]),...compiledBounds];
+    const output=new Uint8Array(parts.reduce((size,part)=>size+part.length,0));
+    let offset=0;
+    for (const part of parts){output.set(part,offset);offset+=part.length;}
+    return output;
+  }
+
   function decodeMisTextFromFile(arrayBuffer){
     const bytes = new Uint8Array(arrayBuffer || new ArrayBuffer(0));
     const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
@@ -10903,21 +11378,30 @@ end group
 
   // File inputs
   async function loadMisFile(file, fileHandle = null){
-    if (!file) return;
+    if (!file) return false;
+    const request=++state.missionLoadRequest;
+    const buffer=await file.arrayBuffer();
+    if (request!==state.missionLoadRequest) return false;
+    const format=/\.bms$/i.test(file.name)?"bms":"mis";
+    const decoded=format==="bms"?{bms:parseBms(buffer),encoding:"BMS 0x11"}:decodeMisTextFromFile(buffer);
+    const project=format==="bms"?{text:bmsToMisText(decoded.bms),bms:decoded.bms}:readMissionTextSource(decoded.text);
+    const {text,bms}=project;
+    const parsed=parseMIS(text);
+    if (!parsed.sectionBlocks.some(section=>section.kind==="general_information")){
+      throw new Error("The file has no mission general_information section.");
+    }
+    if (bms) bms.fingerprint=bmsMissionFingerprint(format==="bms"?parsed:parseMIS(bmsToMisText(bms)));
     const documentGeneration = clearGlbItemInstances();
     state.filename = file.name;
+    state.missionFormat = format;
+    state.bmsSource = bms;
     state.currentMisFileHandle = fileHandle;
     state.currentTilFileHandle = null;
     state.currentReferenceSidecarHandle = null;
     await loadMissionGameStrings(file.name);
-    if (documentGeneration !== state.glb.documentGeneration) return;
-    const misBuffer = await file.arrayBuffer();
-    if (documentGeneration !== state.glb.documentGeneration) return;
-    const decodedMis = decodeMisTextFromFile(misBuffer);
-    const text = decodedMis.text;
+    if (request!==state.missionLoadRequest || documentGeneration!==state.glb.documentGeneration) return false;
     state.rawText = text;
 
-    const parsed = parseMIS(text);
     state.items = parsed.items;
     state.sectionBlocks = parsed.sectionBlocks;
     reportWaypointMetadataMismatches();
@@ -10945,16 +11429,23 @@ end group
 
     statusEl.textContent = state.referenceGlbRestore
       ? `${file.name} loaded. Re-import ${state.referenceGlbRestore.glb} to restore its saved reference position.`
-      : `${file.name} loaded (${decodedMis.encoding}). items: ${state.items.length}`;
+      : `${file.name} loaded (${decoded.encoding}). items: ${state.items.length}`;
     fitView();
     renderList();
     requestRender();
     refreshLiveMisWindow(true, { force: true });
+    renderMenuBar();
+    return true;
   }
 
   fileMisEl.addEventListener("change", async (e) => {
     const f = e.target.files?.[0];
-    await loadMisFile(f);
+    e.target.value = "";
+    try { await loadMisFile(f); }
+    catch (error){
+      addLog(`ERROR opening mission: ${error.message}`);
+      statusEl.textContent=`Failed to open mission: ${error.message}`;
+    }
   });
   fileReferenceGlbEl.addEventListener("change", async (e) => {
     await importReferenceGlb(e.target.files?.[0]);
@@ -11231,14 +11722,19 @@ end group
   async function saveTilCompanion(forcePicker=false,misHandle=state.currentMisFileHandle){
     const mapItems=state.items.filter(isMapTileItem);
     if(!mapItems.length&&!state.mapTiles.records.length)return null;
-    const name=String(state.filename||"edited.mis").replace(/\.mis$/i,"")+".til",data=serializeTil();
+    const name=missionFileStem()+".til",data=serializeTil();
     try{
       validateTilCompanionRecords(mapItems);
       if(window.showSaveFilePicker){const handle=(!forcePicker&&state.currentTilFileHandle)?state.currentTilFileHandle:await window.showSaveFilePicker({suggestedName:name,...(misHandle?{startIn:misHandle}:{}),types:[{description:"Terrain Tile Files",accept:{"application/octet-stream":[".til"]}}]});const writable=await handle.createWritable();await writable.write(data);await writable.close();state.currentTilFileHandle=handle;state.mapTiles.sourceFilename=handle.name||name;}
       else {downloadBinary(name,data);state.mapTiles.sourceFilename=name;}
       updateLoadedMapFilesHint();
       state.mapTiles.dirty=false;state.undoCurrentTilFlags=state.mapTiles.records.map(record=>record.flags);state.undoCurrentTilRecords=structuredClone(state.mapTiles.records);return true;
-    }catch(err){if(err?.name==='AbortError')addLog("TIL save canceled; MIS was saved but tile rotations remain unsaved.");else addLog(`ERROR saving .til: ${err?.message||"unknown error"}`);statusEl.textContent="MIS saved, but the companion TIL was not saved.";return false;}
+    }catch(err){
+      if(err?.name==='AbortError')addLog("Companion TIL save canceled.");
+      else addLog(`ERROR saving .til: ${err?.message||"unknown error"}`);
+      statusEl.textContent=`${state.missionFormat.toUpperCase()} saved, but the companion TIL was not saved.`;
+      return false;
+    }
   }
 
   function resetMapTiles(){
@@ -11264,7 +11760,7 @@ end group
   function updateLoadedMapFilesHint(){
     if(!loadedMapFilesHintEl)return;
     const misName=String(state.filename||"").trim(),tilName=String(state.mapTiles.sourceFilename||"").trim();
-    const misText=misName?`MIS: ${misName}`:"MIS: not loaded";
+    const misText=misName?`${state.missionFormat.toUpperCase()}: ${misName}`:"Mission: not loaded";
     let tilText="TIL: —",tilTitle="No mission is loaded.";
     if(misName){
       if(!generalTerrainTileName()){tilText="TIL: none linked";tilTitle="This mission does not reference a terrain tile atlas.";}
@@ -11366,7 +11862,7 @@ end group
     resetMapTiles();
     const atlasName=generalTerrainTileName();if(!atlasName)return;
     const mapItems=state.items.filter(isMapTileItem);
-    const generation=state.mapTiles.generation,base=String(state.filename||"").replace(/\.mis$/i,""),tilName=`${base}.til`;
+    const generation=state.mapTiles.generation,base=state.filename?missionFileStem():"",tilName=`${base}.til`;
     let tilParsed=false;
     try{
       await loadMapTileAtlas(atlasName,generation);
@@ -16290,9 +16786,12 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
       statusEl.textContent = message;
       return;
     }
-    await _origLoadMisFile(file, fileHandle);
+    if (!await _origLoadMisFile(file, fileHandle)) return;
+    const request=state.missionLoadRequest;
     try{ await loadTerrainFromMis(); }catch(err){ addLog(`[terrain] load error: ${err?.message || err}`); camDebugEl.textContent = `Failed to load terrain: ${err.message||err}`; }
+    if (request!==state.missionLoadRequest) return;
     await loadMapTilesForMission();
+    if (request!==state.missionLoadRequest) return;
     fitView();
     requestRender();
   };
