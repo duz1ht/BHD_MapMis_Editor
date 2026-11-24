@@ -2765,6 +2765,7 @@ end group
       drawCountByGroup: new Map(),
       waypointLineScene: null,
       waypointLines: null,
+      waypointLabelItems: [],
       pointDataSignature: "",
       waypointDataSignature: "",
       pointOffsetsByItemId: new Map(),
@@ -2937,7 +2938,7 @@ end group
     measure('points', () => drawItemsThree(P, V));
     measure('glb', () => drawGlbItems(P, V, fog));
     measure('waypoints', () => drawWaypointLinesThree(P, V));
-    measure('gizmo', () => { updateItemGizmo(); drawThreeGizmo(); });
+    measure('gizmo', () => { updateItemGizmo(); drawWaypointLabels(PV); drawThreeGizmo(); });
     state.renderDiagnostics.layerMs = layerMs;
     return result;
   }
@@ -12717,7 +12718,13 @@ end group
     return {...viewport,verticalFov,tanHalfVerticalFov,orthographic:topViewLocked,orthographicHalfHeight:topViewScale};
   }
   function currentPV(){ const {forward,forwardXY}=cameraBasis(); const projection=getCameraProjection(); const {aspect,verticalFov,orthographic,orthographicHalfHeight}=projection; const P=orthographic?mat4Orthographic(-orthographicHalfHeight*aspect,orthographicHalfHeight*aspect,-orthographicHalfHeight,orthographicHalfHeight,1.0,1000000.0):mat4Perspective(verticalFov,aspect,1.0,1000000.0); const V=mat4LookAt(cam.pos,vec3Add(cam.pos,forward),(Math.abs(forward.z)>0.999)?forwardXY:vec3(0,0,1)); return {P,V,PV:mat4Mul(P,V)}; }
-  function worldToScreen(x,y,z=0){ const {PV}=currentPV(); const px=PV[0]*x+PV[4]*y+PV[8]*z+PV[12], py=PV[1]*x+PV[5]*y+PV[9]*z+PV[13], pw=PV[3]*x+PV[7]*y+PV[11]*z+PV[15]; if(pw<=0) return {sx:-999,sy:-999,visible:false}; const nx=px/pw, ny=py/pw, r=cv.getBoundingClientRect(); return {sx:(nx*0.5+0.5)*r.width, sy:(1-(ny*0.5+0.5))*r.height, visible:true}; }
+  function worldToScreen(x,y,z=0,PV=currentPV().PV,viewport=cv.getBoundingClientRect()){
+    const px=PV[0]*x+PV[4]*y+PV[8]*z+PV[12];
+    const py=PV[1]*x+PV[5]*y+PV[9]*z+PV[13];
+    const pw=PV[3]*x+PV[7]*y+PV[11]*z+PV[15];
+    if(pw<=0) return {sx:-999,sy:-999,visible:false};
+    return {sx:(px/pw*0.5+0.5)*viewport.width,sy:(0.5-py/pw*0.5)*viewport.height,visible:true};
+  }
   function screenRay(sx,sy){ const {width,height,aspect,tanHalfVerticalFov,orthographic,orthographicHalfHeight}=getCameraProjection(), nx=(sx/width)*2-1, ny=1-(sy/height)*2; const {forward,right}=cameraBasis(); const up=vec3Norm(vec3Cross(right,forward)); if(orthographic){ const origin=vec3Add(cam.pos,vec3Add(vec3Scale(right,nx*orthographicHalfHeight*aspect),vec3Scale(up,ny*orthographicHalfHeight))); return {origin,dir:forward}; } const dir=vec3Norm(vec3Add(vec3Add(forward,vec3Scale(right,nx*tanHalfVerticalFov*aspect)),vec3Scale(up,ny*tanHalfVerticalFov))); return {origin:cam.pos,dir}; }
   function screenToWorld(sx,sy,zPlane=0){ const ray=screenRay(sx,sy), dz=ray.dir.z; if(Math.abs(dz)<1e-6) return {x:ray.origin.x,y:ray.origin.y,z:zPlane}; const t=(zPlane-ray.origin.z)/dz; return {x:ray.origin.x+ray.dir.x*Math.max(t,0), y:ray.origin.y+ray.dir.y*Math.max(t,0), z:zPlane}; }
 
@@ -13445,23 +13452,27 @@ end group
 
   function collectWaypointLineData(){
     const groups = new Map();
+    const labelItems = [];
     for (const [sourceIndex, it] of (state.items || []).entries()){
-      if (!isItemVisibilityFilterMatch(it)) continue;
-      if (!isWaypointMarkerItem(it)) continue;
+      if (!isWaypointMarkerItem(it) || !isItemVisibilityFilterMatch(it)) continue;
       const waypointId = getItemWaypointId(it);
-      if (waypointId == null || getWaypointColorHexForItem(it) == null) continue;
-      if (!groups.has(waypointId)) groups.set(waypointId, []);
-      groups.get(waypointId).push({ it, sourceIndex, number: getItemWaypointNumber(it) });
+      if (!groups.has(waypointId)){
+        const colorHex = getWaypointColorHexForItem(it);
+        const fill = colorHex == null ? '#fff' : `#${colorHex.toString(16).padStart(6,'0')}`;
+        groups.set(waypointId, {colorHex, fill, entries:[]});
+      }
+      const {colorHex, fill, entries} = groups.get(waypointId);
+      labelItems.push({item:it, fill});
+      if (colorHex != null) entries.push({ it, sourceIndex, number: getItemWaypointNumber(it) });
     }
 
     const positions = [];
     const colors = [];
     const vertexIndicesByItemId = new Map();
     const color = new state.glb.THREE.Color();
-    for (const entries of groups.values()){
+    for (const {colorHex, entries} of groups.values()){
       if (entries.length < 2) continue;
       entries.sort((a, b) => (a.number - b.number) || (a.sourceIndex - b.sourceIndex));
-      const colorHex = getWaypointColorHexForItem(entries[0].it);
       color.setHex(colorHex);
       for (let i = 1; i < entries.length; i++){
         const previous = entries[i - 1].it;
@@ -13480,7 +13491,7 @@ end group
         colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
       }
     }
-    return { positions: new Float32Array(positions), colors: new Float32Array(colors), vertexIndicesByItemId };
+    return { positions: new Float32Array(positions), colors: new Float32Array(colors), vertexIndicesByItemId, labelItems };
   }
 
   function ensureThreeItemsReady(){
@@ -13592,6 +13603,7 @@ end group
   function invalidateThreeItemGeometryCaches(){
     state.threeItems.pointDataSignature="";
     state.threeItems.waypointDataSignature="";
+    state.threeItems.waypointLabelItems=[];
     state.threeItems.pointOffsetsByItemId.clear();
     state.threeItems.pointTransformDirtyIds.clear();
     state.threeItems.waypointVertexIndicesByItemId.clear();
@@ -13688,6 +13700,7 @@ end group
       const waypointLines = collectWaypointLineData();
       updateThreeLineGeometry(state.threeItems.waypointLines, waypointLines.positions, waypointLines.colors);
       state.threeItems.waypointVertexIndicesByItemId = waypointLines.vertexIndicesByItemId;
+      state.threeItems.waypointLabelItems = waypointLines.labelItems;
       state.threeItems.waypointTransformDirtyIds.clear();
       state.threeItems.waypointDataSignature = signature;
     }
@@ -13696,6 +13709,26 @@ end group
     state.glb.renderer.resetState();
     state.glb.renderer.render(state.threeItems.waypointLineScene, state.glb.camera);
     state.glb.renderer.resetState();
+  }
+
+  function drawWaypointLabels(PV){
+    const items=state.threeItems.waypointLabelItems;
+    if (!gizmoCtx || !items.length) return;
+    const viewport=cv.getBoundingClientRect();
+    gizmoCtx.save();
+    gizmoCtx.font='600 12px sans-serif';
+    gizmoCtx.textBaseline='bottom';
+    for (const {item, fill} of items){
+      const x=rawToWorld(item.x,'x'),y=rawToWorld(item.y,'y'),z=getItemWorldZ(item);
+      if (!isFinitePosition(x,y,z)) continue;
+      const point=worldToScreen(x,y,z,PV,viewport);
+      if (!point.visible || point.sx<0 || point.sx>viewport.width || point.sy<0 || point.sy>viewport.height) continue;
+      const label=String(getItemWaypointNumber(item));
+      const labelX=point.sx+8,labelY=point.sy-4;
+      gizmoCtx.fillStyle=fill;
+      gizmoCtx.fillText(label,labelX,labelY);
+    }
+    gizmoCtx.restore();
   }
 
 
@@ -14416,6 +14449,7 @@ end group
   }
 
   function refreshGlbWaypointColors(waypointId){
+    state.threeItems.waypointDataSignature = "";
     const wantedId = Number(waypointId);
     for (const it of state.items || []){
       if (getItemWaypointId(it) !== wantedId) continue;
