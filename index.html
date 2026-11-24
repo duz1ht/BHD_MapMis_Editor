@@ -1957,7 +1957,7 @@
                     <div class="giBox">
                       <div><b>Mission Overrides</b></div>
                       <div class="giInline"><label><input type="checkbox" id="giWaterEnabled" /> Water Level (x0.5 m)</label><input id="giWaterLevel" type="number" step="0.5" /></div>
-                      <div class="giInline"><label><input type="checkbox" id="giFogDistEnabled" /> Fog Distance (m)</label><input id="giFogLevel" type="number" /></div>
+                      <div class="giInline"><label><input type="checkbox" id="giFogDistEnabled" /> Fog Distance (m)</label><input id="giFogLevel" type="number" min="0" step="any" /></div>
                       <div class="giInline3"><label><input type="checkbox" id="giFogColorEnabled" /> Fog Color</label><input id="giFogR" type="number" min="0" max="255" /><input id="giFogG" type="number" min="0" max="255" /><input id="giFogB" type="number" min="0" max="255" /></div>
                       <div class="giInline"><label>Wind Speed (kph)</label><input id="giWindSpeed" type="number" /></div>
                       <div class="giInline"><label>Wind Direction</label><input id="giWindDirection" type="number" /></div>
@@ -2922,7 +2922,7 @@ end group
     addLog(`[render_diag] backend=${state.renderBackend} terrain_draw_calls=${drawCalls} glb_ready=${state.glb.ready ? 'yes' : 'no'} glb_instances=${state.glb.itemInstances.size}`);
   }
 
-  function renderLayersByBackend(P, V, PV, forward){
+  function renderLayersByBackend(P, V, PV, forward, fog){
     const result = { drawCalls: 0 };
     const layerMs = {};
     const measure = (name, callback) => {
@@ -2932,10 +2932,10 @@ end group
       return value;
     };
     if (!state.glb.ready) ensureGlbRendererReady();
-    result.drawCalls = measure('terrain', () => drawTerrainThree(P, V, forward));
-    measure('overlays', () => drawOverlaysThree(P, V, forward));
+    result.drawCalls = measure('terrain', () => drawTerrainThree(P, V, forward, fog));
+    measure('overlays', () => drawOverlaysThree(P, V, forward, fog));
     measure('points', () => drawItemsThree(P, V));
-    measure('glb', () => drawGlbItems(P, V));
+    measure('glb', () => drawGlbItems(P, V, fog));
     measure('waypoints', () => drawWaypointLinesThree(P, V));
     measure('gizmo', () => { updateItemGizmo(); drawThreeGizmo(); });
     state.renderDiagnostics.layerMs = layerMs;
@@ -3156,6 +3156,7 @@ end group
     showSectors: false,
     showStats: false,
     showGrid: true,
+    showFog: true,
     infiniteWorkGrid: true,
     showAnchorPoints: true,
     showAreaTriggers: showAreaTriggersEl?.checked !== false,
@@ -3332,6 +3333,8 @@ end group
     "NIGHT1.ENV", "NIGHT2.ENV", "NIGHT3.ENV", "NIGHT4.ENV", "NIGHT5.ENV",
   ];
   const GENERAL_ENV_DATA = new Map();
+  // DFBHD environment initialization at 0x4f43e0 sets the fallback fog values.
+  const DEFAULT_ENV_FOG = {fogLevel:1024, fogType:1, fogRgb:{r:192,g:192,b:255}};
   const GENERAL_TERRAIN_WATER_HEIGHT = new Map();
 
   function parseFloatSafe(v){
@@ -5462,7 +5465,7 @@ end group
   }
 
   function decodeFogColor(n){
-    const v = Math.max(0, Math.trunc(Number(n) || 0));
+    const v = Number(n) >>> 0;
     return { r:(v >> 16) & 255, g:(v >> 8) & 255, b:v & 255 };
   }
 
@@ -5550,9 +5553,9 @@ end group
       env[m[1].toLowerCase()] = m[2].trim();
     }
     return {
-      fogLevel: Math.max(0, Math.trunc(Number(env.fog_level) || 0)),
-      fogType: Math.max(0, Math.trunc(Number(env.fog_type) || 0)),
-      fogRgb: parseEnvRgb(env.fog_rgb),
+      fogLevel: env.fog_level === undefined ? DEFAULT_ENV_FOG.fogLevel : Math.trunc(Number(env.fog_level) || 0),
+      fogType: env.fog_type === undefined ? DEFAULT_ENV_FOG.fogType : Math.trunc(Number(env.fog_type) || 0),
+      fogRgb: parseEnvRgb(env.fog_rgb) || DEFAULT_ENV_FOG.fogRgb,
     };
   }
 
@@ -5578,7 +5581,13 @@ end group
       addLog(`Loaded environment file: ${path}`);
     });
     await Promise.allSettled(pending);
+    requestRender();
     addLog(`Environment files preload finished: loaded=${loadedCount}, failed=${failedCount}`);
+  }
+
+  function getEnvironmentFog(name){
+    const key = String(name || "day1").trim().toLowerCase().replace(/\.env$/, "");
+    return GENERAL_ENV_DATA.get(key) || DEFAULT_ENV_FOG;
   }
 
   function applyEnvironmentFogToInputs(){
@@ -5590,22 +5599,49 @@ end group
       return;
     }
 
-    const selectedEnv = String(giEnvironment.value || "").trim().toLowerCase();
-    const envData = GENERAL_ENV_DATA.get(selectedEnv);
-    if (!envData) return;
-
+    const envData = getEnvironmentFog(giEnvironment.value);
     if (!giFogDistEnabled.checked) giFogLevel.value = String(envData.fogLevel);
     if (!giFogColorEnabled.checked){
-      if (envData.fogRgb){
-        giFogR.value = String(envData.fogRgb.r);
-        giFogG.value = String(envData.fogRgb.g);
-        giFogB.value = String(envData.fogRgb.b);
-      } else {
-        giFogR.value = "0";
-        giFogG.value = "0";
-        giFogB.value = "0";
-      }
+      giFogR.value = String(envData.fogRgb.r);
+      giFogG.value = String(envData.fogRgb.g);
+      giFogB.value = String(envData.fogRgb.b);
     }
+  }
+
+  function missionFogSettings(kv, preview){
+    const env = getEnvironmentFog(preview ? giEnvironment.value : kv.sunset);
+    const attrib = Number(kv.attrib);
+    const overrideDistance = preview ? giFogDistEnabled.checked : attrib & GENERAL_ATTRIB_BITS.fogDistanceOverride;
+    const overrideColor = preview ? giFogColorEnabled.checked : attrib & GENERAL_ATTRIB_BITS.fogColorOverride;
+    const end = overrideDistance
+      ? fixed16ToNumber(preview ? numberToFixed16(giFogLevel.value) : kv.fog_level)
+      : env.fogLevel;
+    // FUN_004fc100 and FUN_005aadf0 set the world fog curve in DFBHD.
+    const start = env.fogType === 2 ? end * 0.5 : env.fogType === 3 ? end * 0.25 : 0.5;
+    if (end <= 0 || end === start) return null;
+    const {r,g,b} = env.fogRgb;
+    const color = overrideColor
+      ? (preview ? encodeFogColor(giFogR.value,giFogG.value,giFogB.value) : Number(kv.fog_color) & 0xffffff)
+      : encodeFogColor(r,g,b);
+    return {color, start, end, density:env.fogType === 0 ? Math.log(64) / end : 0};
+  }
+
+  function updateThreeMissionFog(){
+    if (topViewLocked || !renderUiState.showFog) return null;
+    const general = state.sectionBlocks.find(section => section.kind === "general_information");
+    if (!general || !hasMisLoaded()) return null;
+    const preview = state.sectionEditorOpen && state.sectionKind === general.kind && state.sectionSelectedId === general.id;
+    const settings = missionFogSettings(general.kv, preview);
+    if (!settings) return null;
+    const {linear, exponential} = state.glb.missionFog;
+    const fog = settings.density ? exponential : linear;
+    fog.color.setHex(settings.color);
+    if (settings.density) fog.density = settings.density;
+    else {
+      fog.near = settings.start;
+      fog.far = settings.end;
+    }
+    return fog;
   }
 
   async function applyTerrainWaterToInput(generation = state.generalInfoLoadGeneration){
@@ -10107,6 +10143,8 @@ end group
   giEnvironment.addEventListener("change", applyEnvironmentFogToInputs);
   giFogDistEnabled.addEventListener("change", applyEnvironmentFogToInputs);
   giFogColorEnabled.addEventListener("change", applyEnvironmentFogToInputs);
+  [giEnvironment, giFogDistEnabled, giFogColorEnabled].forEach(el => el.addEventListener("change", requestRender));
+  [giFogLevel, giFogR, giFogG, giFogB].forEach(el => el.addEventListener("input", requestRender));
   giTerrain.addEventListener("change", applyTerrainWaterToInput);
   giWaterEnabled.addEventListener("change", applyTerrainWaterToInput);
   groupSelectMembersBtn?.addEventListener("click", selectAllGroupMembers);
@@ -10595,6 +10633,7 @@ end group
     "view.mainArea": () => toggleViewOption("mainArea"),
     "view.showSectors": () => toggleViewOption("showSectors"),
     "view.showGrid": () => toggleViewOption("showGrid"),
+    "view.showFog": () => toggleViewOption("showFog"),
     "view.showAnchorPoints": () => toggleViewOption("showAnchorPoints"),
     "tools.importReferenceGlb": () => fileReferenceGlbEl.click(),
     "mis.liveChanges": openLiveMisWindow,
@@ -10652,6 +10691,7 @@ end group
         children: [
           { label: "Scene Info", shortcut: "Home", command: "view.sceneInfo" },
           { label: "Sidebar", shortcut: "C", command: "view.sidebar", checked: !appLayoutEl?.classList.contains("sidebarClosed") },
+          { label: "Fog", command: "view.showFog", checked: renderUiState.showFog },
           {
             label: "Guides",
             children: [
@@ -12394,7 +12434,7 @@ end group
     }
     if(!positions.length)return;
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.computeBoundingSphere();
-    const material=new THREE.LineBasicMaterial({color:0x808080,transparent:true,opacity:.3,depthTest:true,depthWrite:false,toneMapped:false});
+    const material=new THREE.LineBasicMaterial({color:0x808080,transparent:true,opacity:.3,depthTest:true,depthWrite:false,toneMapped:false,fog:false});
     const lines=new THREE.LineSegments(geometry,material);lines.name='MAP_TILE_EDIT_BORDERS';lines.renderOrder=19;lines.raycast=()=>null;scene.add(lines);state.mapTiles.borderLines=lines;
   }
 
@@ -13023,7 +13063,7 @@ end group
     return g;
   }
 
-  function drawTerrainThree(P, V, forward){
+  function drawTerrainThree(P, V, forward, fog){
     if (!state.glb.ready || !state.glb.renderer || !state.glb.camera || !sectors || !meshSectorLods[0]?.[1]) return 0;
     if (!ensureThreeTerrainReady()) return 0;
     const { renderer, camera } = state.glb;
@@ -13068,6 +13108,7 @@ end group
     processMapTileOverlayBuildQueue();
 
     applyThreeCameraFromPV(P, V);
+    terrain.scene.fog = fog;
     renderer.resetState();
     renderer.render(terrain.scene, camera);
     renderer.resetState();
@@ -13215,7 +13256,7 @@ end group
     updateThreeLineGeometry(overlays.insertLines,new Float32Array(positions),new Float32Array(colors));
   }
 
-  function drawOverlaysThree(P, V, forward){
+  function drawOverlaysThree(P, V, forward, fog){
     if (!ensureThreeOverlaysReady()) return;
     if (!sectors || !Number.isFinite(sectorCount) || sectorCount <= 0){
       updateThreeLineGeometry(state.threeOverlays.gridLines, new Float32Array(0));
@@ -13323,6 +13364,7 @@ end group
     updateInsertOverlayGeometry(overlays);
 
     applyThreeCameraFromPV(P, V);
+    overlays.scene.fog = fog;
     state.glb.renderer.resetState();
     state.glb.renderer.render(overlays.scene, state.glb.camera);
     state.glb.renderer.resetState();
@@ -13810,6 +13852,17 @@ end group
       try {
         const THREE = await import(THREE_MODULE_URL);
         const { GLTFLoader } = await import(GLTF_LOADER_URL);
+        // Keep Three's fog uniforms and depth varying, with the DFBHD blend curves.
+        THREE.ShaderChunk.fog_fragment = `
+          #ifdef USE_FOG
+            #ifdef FOG_EXP2
+              float fogFactor = 1.0 - exp(-fogDensity * vFogDepth);
+            #else
+              float fogFactor = clamp((vFogDepth - fogNear) / (fogFar - fogNear), 0.0, 1.0);
+            #endif
+            gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, fogFactor);
+          #endif
+        `;
         const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: false });
         renderer.autoClear = false;
         renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -13828,6 +13881,7 @@ end group
         state.glb.THREE = THREE;
         state.glb.GLTFLoader = GLTFLoader;
         state.glb.renderer = renderer;
+        state.glb.missionFog = {linear:new THREE.Fog(0), exponential:new THREE.FogExp2(0)};
         state.glb.scene = scene3d;
         state.glb.camera = camera3d;
         state.glb.loader = new GLTFLoader();
@@ -14088,7 +14142,7 @@ end group
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false });
     const sprite = new THREE.Sprite(mat);
     sprite.scale.set(2.8, 1.4, 1);
     root.add(sprite);
@@ -14231,6 +14285,7 @@ end group
         opacity: 1,
         depthTest: true,
         depthWrite: false,
+        fog: false,
         toneMapped: false,
       });
       const outline = new THREE.LineSegments(edgesGeo, outlineMat);
@@ -14343,6 +14398,7 @@ end group
         opacity: 0.28,
         depthTest: true,
         depthWrite: false,
+        fog: false,
         side: THREE.DoubleSide,
         toneMapped: false,
       });
@@ -14403,7 +14459,7 @@ end group
     if (mode === "unlit") return new THREE.MeshBasicMaterial({
       map: baseMat?.map || null, color: baseColor, transparent: !!baseMat?.transparent,
       opacity: Number.isFinite(baseMat?.opacity) ? baseMat.opacity : 1, side: baseMat?.side,
-      alphaTest: baseMat?.alphaTest || 0, vertexColors: !!baseMat?.vertexColors, fog: false, toneMapped: false,
+      alphaTest: baseMat?.alphaTest || 0, vertexColors: !!baseMat?.vertexColors, toneMapped: false,
     });
     if (mode === "ghosted" || mode === "xray") return new THREE.MeshBasicMaterial({
       map: mode === "ghosted" ? (baseMat?.map || null) : null,
@@ -14946,6 +15002,7 @@ end group
       side: THREE.DoubleSide,
       depthTest: true,
       depthWrite: false,
+      fog: false,
       toneMapped: false,
     });
     const arrow = new THREE.Mesh(geometry, material);
@@ -15145,6 +15202,7 @@ end group
         opacity: 1,
         depthTest: true,
         depthWrite: false,
+        fog: false,
         toneMapped: false,
       }));
     } else if (type === "circle_volume"){
@@ -15155,6 +15213,7 @@ end group
         opacity: 1,
         depthTest: true,
         depthWrite: false,
+        fog: false,
         side: THREE.DoubleSide,
         toneMapped: false,
       }));
@@ -15181,6 +15240,7 @@ end group
         opacity: 1,
         depthTest: true,
         depthWrite: false,
+        fog: false,
         side: THREE.DoubleSide,
         toneMapped: false,
       }));
@@ -15385,7 +15445,7 @@ end group
   }
 
 
-  function drawGlbItems(P, V){
+  function drawGlbItems(P, V, fog){
     if (!state.glb.ready){
       ensureGlbRendererReady().then((ready) => {
         if (ready) syncGlbItems();
@@ -15404,6 +15464,7 @@ end group
     measure('areas',updateAreaTriggerVolumes);
     measure('selection',updateSelectedGlbVisual);
 
+    scene.fog = fog;
     renderer.resetState();
     measure('submit',()=>renderer.render(scene, state.glb.camera));
     renderer.resetState();
@@ -15454,6 +15515,7 @@ end group
         opacity: 1,
         depthTest: true,
         depthWrite: false,
+        fog: false,
         toneMapped: false,
       });
       const outline = new THREE.LineSegments(edgesGeo, outlineMat);
@@ -16141,12 +16203,13 @@ end group
     const {forwardXY,right,forward}=cameraBasis(); const canMoveWithKeys=(document.pointerLockElement===cv && state.cameraLookActive); let dir=vec3(0,0,0); if(canMoveWithKeys&&move.w) dir=vec3Add(dir,forwardXY); if(canMoveWithKeys&&move.s) dir=vec3Sub(dir,forwardXY); if(canMoveWithKeys&&move.d) dir=vec3Add(dir,right); if(canMoveWithKeys&&move.a) dir=vec3Sub(dir,right); if(canMoveWithKeys&&move.e) dir=vec3Add(dir,vec3(0,0,1)); if(canMoveWithKeys&&move.q) dir=vec3Sub(dir,vec3(0,0,1)); const dlen=vec3Len(dir); const speedTable=[12.5,25,50,100,200,300,450,600]; const lvl=Math.max(1,Math.min(8,renderUiState.speedLevel|0)); const scalar=Math.max(0.1,renderUiState.speedScalar||1); const base=speedTable[lvl-1]*scalar; const spd=base; state.camera.speed=spd; const targetVel=dlen>0?vec3Scale(dir,spd/dlen):vec3(0,0,0); const smoothBoost=1.3; const accel=12.0/smoothBoost, decel=10.0/smoothBoost; const blend=Math.min(1, (dlen>0?accel:decel)*dt); camVel=vec3Add(camVel, vec3Scale(vec3Sub(targetVel,camVel), blend)); cam.pos=vec3Add(cam.pos,vec3Scale(camVel,dt));
     if(renderUiState.groundClamp && lastDepth){ const h=heightAtWorld(cam.pos.x,cam.pos.y,1.0); if(h>-1e8){ const clearance=renderUiState.clearance; if(cam.pos.z < h+clearance) cam.pos.z = h+clearance; } }
     updateKothZoneStatus();
-    const clearCol = { r: 0.05, g: 0.06, b: 0.08 };
+    let fog = null;
     if (state.glb.renderer){
-      state.glb.renderer.setClearColor(new state.glb.THREE.Color(clearCol.r, clearCol.g, clearCol.b), 1);
+      fog = updateThreeMissionFog();
+      state.glb.renderer.setClearColor(fog?.color || new state.glb.THREE.Color(0.05, 0.06, 0.08), 1);
       state.glb.renderer.clear(true, true, true);
     }
-    const {P,V,PV}=currentPV(); const renderStats=renderLayersByBackend(P, V, PV, forward); const drawCalls=renderStats.drawCalls;
+    const {P,V,PV}=currentPV(); const renderStats=renderLayersByBackend(P, V, PV, forward, fog); const drawCalls=renderStats.drawCalls;
     updateMeasurementOverlay();
     logRenderDiagnostics(drawCalls);
     const waterRender = getRenderWaterHeightRaw();
