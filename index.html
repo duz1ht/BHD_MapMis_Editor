@@ -266,10 +266,13 @@
 
     .modeBtn{min-width:26px;height:22px;padding:0 8px;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:6px;cursor:pointer}
     .modeBtn.active{background:#2c7be5;border-color:#67a2ff;color:#fff}
+    #topbar .modeBtn:disabled{opacity:.5;cursor:default}
     .gridCtl{display:flex;align-items:center;gap:4px}
     .gridVal{min-width:64px;display:inline-block;text-align:left}
     .tbCtl{font-size:12px; display:flex; align-items:center; gap:4px}
     #topbar input[type="range"]{ width:120px; }
+    #topbar .vehicleSimulationSpeed input{ width:96px; }
+    #vehicleSimulationSpeedValue{ min-width:6ch; font-variant-numeric:tabular-nums; }
 
     #status{
       margin-left:auto;
@@ -1698,6 +1701,13 @@
       <button id="modeH" class="modeBtn" title="Heightmap (R)">H</button>
       <button id="modeD" class="modeBtn" title="Delta/Variation (R)">D</button>
       <button id="exportBtn" type="button" class="modeBtn">Go to</button>
+      <button id="simulateVehiclesBtn" type="button" class="modeBtn" aria-pressed="false" disabled>Simulate Vehicles</button>
+      <button id="playerAboardBtn" type="button" class="modeBtn" aria-pressed="false" disabled>Player Aboard</button>
+      <label class="tbCtl vehicleSimulationSpeed">Speed
+        <input id="vehicleSimulationSpeed" type="range" min="0.10" max="10" step="0.10" value="1" aria-label="Vehicle simulation speed" aria-valuetext="1.00×" disabled />
+        <span id="vehicleSimulationSpeedValue" aria-hidden="true">1.00×</span>
+      </label>
+      <input id="boardingScriptFile" type="file" accept=".wac" hidden />
       <div id="status">No file loaded.</div>
     </div>
 
@@ -2033,6 +2043,7 @@
                   <div class="eventGroup"><div class="eventLegend">THEN ( Actions )</div><div class="eventGroupBody"><div class="eventNestedList" id="eventActionList"></div><div class="eventSideBtns"><button id="eventActionDelete">Delete</button><button id="eventActionCopy">Copy</button><button id="eventActionPaste">Paste</button></div></div></div>
                 </div>
               </div>
+              <div id="eventSimulationStatus" class="hint" role="status" hidden></div>
               <div class="eventFooterBtns"><button id="eventDeleteBtn">Delete Event</button><button id="eventCopyBtn">Copy Event</button><button id="eventPasteBtn">Paste Event</button><button id="eventPrintBtn">Print Event</button><button id="eventPrintAllBtn">Print All Events</button><button id="eventOkBtn">OK</button></div>
             </div>
           </div>
@@ -2587,6 +2598,10 @@ end group
 
   const MAP_TILE_DEFAULT_SIZE=16;
   const MAP_TILE_TEXTURE_SIZE=64;
+  let vehicleSimulation = null;
+  let vehicleSimulationStart = null;
+  let vehicleBoardingScript = null;
+  const vehiclePreviewDirtyIds = new Set();
   const state = {
     rawText: "",
     items: [],
@@ -2966,6 +2981,11 @@ end group
   const misRealtimeConsoleEl = document.getElementById("misRealtimeConsole");
   const misRealtimeClearBtn = document.getElementById("misRealtimeClearBtn");
   const exportBtn = document.getElementById("exportBtn");
+  const simulateVehiclesBtn = document.getElementById("simulateVehiclesBtn");
+  const playerAboardBtn = document.getElementById("playerAboardBtn");
+  const vehicleSimulationSpeed = document.getElementById("vehicleSimulationSpeed");
+  const vehicleSimulationSpeedValue = document.getElementById("vehicleSimulationSpeedValue");
+  const boardingScriptFile = document.getElementById("boardingScriptFile");
   const appLayoutEl = document.getElementById("appLayout");
   const tilePaletteEl = document.getElementById("tilePalette");
   const tilePaletteBodyEl = document.getElementById("tilePaletteBody");
@@ -3098,6 +3118,7 @@ end group
   const layerColorInput = document.getElementById("layerColorInput");
   const layerOkBtn = document.getElementById("layerOkBtn");
   const eventNameInput = document.getElementById("eventNameInput");
+  const eventSimulationStatus = document.getElementById("eventSimulationStatus");
   const eventListBox = document.getElementById("eventListBox");
 
   const giMissionName = document.getElementById("giMissionName");
@@ -3149,6 +3170,7 @@ end group
   const renderUiState = {
     speedLevel: 4,
     speedScalar: 1.0,
+    vehicleSimulationSpeed: 1,
     groundClamp: true,
     clearance: 1,
     drawRadius: 6912,
@@ -3395,6 +3417,7 @@ end group
   }
 
   function markItemsChanged(options = {}){
+    stopVehicleSimulation();
     const structureChanged = options.structure !== false;
     const invalidateFilter = options.invalidateFilter !== undefined ? !!options.invalidateFilter : structureChanged;
     state.liveMisDirty = true;
@@ -3418,6 +3441,7 @@ end group
 
   function markItemTransformDirty(itemId){
     if (itemId == null) return;
+    stopVehicleSimulation();
     if(state.glb.batchedItemLookup.has(itemId))state.glb.structureDirty=true;
     state.glb.transformDirtyIds.add(itemId);
     if (renderUiState.showAnchorPoints) state.threeItems.pointTransformDirtyIds.add(itemId);
@@ -6779,6 +6803,7 @@ end group
     if (hasExplicitColor || colorChanged){ sec.kv.color = String(colorVal); lines.push(`  color ${colorVal}`); }
     if (attribVal > 0){ sec.kv.attrib = String(attribVal); lines.push(`  attrib ${attribVal}`); }
     sec.lines = lines;
+    stopVehicleSimulation();
     buildWaypointList();
     refreshGlbWaypointColors(n);
     requestRender();
@@ -7264,8 +7289,812 @@ end group
     return data;
   }
 
+  const VEHICLE_SIMULATION_STEP = 1 / 20;
+  const VEHICLE_PREVIEW_SPEED_KPH = 30;
+  const VEHICLE_AI_TICK_RATE = 62;
+  const VEHICLE_AI_STEP = 1 / VEHICLE_AI_TICK_RATE;
+  const HELICOPTER_PITCH_PER_SPEED = 1.40625 * VEHICLE_AI_STEP;
+  const HELICOPTER_ROLL_PER_SPEED = 11.25 * VEHICLE_AI_STEP;
+  const GROUND_VEHICLE_ACCELERATION = 128 / 65536 * VEHICLE_AI_TICK_RATE ** 2;
+  const INERTIAL_VEHICLE_STEERING = {chel:8,cpln:8,cbot:16,cbbt:64,cjbt:128};
+  const vehiclePreviewProfiles = new Map();
+
+  function readVehiclePreviewProfile(buffer){
+    const bytes=new Uint8Array(buffer);
+    let payload=bytes;
+    // The original AIP loader accepts plain text and the SCR v1 encoding (0x4c6230).
+    if (bytes[0]===83 && bytes[1]===67 && bytes[2]===82 && bytes[3]===1){
+      let key=0x2a5a8ead;
+      payload=bytes.slice(4).reverse();
+      for (let i=0;i<payload.length;i++){
+        key=((key<<11|key>>>21)+key)>>>0;
+        key=(key<<4|key>>>28)^1;
+        payload[i]^=key&255;
+      }
+    }
+    const text=new TextDecoder('windows-1252').decode(payload);
+    const speed=Number(text.match(/^\s*patrol_speed\s+([\d.]+)/im)?.[1]);
+    const turnRate=Number(text.match(/^\s*turn_rate\s+([\d.]+)/im)?.[1]);
+    const climbRate=Number(text.match(/^\s*patrol_climb\s+([\d.]+)/im)?.[1]);
+    return {speed:Number.isFinite(speed)?speed/3.6:VEHICLE_PREVIEW_SPEED_KPH/3.6,
+      turnRate:Number.isFinite(turnRate)&&turnRate>0?turnRate:60,
+      climbRate:climbRate>0?climbRate:6,
+      maintainSpeed:/^\s*hunt_flags\s+[^\r\n;]*\bMAINTAIN_SPEED\b/im.test(text)};
+  }
+
+  function vehiclePreviewProfileName(item,def){
+    return normalizeAiTextfileValue(item.kv.ai_textfile || def?.kv?.default_aip).toLowerCase();
+  }
+
+  async function loadVehiclePreviewProfiles(items){
+    const names=new Set();
+    for (const item of items){
+      const def=getCatalogDefForItem(item);
+      const movement=String(def?.kv?.move_function || def?.kv?.ai_function).toLowerCase();
+      if (movement!=='cveh' && !Object.hasOwn(INERTIAL_VEHICLE_STEERING,movement)) continue;
+      names.add(vehiclePreviewProfileName(item,def));
+    }
+    await Promise.all(Object.keys(AI_TEXTFILE_FILE_INDEX).filter(file=>{
+      const name=normalizeAiTextfileValue(file).toLowerCase();
+      return names.has(name)&&!vehiclePreviewProfiles.has(name);
+    }).map(async file=>{
+      const bytes=await loadBinaryResource(`resources/BHD/ai_textfile/${file}`);
+      if (bytes) vehiclePreviewProfiles.set(normalizeAiTextfileValue(file).toLowerCase(),readVehiclePreviewProfile(bytes));
+    }));
+  }
+
+  // Preview the flat IF blocks that test boarding and control vehicle movement.
+  function parseVehicleBoardingScript(text){
+    const tests={ssnride:1,ssnloc:2,chain:1,elapse:1,past:1,never:0,eq:2,ne:2};
+    const commands={gtowp:2,ssntowp:2,ssnpspd:2,set:2};
+    const parseCall=(text,arity)=>{
+      const match=text.trim().match(/^([a-z]+)(?:\s*\(([^()]*)\)|\s+(.+))?$/);
+      if (!match || !Object.hasOwn(arity,match[1])) return null;
+      const args=(match[2]??match[3]??"").trim().split(/[\s,]+/).filter(Boolean);
+      if (args.length!==arity[match[1]] || args.some(arg=>!/^(?:-?\d+|v\d+)$/.test(arg))) return null;
+      return {name:match[1],args:args.map(arg=>arg.startsWith('v')?arg:Number(arg))};
+    };
+    const blocks=[], riders=new Set();
+    let depth=0, block=null;
+    for (const raw of text.split(/\r?\n/)){
+      const line=raw.split(/[;/]/,1)[0].trim().toLowerCase();
+      if (!line) continue;
+      if (/^if\b/.test(line)){
+        if (depth++) { if (block) block.valid=false; continue; }
+        const match=line.match(/^if\s+(.+?)\s+then\b\s*(.*)$/);
+        const parts=match?.[1].split(/\s+(and|or|xor)\s+/)??[];
+        const conditions=[];
+        for (let i=0;i<parts.length;i+=2){
+          const negated=/^not\s+/.test(parts[i]), call=parseCall(parts[i].replace(/^not\s+/,''),tests);
+          conditions.push(call && {...call,negated,join:parts[i-1]});
+        }
+        block={valid:conditions.length>0&&conditions.every(Boolean),conditions,actions:[],index:blocks.length};
+        blocks.push(block);
+        const action=match?.[2] && parseCall(match[2],commands);
+        if (action) block.actions.push(action);
+      } else if (line==='endif'){
+        if (depth>0 && --depth===0) block=null;
+      } else if (depth===1){
+        if (line==='else') block.valid=false;
+        const action=parseCall(line,commands);
+        if (action) block.actions.push(action);
+      }
+    }
+    if (block) block.valid=false;
+    const rules=blocks.filter(rule=>rule.valid&&rule.actions.length&&rule.conditions.some(test=>test.name==='ssnride'));
+    for (const rule of rules){
+      for (const test of rule.conditions){
+        if (test.name==='ssnride'&&Number.isInteger(test.args[0])) riders.add(test.args[0]);
+      }
+    }
+    return {rules,riders};
+  }
+
+  function getBoardablePreviewVehicle(){
+    if (!vehicleSimulation || state.multiSelectedIds.size>1 || state.referenceGlb?.selected) return null;
+    const item=getSelected(), vehicle=vehicleSimulation.vehicles.get(item?.id);
+    if (!vehicle) return null;
+    const def=getCatalogDefForItem(item);
+    const ai=String(def?.kv?.ai_function||'').toLowerCase();
+    const isTransport=['chel','cbot'].includes(ai) || /\b(?:landable|fastrope)\b/i.test(def?.attrib?.join(' ')||'');
+    return isTransport || vehicle.hasBoardingLogic ? vehicle : null;
+  }
+
+  function updateVehicleSimulationControls(){
+    const vehicle=getBoardablePreviewVehicle(), missionLoaded=hasMisLoaded();
+    const controls=[[simulateVehiclesBtn,Boolean(vehicleSimulation),!missionLoaded],
+      [playerAboardBtn,vehicle?.playerAboard??false,!vehicle]];
+    for (const [button,pressed,disabled] of controls){
+      button.disabled=disabled;
+      button.setAttribute('aria-pressed',String(pressed));
+      button.classList.toggle('active',pressed);
+    }
+    playerAboardBtn.title=vehicle ? `${vehicle.playerAboard?'Leave':'Board'} vehicle SSN ${vehicle.ssn}` :
+      'Start vehicle simulation and select a vehicle that accepts boarding';
+    vehicleSimulationSpeed.disabled=!missionLoaded;
+  }
+
+  function updateVehicleSimulationSpeed(){
+    const speed=vehicleSimulationSpeed.valueAsNumber;
+    if (!Number.isFinite(speed)) return;
+    renderUiState.vehicleSimulationSpeed=speed;
+    const label=`${speed.toFixed(2)}×`;
+    vehicleSimulationSpeedValue.textContent=label;
+    vehicleSimulationSpeed.setAttribute('aria-valuetext',label);
+    requestRender();
+  }
+
+  function toggleSimulatedPlayerAboard(){
+    const vehicle=getBoardablePreviewVehicle();
+    if (!vehicle) return;
+    const simulation=vehicleSimulation, aboard=!vehicle.playerAboard;
+    vehicle.playerAboard=aboard;
+    evaluateVehicleEvents(simulation);
+    evaluateVehicleBoardingScript(simulation);
+    if (aboard && !vehicle.hasBoardingLogic && vehicle.routeId==null){
+      const routeId=findBoardingPreviewRoute(simulation,vehicle);
+      if (routeId!=null){
+        Object.assign(vehicle,{routeId,pointIndex:0,arrived:false,boardingPreview:true});
+        releasePreviewHelicopterForRoute(simulation,vehicle);
+      }
+    }
+    if (aboard && !vehicle.hasBoardingLogic && vehicle.helicopter && vehicle.pointIndex>=0){
+      vehicle.guarded=false;
+    }
+    updateVehicleSimulationControls();
+    statusEl.textContent=aboard ? `Player aboard SSN ${vehicle.ssn}.` : `Player left SSN ${vehicle.ssn}.`;
+    if (aboard){
+      if (vehicle.boardingPreview) statusEl.textContent+=` Previewing waypoint list ${vehicle.routeId} using mission events.`;
+      else if (!vehicle.hasBoardingLogic && vehicle.routeId==null) statusEl.textContent+=' No unique departure route found. Load the mission WAC to preview departure.';
+      else if (vehicle.hasBoardingLogic && vehicle.routeId==null) statusEl.textContent+=' Waiting for the mission to assign a route.';
+    }
+    requestRender();
+  }
+
+  function findBoardingPreviewRoute(simulation,vehicle){
+    const referenced=new Set(), redirected=new Set();
+    for (const event of simulation.events.values()){
+      if (event.attrib&4) continue;
+      for (const [flags,type,condition,target,list,number] of event.triggers){
+        const matches=type===2?target===vehicle.ssn:type===1&&vehicle.group>0&&target===vehicle.group;
+        if (!(flags&1) && matches && condition===7 && simulation.routes.get(list)?.points.some(point=>point.number===number)){
+          referenced.add(list);
+        }
+      }
+      for (const [,type,target,list] of event.actions){
+        if ((type===19 && target===vehicle.ssn) || (type===1 && vehicle.group>0 && target===vehicle.group)) redirected.add(list);
+      }
+    }
+    // A route tested by arrival events but never assigned by an event can be the entry route.
+    const candidates=[...referenced].filter(list=>!redirected.has(list));
+    return candidates.length===1?candidates[0]:null;
+  }
+
+  async function loadVehicleBoardingScript(file){
+    if (!file || !hasMisLoaded()) return;
+    const generation=state.glb.documentGeneration;
+    const script=parseVehicleBoardingScript(await file.text());
+    if (generation!==state.glb.documentGeneration) return;
+    if (!script.rules.length){
+      statusEl.textContent='No supported vehicle boarding rules found in this WAC.';
+      return;
+    }
+    stopVehicleSimulation();
+    vehicleBoardingScript=script;
+    statusEl.textContent=`${file.name} loaded for the vehicle simulation.`;
+  }
+
+  function createVehicleSimulation(){
+    const vehicles = new Map(), routes = new Map(), teleportTargets = new Map(), locationCorners=new Map(), groundVehicles=[];
+    const positionOf = item => ({x:rawToWorld(item.x), y:rawToWorld(item.y), z:getItemWorldZ(item), heading:item.heading, pitch:item.pitch, roll:0});
+    for (const item of state.items){
+      if (isWaypointMarkerItem(item)){
+        const routeId = getItemWaypointId(item);
+        if (routeId == null) continue;
+        if (!routes.has(routeId)) routes.set(routeId, {points:[], noLoop:parseWaypointAttrib(getWaypointSectionByNumber(routeId)?.kv?.attrib).noLoop});
+        routes.get(routeId).points.push({...positionOf(item), number:getItemWaypointNumber(item),
+          radius:Math.max(1, Number(item.kv.wpdistance) || 0), advanceEvent:Number(item.kv.wp_adv_trigger ?? -1)});
+      } else if (vehicleBoardingScript && isAreaTriggerItem(item)){
+        const id=getItemWaypointNumber(item);
+        if (!locationCorners.has(id)) locationCorners.set(id,{location:null,points:[]});
+        const bounds=locationCorners.get(id);
+        if (Number(item.kv.extra_valmode)&32) bounds.location=Number(item.kv.extra_val3);
+        bounds.points.push(positionOf(item));
+      } else if ([6088,106088].includes(Number(item.kv.type_id))){
+        teleportTargets.set(getItemWaypointNumber(item), positionOf(item));
+      } else if (getItemShowCategory(item) === "vehicle"){
+        const def=getCatalogDefForItem(item),pose=positionOf(item),ai=String(def?.kv?.ai_function||'').toLowerCase();
+        const movement=String(def?.kv?.move_function||ai).toLowerCase();
+        const isGround=movement==='cveh',turnDivisor=INERTIAL_VEHICLE_STEERING[movement];
+        const profile=vehiclePreviewProfiles.get(vehiclePreviewProfileName(item,def));
+        const vehicle={id:item.id, ssn:Number(item.kv.id), group:Number(item.kv.group_id) || 0,
+          playerAboard:false, pose, previousPose:{...pose}, renderPose:{...pose},
+          routeId:getItemWaypointId(item), initialPoint:getItemWaypointNumber(item), pointIndex:-1, arrived:false,
+          guarded:Boolean(getItemAttribValue(item) & 2), speed:(isGround||turnDivisor?profile?.speed:undefined)??VEHICLE_PREVIEW_SPEED_KPH/3.6,
+          useWaypointZ:ai === "chel" || ai === "cpln", followsTerrain:ai !== "cbot",
+          groundOffset:pose.z - rawToWorld(getItemTerrainRawZ(item.x,item.y)), visited:new Set()};
+        if (isGround){
+          const [,width,length]=String(def?.kv?.shadow||'').trim().split(/\s+/).map(Number);
+          vehicle.drive={speed:0,turnRate:profile?.turnRate??60,halfWidth:(width||3.2)/2,halfLength:(length||5.8)/2};
+          groundVehicles.push(vehicle);
+        }
+        if (turnDivisor){
+          vehicle.navigation={turnDivisor,turnRate:profile?.turnRate??60,
+            climbRate:profile?.climbRate??6,maintainSpeed:profile?.maintainSpeed??false,
+            aircraft:movement==='chel'||movement==='cpln',vx:0,vy:0,accumulator:0};
+        }
+        if (movement==='chel'){
+          const offset=vehicle.groundOffset;
+          vehicle.helicopter={landing:null,parked:false,clearance:offset>0&&offset<=8?offset:3.5};
+        }
+        vehicles.set(item.id,vehicle);
+      }
+    }
+    for (const route of routes.values()) route.points.sort((a,b) => a.number-b.number);
+    for (const vehicle of vehicles.values()){
+      const points = routes.get(vehicle.routeId)?.points;
+      if (points?.length) vehicle.pointIndex = Math.max(0, points.findIndex(point => point.number === vehicle.initialPoint));
+    }
+    const events = new Map(getSortedEvents().map(sec => [getEventNumber(sec), {...parseEventData(sec),
+      attrib:Number(sec.kv.attrib) || 0, delay:Math.max(0,Number(sec.kv.delay_value) || 0),
+      reset:Math.max(0,Number(sec.kv.reset_value) || 0), due:null, firedAt:null, pending:null, skipped:new Set()}]));
+    const boarders=new Set(vehicleBoardingScript?.riders);
+    for (const event of events.values()){
+      for (const row of event.triggers) if (row[1]===7 && row[2]===38) boarders.add(row[3]);
+    }
+    for (const vehicle of vehicles.values()) vehicle.hasBoardingLogic=boarders.has(vehicle.ssn);
+    const locations=new Map();
+    for (const {location,points} of locationCorners.values()){
+      if (!Number.isInteger(location) || points.length!==2) continue;
+      if (!locations.has(location)) locations.set(location,[]);
+      locations.get(location).push(points);
+    }
+    return {vehicles,routes,teleportTargets,events,locations,groundVehicles,groundRouteRestarts:new Map(),variables:new Map(),elapsed:0,accumulator:0,moved:new Set(),
+      boardingRules:vehicleBoardingScript?.rules.map(rule=>({...rule,firedAt:null,active:false}))??[],
+      boardingVariables:new Map(),boardingFired:new Map()};
+  }
+
+  function stopVehicleSimulation(){
+    vehicleSimulationStart=null;
+    if (!vehicleSimulation) return;
+    for (const id of vehicleSimulation.moved) markVehiclePreviewPoseDirty(id);
+    vehicleSimulation = null;
+    updateVehicleSimulationControls();
+    statusEl.textContent = "Vehicle simulation stopped.";
+    updateEventSimulationStatus();
+    renderMenuBar();
+    requestRender();
+  }
+
+  async function toggleVehicleSimulation(){
+    if (vehicleSimulation || vehicleSimulationStart){
+      stopVehicleSimulation();
+      return;
+    }
+    if (!hasMisLoaded()) return;
+    const start=vehicleSimulationStart={};
+    try { await loadVehiclePreviewProfiles(state.items); }
+    catch (error){ addLog(`Vehicle AI profiles unavailable: ${error.message}`); }
+    if (vehicleSimulationStart!==start) return;
+    vehicleSimulationStart=null;
+    const simulation = createVehicleSimulation();
+    if (!simulation.vehicles.size){
+      statusEl.textContent = "This mission has no vehicles to simulate.";
+      return;
+    }
+    vehicleSimulation = simulation;
+    evaluateVehicleEvents(simulation);
+    evaluateVehicleBoardingScript(simulation);
+    updateVehicleSimulationControls();
+    updateEventSimulationStatus();
+    statusEl.textContent = "Vehicle simulation running. Use Tools > Simulate Vehicles to stop.";
+    renderMenuBar();
+    requestRender();
+  }
+
+  function getVehiclePreviewPose(item){
+    return vehicleSimulation?.moved.has(item?.id) ? vehicleSimulation.vehicles.get(item.id).renderPose : null;
+  }
+
+  function markVehiclePreviewPoseDirty(id){
+    vehiclePreviewDirtyIds.add(id);
+    state.threeItems.pointTransformDirtyIds.add(id);
+  }
+
+  function isSimulatedPlayerAboard(simulation,ssn){
+    for (const vehicle of simulation.vehicles.values()){
+      if (vehicle.ssn===ssn && vehicle.playerAboard) return true;
+    }
+    return false;
+  }
+
+  function vehicleEventTargets(simulation, bySsn, id){
+    return [...simulation.vehicles.values()].filter(vehicle => (bySsn ? vehicle.ssn : vehicle.group) === id);
+  }
+
+  function releasePreviewHelicopterForRoute(simulation,vehicle){
+    if (!vehicle.helicopter?.parked) return;
+    // A scheduled return to patrol can also reset the landing events for the next flight.
+    const awaitingPatrol=[...simulation.events.values()].some(event=>event.due!==null &&
+      event.actions.some(([,type,target,value,,,subtype])=>value===5 && subtype===28 &&
+        ((type===3 && target===vehicle.group) || (type===21 && target===vehicle.ssn))));
+    if (!awaitingPatrol) vehicle.helicopter.parked=false;
+  }
+
+  function evaluateVehicleTrigger(simulation, row){
+    const [flags,type,condition,reference,a,b] = row;
+    let result = null;
+    if (type === 0) result = true;
+    if (type === 3 && simulation.events.has(reference)) result = simulation.events.get(reference).firedAt !== null;
+    if (type === 4){
+      const value = simulation.variables.get(reference) ?? 0;
+      result = [null,value === a,value < a,value > a,value <= a,value >= a][condition] ?? null;
+    }
+    if ((type === 1 || type === 2) && condition === 7){
+      const targets = vehicleEventTargets(simulation, type === 2, reference);
+      if (targets.length) result = targets.some(vehicle => vehicle.visited.has(`${a}:${b}`));
+    }
+    if (type === 7 && condition === 38) result = isSimulatedPlayerAboard(simulation,reference);
+    return result === null ? null : (flags & 1) ? !result : result;
+  }
+
+  function applyVehicleEventAction(simulation, row, releaseGuard=false){
+    const [,type,reference,a,b,,subtype] = row;
+    if (type === 0) return true;
+    if (type === 5 && subtype >= 1 && subtype <= 5){
+      const value = simulation.variables.get(reference) ?? 0;
+      simulation.variables.set(reference, [0,a,value+a,value-a,value+1,value-1][subtype]);
+      return true;
+    }
+    if (type === 34){
+      const event = simulation.events.get(reference);
+      if (event){ event.firedAt = null; event.due = null; }
+      return Boolean(event);
+    }
+    const bySsn = [19,21,23,25,26,33].includes(type);
+    const targets = vehicleEventTargets(simulation, bySsn, reference);
+    if (type === 1 || type === 19){
+      const route = simulation.routes.get(a);
+      if (!route) return false;
+      const restarts=type===1?simulation.groundRouteRestarts.get(reference):null;
+      const restart=b<0 && restarts?.has(a);
+      for (const vehicle of targets){
+        // The game's nearest-waypoint search compares all three axes in whole meters (0x406460).
+        const distance=point=>Math.floor(vehicle.pose.x-point.x)**2+
+          Math.floor(vehicle.pose.y-point.y)**2+Math.floor(vehicle.pose.z-point.z)**2;
+        const index = b >= 0 ? route.points.findIndex(point => point.number === b) :
+          restart && vehicle.drive ? 0 : route.points.reduce((nearest,point,i)=>distance(point)<=distance(route.points[nearest])?i:nearest,0);
+        if (index < 0) return false;
+        Object.assign(vehicle,{routeId:a,pointIndex:index,arrived:false});
+        releasePreviewHelicopterForRoute(simulation,vehicle);
+        if (releaseGuard) vehicle.guarded=false;
+      }
+      if (restarts?.delete(a) && !restarts.size) simulation.groundRouteRestarts.delete(reference);
+    } else if (type === 11 || type === 23 || ((type === 3 || type === 21) && subtype === 30)){
+      for (const vehicle of targets) vehicle.speed = Math.max(0,a) / 3.6;
+    } else if ((type === 3 || type === 21) && [2,32,33].includes(subtype)){
+      for (const vehicle of targets){
+        if (subtype === 2) vehicle.guarded = Boolean(a);
+        else vehicle.useWaypointZ = subtype === 32;
+      }
+    } else if ((type===3 || type===21) && subtype===28 && (a===4 || a===5)){
+      const helicopters=targets.filter(vehicle=>vehicle.helicopter);
+      for (const vehicle of helicopters){
+        if (a===4) startPreviewHelicopterLanding(simulation,vehicle);
+        else Object.assign(vehicle.helicopter,{landing:null,parked:false});
+      }
+      return helicopters.length>0;
+    } else if (type === 17 || type === 25){
+      for (const vehicle of targets) vehicle.group = a;
+    } else if (type === 18 || type === 26){
+      const target = simulation.teleportTargets.get(a);
+      if (!target) return false;
+      for (const vehicle of targets){
+        Object.assign(vehicle.pose,target);
+        if (vehicle.drive) vehicle.drive.speed=0;
+        if (vehicle.navigation) Object.assign(vehicle.navigation,{vx:0,vy:0,accumulator:0});
+        if (vehicle.helicopter) vehicle.helicopter.landing=null;
+        vehicle.groundOffset = target.z - rawToWorld(getItemTerrainRawZ(worldToRaw(target.x),worldToRaw(target.y)));
+        vehicle.arrived = false;
+        Object.assign(vehicle.previousPose,vehicle.pose);
+        simulation.moved.add(vehicle.id);
+      }
+    } else if (type === 32 || type === 33){
+      if (type===32){
+        // A convoy reset after a non-looping route rearms its next lap at the start.
+        // Starting the rear vehicle at the nearby final point would end that lap immediately.
+        const ground=targets.filter(vehicle=>vehicle.drive);
+        const restarts=simulation.groundRouteRestarts.get(reference)??new Set();
+        if (ground.length>1){
+          for (const [id,route] of simulation.routes){
+            const last=route.points.at(-1);
+            if (route.noLoop && route.points.length>1 && ground.some(vehicle=>vehicle.visited.has(`${id}:${last.number}`))) restarts.add(id);
+          }
+        }
+        if (restarts.size) simulation.groundRouteRestarts.set(reference,restarts);
+      }
+      for (const vehicle of targets) vehicle.visited.clear();
+    } else return false;
+    return Boolean(targets.length);
+  }
+
+  function evaluateVehicleEvents(simulation){
+    const {elapsed} = simulation;
+    for (const event of simulation.events.values()){
+      if (event.attrib & 4) continue;
+      if (event.firedAt !== null){
+        if (!(event.attrib & 1) || elapsed-event.firedAt+1e-9 < Math.max(event.reset,VEHICLE_SIMULATION_STEP)) continue;
+        event.firedAt = null;
+      }
+      if (event.due === null){
+        let passed = true, unsupported = null;
+        for (const [index,row] of event.triggers.entries()){
+          const result = evaluateVehicleTrigger(simulation,row);
+          if (result === null) unsupported ??= row;
+          if (index === 0) passed = result;
+          else if (row[0] & 4) passed = passed === null || result === null ? null : passed !== result;
+          else if (row[0] & 2) passed = passed === true || result === true ? true : passed === null || result === null ? null : false;
+          else passed = passed === false || result === false ? false : passed === null || result === null ? null : true;
+        }
+        event.pending = passed !== true ? unsupported : null;
+        if (passed !== true) continue;
+        event.due = elapsed + event.delay;
+      }
+      if (event.due > elapsed + 1e-9) continue;
+      event.due = null;
+      event.firedAt = elapsed;
+      event.skipped.clear();
+      const boardingEvent=event.triggers.some(row=>row[1]===7&&row[2]===38);
+      for (const row of event.actions){
+        if (!applyVehicleEventAction(simulation,row,boardingEvent)) event.skipped.add(EVENT_ACTION_TYPES[row[1]] || `Action ${row[1]}`);
+      }
+    }
+  }
+
+  function evaluateVehicleBoardingScript(simulation){
+    const {locations,boardingRules,boardingVariables,boardingFired,elapsed}=simulation;
+    if (!boardingRules.length) return;
+    const read=value=>typeof value==='number'?value:boardingVariables.get(value)??0;
+    const testCondition=(test,rule)=>{
+      const [first,second]=test.args.map(read);
+      switch(test.name){
+        case 'ssnride': return isSimulatedPlayerAboard(simulation,first);
+        case 'chain': {
+          const previous=boardingFired.get(rule.index-1);
+          return previous==null?null:elapsed-previous+1e-9>=first;
+        }
+        case 'elapse': return elapsed-(rule.firedAt??0)+1e-9>=first;
+        case 'past': return elapsed+1e-9>=first;
+        case 'never': return rule.firedAt===null;
+        case 'eq': return first===second;
+        case 'ne': return first!==second;
+        case 'ssnloc': {
+          const bounds=locations.get(second), vehicle=vehicleEventTargets(simulation,true,first)[0];
+          if (!vehicle || !bounds) return null;
+          return bounds.some(([a,b])=>{
+            const between=coord=>vehicle.pose[coord]>=Math.min(a[coord],b[coord])&&vehicle.pose[coord]<=Math.max(a[coord],b[coord]);
+            return between('x')&&between('y')&&(Math.abs(a.z-b.z)<.5||between('z'));
+          });
+        }
+      }
+    };
+    for (const rule of boardingRules){
+      let matched=true;
+      for (const [index,test] of rule.conditions.entries()){
+        const raw=testCondition(test,rule), result=raw===null?null:test.negated?!raw:raw;
+        if (!index) matched=result;
+        else if (test.join==='or') matched=matched===true||result===true?true:matched===null||result===null?null:false;
+        else if (test.join==='xor') matched=matched===null||result===null?null:matched!==result;
+        else matched=matched===false||result===false?false:matched===null||result===null?null:true;
+      }
+      if (matched!==true){ rule.active=false; continue; }
+      if (rule.active) continue;
+      rule.active=true;
+      rule.firedAt=elapsed;
+      boardingFired.set(rule.index,elapsed);
+      for (const {name,args} of rule.actions){
+        if (name==='set'){
+          if (typeof args[0]==='string') boardingVariables.set(args[0],read(args[1]));
+          continue;
+        }
+        const type={gtowp:1,ssntowp:19,ssnpspd:23}[name];
+        applyVehicleEventAction(simulation,[0,type,read(args[0]),read(args[1]),-1],true);
+      }
+    }
+  }
+
+  function groundWaypointDistance(dx,dy){
+    const x=Math.abs(dx),y=Math.abs(dy);
+    // Horizontal distance used by the cveh waypoint evaluator (0x44d450).
+    return Math.max(x,y)+Math.min(x,y)*5/65536;
+  }
+
+  function groundVehicleClearance(groundVehicles,vehicle,forwardX,forwardY,limit){
+    const {pose,drive}=vehicle;
+    let clearance=limit;
+    for (const other of groundVehicles){
+      if (other===vehicle || Math.abs(other.pose.z-pose.z)>2) continue;
+      const dx=other.pose.x-pose.x,dy=other.pose.y-pose.y;
+      const ahead=dx*forwardX+dy*forwardY;
+      if (ahead<=0 || ahead>clearance+drive.halfLength+Math.hypot(other.drive.halfWidth,other.drive.halfLength)) continue;
+      const lateral=dx*forwardY-dy*forwardX;
+      const angle=other.pose.heading*Math.PI/180;
+      const cosine=forwardX*Math.sin(angle)+forwardY*Math.cos(angle);
+      const sine=forwardY*Math.sin(angle)-forwardX*Math.cos(angle);
+      const width=drive.halfWidth+Math.hypot(other.drive.halfWidth*cosine,other.drive.halfLength*sine);
+      if (Math.abs(lateral)>=width) continue;
+      const length=drive.halfLength+Math.hypot(other.drive.halfLength*cosine,other.drive.halfWidth*sine);
+      clearance=Math.max(0,Math.min(clearance,ahead-length*Math.sqrt(1-(lateral/width)**2)));
+    }
+    return clearance;
+  }
+
+  function drivePreviewGroundVehicle(simulation,vehicle,point,isLastStop,dt){
+    const {pose,drive}=vehicle,dx=point.x-pose.x,dy=point.y-pose.y;
+    const distance=groundWaypointDistance(dx,dy);
+    if (distance<=point.radius) return true;
+    const targetHeading=Math.atan2(dx,dy)*180/Math.PI;
+    const headingError=((targetHeading-pose.heading)%360+540)%360-180;
+    // 0x455050 applies 1/64 of the heading and speed error per movement tick.
+    const blend=1-(63/64)**(VEHICLE_AI_TICK_RATE*dt);
+    const maxTurn=drive.turnRate*dt;
+    const turn=Math.max(-maxTurn,Math.min(maxTurn,headingError*blend));
+    const yaw=(pose.heading+turn/2)*Math.PI/180;
+    const forwardX=Math.sin(yaw),forwardY=Math.cos(yaw);
+    const remaining=distance-point.radius;
+    let targetSpeed=remaining<vehicle.speed*16/VEHICLE_AI_TICK_RATE?vehicle.speed/2:vehicle.speed;
+    if (isLastStop) targetSpeed=Math.min(targetSpeed,Math.sqrt(2*GROUND_VEHICLE_ACCELERATION*remaining));
+    const brakingDistance=drive.speed**2/(2*GROUND_VEHICLE_ACCELERATION);
+    const clearance=groundVehicleClearance(simulation.groundVehicles,vehicle,forwardX,forwardY,brakingDistance+vehicle.speed*dt);
+    const availableSpeed=Math.sqrt(2*GROUND_VEHICLE_ACCELERATION*clearance);
+    const wanted=Math.min(targetSpeed*Math.max(0,Math.cos(headingError*Math.PI/180)),availableSpeed);
+    drive.speed+=Math.min(GROUND_VEHICLE_ACCELERATION*dt,(wanted-drive.speed)*blend);
+    const step=Math.min(clearance,drive.speed*dt);
+    if (step>0){
+      pose.x+=forwardX*step;
+      pose.y+=forwardY*step;
+      if (vehicle.useWaypointZ) pose.z+=(point.z-pose.z)*Math.min(1,step/Math.max(step,Math.hypot(dx,dy)));
+      else pose.z=rawToWorld(getItemTerrainRawZ(worldToRaw(pose.x),worldToRaw(pose.y)))+vehicle.groundOffset;
+    }
+    if (turn || step){
+      pose.heading+=turn;
+      simulation.moved.add(vehicle.id);
+    }
+    return groundWaypointDistance(point.x-pose.x,point.y-pose.y)<=point.radius;
+  }
+
+  function startPreviewHelicopterLanding(simulation,vehicle){
+    const {pose,helicopter}=vehicle;
+    if (helicopter.landing || helicopter.parked) return;
+    const route=simulation.routes.get(vehicle.routeId);
+    const last=route?.points.at(-1);
+    // Arrival can fire within the waypoint radius. Finish the approach over the pad.
+    const onFinalApproach=last && vehicle.arrived && (route.noLoop||route.points.length===1) &&
+      (vehicle.pointIndex===route.points.length-1 || vehicle.pointIndex===-1);
+    const x=onFinalApproach?last.x:pose.x,y=onFinalApproach?last.y:pose.y;
+    const terrain=rawToWorld(getItemTerrainRawZ(worldToRaw(x),worldToRaw(y)));
+    const water=getRenderWaterHeightRaw().raw;
+    const z=Math.max(terrain,water===null?-Infinity:water*.5)+helicopter.clearance;
+    helicopter.landing={x,y,z};
+    Object.assign(vehicle.navigation,{vx:0,vy:0,accumulator:0});
+    if (onFinalApproach) vehicle.pointIndex=-1;
+  }
+
+  function advancePreviewHelicopterLanding(simulation,vehicle,dt){
+    const {pose,helicopter}=vehicle;
+    const {x,y,z}=helicopter.landing;
+    const level=Math.pow(31/32,dt*VEHICLE_AI_TICK_RATE);
+    pose.pitch*=level;
+    pose.roll*=level;
+    const dx=x-pose.x,dy=y-pose.y,distance=Math.hypot(dx,dy);
+    if (distance>0){
+      const step=Math.min(distance,Math.max(2,Math.min(8,vehicle.speed))*dt);
+      pose.x=step===distance?x:pose.x+dx*step/distance;
+      pose.y=step===distance?y:pose.y+dy*step/distance;
+    } else {
+      // 0x44e3a0 uses half the profile's climb rate, then about 2 m/s below 5 m.
+      const rate=pose.z-z<5?2:vehicle.navigation.climbRate/2;
+      pose.z=Math.max(z,pose.z-rate*dt);
+      if (pose.z===z){
+        const wasAboard=vehicle.playerAboard;
+        vehicle.playerAboard=false;
+        pose.pitch=pose.roll=0;
+        helicopter.landing=null;
+        helicopter.parked=true;
+        if (vehicle.boardingPreview && vehicle.pointIndex<0) vehicle.routeId=null;
+        if (state.selectedId===vehicle.id){
+          updateVehicleSimulationControls();
+          if (wasAboard) statusEl.textContent=`SSN ${vehicle.ssn} landed. Player disembarked.`;
+        }
+      }
+    }
+    simulation.moved.add(vehicle.id);
+  }
+
+  function followPreviewInertialRoute(simulation,vehicle,point,dt){
+    const {pose,navigation}=vehicle;
+    const step=VEHICLE_AI_STEP,maxTurn=navigation.turnRate*step;
+    const climb=navigation.climbRate*step;
+    const targetZ=vehicle.useWaypointZ?point.z:pose.z;
+    navigation.accumulator+=dt;
+    while (navigation.accumulator>=step){
+      navigation.accumulator-=step;
+      const dx=point.x-pose.x,dy=point.y-pose.y,dz=targetZ-pose.z;
+      const horizontalDistance=Math.hypot(dx,dy);
+      const distance=navigation.aircraft?Math.hypot(horizontalDistance,dz):groundWaypointDistance(dx,dy);
+      if (distance<point.radius){
+        navigation.accumulator%=step;
+        return true;
+      }
+      if (vehicle.helicopter && horizontalDistance<=1 && Math.hypot(navigation.vx,navigation.vy)<1){
+        // A waypoint directly above or below a hovering helicopter needs no horizontal thrust.
+        navigation.vx=navigation.vy=0;
+        pose.pitch*=31/32;
+        pose.roll*=31/32;
+        pose.z+=Math.max(-climb,Math.min(dz,climb));
+        simulation.moved.add(vehicle.id);
+        continue;
+      }
+      // The steering response differs among CHel, cpln, and the three boat motors.
+      const targetHeading=Math.atan2(dx,dy)*180/Math.PI;
+      const turn=((targetHeading-pose.heading+540)%360-180)/navigation.turnDivisor;
+      pose.heading=(pose.heading+Math.max(-maxTurn,Math.min(turn,maxTurn))+360)%360;
+      const angle=pose.heading*Math.PI/180,sin=Math.sin(angle),cos=Math.cos(angle);
+      const speed=navigation.maintainSpeed||distance-point.radius>=vehicle.speed*16*step?
+        vehicle.speed:vehicle.speed/2;
+      const sideways=navigation.vy*sin-navigation.vx*cos;
+      let forwardThrust=speed/128,lateralThrust=0;
+      const drag=navigation.aircraft?254/256:252/256;
+      if (vehicle.helicopter){
+        // CHel (0x458470) accelerates along the tilted rotor.
+        const forward=navigation.vx*sin+navigation.vy*cos;
+        const speedCorrection=Math.abs(forward)>speed?forward-speed:0;
+        const pitch=Math.max(-56.25,Math.min(56.25,pose.pitch+(speed-speedCorrection)*HELICOPTER_PITCH_PER_SPEED));
+        const roll=Math.max(-67.5,Math.min(67.5,pose.roll+sideways*HELICOPTER_ROLL_PER_SPEED));
+        forwardThrust=Math.sin(pitch*Math.PI/180)*0x9c9*VEHICLE_AI_TICK_RATE/65536;
+        lateralThrust=Math.sin(roll*Math.PI/180)*0x686*VEHICLE_AI_TICK_RATE/65536;
+        pose.pitch=pitch*31/32;
+        pose.roll=roll*31/32;
+      } else if (navigation.aircraft){
+        // cpln (0x456d60) banks based on the difference between heading and velocity.
+        pose.roll=sideways*45*step*31/32;
+      } else {
+        // The boat motors (0x455db0, 0x456300, 0x456860) use 1/64 of the target speed as thrust.
+        forwardThrust=speed/64;
+      }
+      navigation.vx=(navigation.vx+sin*forwardThrust+cos*lateralThrust)*drag;
+      navigation.vy=(navigation.vy+cos*forwardThrust-sin*lateralThrust)*drag;
+      pose.x+=navigation.vx*step;
+      pose.y+=navigation.vy*step;
+      if (vehicle.useWaypointZ){
+        // Continue approaching the authored height as the aircraft closes on the waypoint.
+        const remaining=Math.hypot(point.x-pose.x,point.y-pose.y);
+        const progress=horizontalDistance>1?Math.max(0,1-remaining/horizontalDistance):1;
+        pose.z+=Math.max(-climb,Math.min(dz*progress,climb));
+      } else if (vehicle.followsTerrain){
+        pose.z=rawToWorld(getItemTerrainRawZ(worldToRaw(pose.x),worldToRaw(pose.y)))+vehicle.groundOffset;
+      }
+      simulation.moved.add(vehicle.id);
+    }
+    return false;
+  }
+
+  function advancePreviewVehicle(simulation, vehicle, dt){
+    if (vehicle.helicopter?.landing){
+      advancePreviewHelicopterLanding(simulation,vehicle,dt);
+      return;
+    }
+    if (vehicle.helicopter?.parked) return;
+    const route = simulation.routes.get(vehicle.routeId), pose = vehicle.pose;
+    const manualBoarding=!vehicle.helicopter && vehicle.playerAboard && !vehicle.hasBoardingLogic;
+    const waitingForPassenger=!vehicle.helicopter && vehicle.boardingPreview && !vehicle.playerAboard;
+    if (!route || vehicle.pointIndex < 0 || waitingForPassenger || (vehicle.guarded&&!manualBoarding) || vehicle.speed<=0){
+      if (vehicle.drive) vehicle.drive.speed=0;
+      return;
+    }
+    let point = route.points[vehicle.pointIndex];
+    if (vehicle.arrived){
+      if (point.advanceEvent >= 0 && simulation.events.get(point.advanceEvent)?.firedAt == null){
+        if (vehicle.drive) vehicle.drive.speed=0;
+        return;
+      }
+      const next = vehicle.pointIndex + 1;
+      if (next === route.points.length && (route.noLoop || next === 1)){
+        vehicle.pointIndex=-1;
+        if (vehicle.drive) vehicle.drive.speed=0;
+        return;
+      }
+      vehicle.pointIndex = next % route.points.length;
+      vehicle.arrived = false;
+      point = route.points[vehicle.pointIndex];
+    }
+    if (vehicle.drive){
+      const isLastStop=(route.noLoop||route.points.length===1)&&vehicle.pointIndex===route.points.length-1;
+      if (drivePreviewGroundVehicle(simulation,vehicle,point,isLastStop,dt)){
+        vehicle.visited.add(`${vehicle.routeId}:${point.number}`);
+        vehicle.arrived=true;
+      }
+      return;
+    }
+    if (vehicle.navigation){
+      if (followPreviewInertialRoute(simulation,vehicle,point,dt)){
+        vehicle.visited.add(`${vehicle.routeId}:${point.number}`);
+        vehicle.arrived=true;
+      }
+      return;
+    }
+    const dx = point.x-pose.x, dy = point.y-pose.y, dz = vehicle.useWaypointZ ? point.z-pose.z : 0;
+    const distance = Math.hypot(dx,dy,dz), step = Math.min(distance,vehicle.speed*dt);
+    if (step > 0){
+      const fraction = step / distance;
+      pose.x += dx*fraction; pose.y += dy*fraction;
+      if (vehicle.useWaypointZ) pose.z += dz*fraction;
+      else if (vehicle.followsTerrain) pose.z = rawToWorld(getItemTerrainRawZ(worldToRaw(pose.x),worldToRaw(pose.y))) + vehicle.groundOffset;
+      if (dx || dy) pose.heading = Math.atan2(dx,dy) * 180 / Math.PI;
+      simulation.moved.add(vehicle.id);
+    }
+    if (distance-step <= point.radius){
+      vehicle.visited.add(`${vehicle.routeId}:${point.number}`);
+      vehicle.arrived = true;
+    }
+  }
+
+  function interpolateVehiclePreviewPoses(simulation){
+    const alpha=Math.max(0,Math.min(1,simulation.accumulator/VEHICLE_SIMULATION_STEP));
+    for (const id of simulation.moved){
+      const {previousPose:previous,pose,renderPose}=simulation.vehicles.get(id);
+      const x=previous.x+(pose.x-previous.x)*alpha;
+      const y=previous.y+(pose.y-previous.y)*alpha;
+      const z=previous.z+(pose.z-previous.z)*alpha;
+      const angle=(pose.heading-previous.heading)%360;
+      const heading=previous.heading+((angle+540)%360-180)*alpha;
+      const pitch=previous.pitch+(pose.pitch-previous.pitch)*alpha;
+      const roll=previous.roll+(pose.roll-previous.roll)*alpha;
+      if (x===renderPose.x && y===renderPose.y && z===renderPose.z && heading===renderPose.heading && pitch===renderPose.pitch && roll===renderPose.roll) continue;
+      Object.assign(renderPose,{x,y,z,heading,pitch,roll});
+      markVehiclePreviewPoseDirty(id);
+    }
+  }
+
+  function tickVehicleSimulation(dt){
+    const simulation = vehicleSimulation;
+    if (!simulation || state.terrainLoad.phase === "loading") return;
+    simulation.accumulator += dt * renderUiState.vehicleSimulationSpeed;
+    while (simulation.accumulator + 1e-9 >= VEHICLE_SIMULATION_STEP){
+      simulation.accumulator -= VEHICLE_SIMULATION_STEP;
+      simulation.elapsed += VEHICLE_SIMULATION_STEP;
+      for (const vehicle of simulation.vehicles.values()){
+        Object.assign(vehicle.previousPose,vehicle.pose);
+        advancePreviewVehicle(simulation,vehicle,VEHICLE_SIMULATION_STEP);
+      }
+      evaluateVehicleEvents(simulation);
+      evaluateVehicleBoardingScript(simulation);
+    }
+    interpolateVehiclePreviewPoses(simulation);
+    if (state.sectionEditorOpen && state.sectionKind === "event") updateEventSimulationStatus();
+  }
+
+  function updateEventSimulationStatus(section){
+    if (!eventSimulationStatus) return;
+    const simulation = vehicleSimulation;
+    eventSimulationStatus.hidden = !simulation;
+    if (!simulation) return;
+    const selected = section ?? state.sectionBlocks.find(item => item.id === state.sectionSelectedId);
+    const event = simulation.events.get(getEventNumber(selected));
+    let message = "Vehicle simulation running.";
+    if (event?.firedAt != null){
+      message = `Fired at ${event.firedAt.toFixed(1)} s.`;
+      if (event.skipped.size) message += ` Actions skipped: ${[...event.skipped].join(", ")}.`;
+    } else if (event?.due != null) message = `Waiting for delay until ${event.due.toFixed(1)} s.`;
+    else if (event?.attrib & 4) message = "Pending: waiting for mission end.";
+    else if (event?.pending) message = `Pending: ${triggerDescription(event.pending)} (requires gameplay outside this preview).`;
+    else if (event) message = "Waiting for triggers.";
+    if (eventSimulationStatus.textContent !== message) eventSimulationStatus.textContent = message;
+  }
+
   function writeEventData(sec, data, fields = {}){
     if (!sec) return;
+    if (vehicleSimulation && state.sectionBlocks.includes(sec)) stopVehicleSimulation();
     const old = sec.lines || [], kept=[];
     let nested=null;
     for (const raw of old){
@@ -7438,6 +8267,7 @@ end group
   function renderEventEditor(){
     if (!eventListBox || !eventNameInput) return;
     const events=getSortedEvents(); ensureValidSelectedEvent(events); const sec=selectedEvent();
+    updateEventSimulationStatus(sec);
     eventListBox.innerHTML=events.map(e=>{const n=getEventNumber(e), name=getEventName(e)||`Event ${n}`; return `<button type="button" class="eventListItem ${e.id===state.sectionSelectedId?'active':''}" data-id="${e.id}">${escapeHtml(`(${n}) ${name}`)}</button>`}).join('')+(events.length<256?'<button type="button" class="eventListItem eventNewRow" data-new="1">&lt;&lt; New Event &gt;&gt;</button>':'');
     eventListBox.querySelectorAll('[data-id]').forEach(el=>el.addEventListener('click',()=>selectSectionBlock(Number(el.dataset.id))));
     eventListBox.querySelector('[data-new]')?.addEventListener('click',()=>createEvent());
@@ -8588,6 +9418,7 @@ end group
   }
 
   function renderList(){
+    updateVehicleSimulationControls();
     renderTilePaletteSelection();
     renderSelectedInfoPanel();
     if (!listEl) return;
@@ -10637,6 +11468,8 @@ end group
     "view.showFog": () => toggleViewOption("showFog"),
     "view.showAnchorPoints": () => toggleViewOption("showAnchorPoints"),
     "tools.importReferenceGlb": () => fileReferenceGlbEl.click(),
+    "tools.simulateVehicles": toggleVehicleSimulation,
+    "tools.loadBoardingScript": () => boardingScriptFile.click(),
     "mis.liveChanges": openLiveMisWindow,
     "til.liveChanges": openLiveTilWindow,
     "logs.open": openLogsWindow,
@@ -10722,6 +11555,8 @@ end group
       {
         label: "Tools",
         children: [
+          { label: "Simulate Vehicles", command: "tools.simulateVehicles", checked: Boolean(vehicleSimulation), disabled: !hasMisLoaded() },
+          { label: "Load Boarding Script (.wac)…", command: "tools.loadBoardingScript", disabled: !hasMisLoaded() },
           { label: "Import Reference GLB...", command: "tools.importReferenceGlb" },
           { separator: true },
           { label: "Tile Tool", command: "tools.tileTool" },
@@ -11487,6 +12322,15 @@ end group
       addLog(`ERROR opening mission: ${error.message}`);
       statusEl.textContent=`Failed to open mission: ${error.message}`;
     }
+  });
+  simulateVehiclesBtn.addEventListener('click',toggleVehicleSimulation);
+  playerAboardBtn.addEventListener('click',toggleSimulatedPlayerAboard);
+  vehicleSimulationSpeed.addEventListener('input',updateVehicleSimulationSpeed);
+  boardingScriptFile.addEventListener('change',async e=>{
+    const file=e.target.files?.[0];
+    e.target.value='';
+    try { await loadVehicleBoardingScript(file); }
+    catch (error){ statusEl.textContent=`Failed to read boarding script: ${error.message}`; }
   });
   fileReferenceGlbEl.addEventListener("change", async (e) => {
     await importReferenceGlb(e.target.files?.[0]);
@@ -13400,9 +14244,10 @@ end group
     const offsetsByItemId = new Map();
 
     for (const it of items){
-      const x = rawToWorld(it.x,'x');
-      const y = rawToWorld(it.y,'y');
-      const z = getItemWorldZ(it);
+      const preview = getVehiclePreviewPose(it);
+      const x = preview?.x ?? rawToWorld(it.x,'x');
+      const y = preview?.y ?? rawToWorld(it.y,'y');
+      const z = preview?.z ?? getItemWorldZ(it);
       if (!isFinitePosition(x, y, z)){
         warnInvalidGeometryOnce('item points', String(it.id));
         continue;
@@ -13622,9 +14467,10 @@ end group
       const points = location ? state.threeItems.pointsByGroup.get(location.group) : null;
       const attribute = points?.geometry?.getAttribute('position');
       if (!item || !attribute || location.offset + 2 >= attribute.array.length) continue;
-      attribute.array[location.offset] = rawToWorld(item.x, 'x');
-      attribute.array[location.offset + 1] = rawToWorld(item.y, 'y');
-      attribute.array[location.offset + 2] = getItemWorldZ(item);
+      const preview = getVehiclePreviewPose(item);
+      attribute.array[location.offset] = preview?.x ?? rawToWorld(item.x, 'x');
+      attribute.array[location.offset + 1] = preview?.y ?? rawToWorld(item.y, 'y');
+      attribute.array[location.offset + 2] = preview?.z ?? getItemWorldZ(item);
       const range = updateRanges.get(attribute) || { min: location.offset, max: location.offset + 3 };
       range.min = Math.min(range.min, location.offset);
       range.max = Math.max(range.max, location.offset + 3);
@@ -13778,20 +14624,21 @@ end group
     obj.scale.set(scale, scale, scale);
   }
 
-  function applyLogicalZUpRotation(obj, yaw = 0, pitch = 0){
+  function applyLogicalZUpRotation(obj, yaw = 0, pitch = 0, roll = 0){
     if (!obj) return;
     obj.rotation.order = "ZXY";
     obj.rotation.set(
       -(Number(pitch) || 0) * Math.PI / 180,
-      0,
+      (Number(roll) || 0) * Math.PI / 180,
       -(Number(yaw) || 0) * Math.PI / 180
     );
   }
 
   function applyItemPoseTransform(obj, it){
     if (!obj || !it) return;
-    obj.position.set(rawToWorld(it.x, "x"), rawToWorld(it.y, "y"), getItemWorldZ(it));
-    applyLogicalZUpRotation(obj, it.heading, it.pitch);
+    const preview = getVehiclePreviewPose(it);
+    obj.position.set(preview?.x ?? rawToWorld(it.x, "x"), preview?.y ?? rawToWorld(it.y, "y"), preview?.z ?? getItemWorldZ(it));
+    applyLogicalZUpRotation(obj, preview?.heading ?? it.heading, preview?.pitch ?? it.pitch, preview?.roll);
     obj.scale.set(1, 1, 1);
   }
 
@@ -14749,6 +15596,8 @@ end group
         instanced.name=`GLB_INSTANCE_BATCH_MESH:${meshIndex}`;
         instanced.renderOrder=batchRenderOrder;
         instanced.userData.instanceItemIds=itemIds;
+        instanced.userData.baseMatrix=source.baseMatrix;
+        instanced.frustumCulled=!itemIds.some(id=>vehicleSimulation?.moved.has(id));
         instanced.castShadow=source.castShadow;instanced.receiveShadow=source.receiveShadow;
         for(let instanceIndex=0;instanceIndex<members.length;instanceIndex++)instanced.setMatrixAt(instanceIndex,composeGlbItemInstanceMatrix(members[instanceIndex].it,source.baseMatrix));
         instanced.instanceMatrix.needsUpdate=true;group.add(instanced);
@@ -14959,6 +15808,9 @@ end group
   }
 
   function clearGlbItemInstances(){
+    stopVehicleSimulation();
+    vehicleBoardingScript = null;
+    vehiclePreviewDirtyIds.clear();
     // Invalidates async sync work before replacing the current mission document.
     state.glb.documentGeneration += 1;
     disposeReferenceGlb();
@@ -15056,9 +15908,10 @@ end group
 
   function updateItemArrow(arrow, it){
     const lengthMeters = getItemArrowSize(it);
+    const preview = getVehiclePreviewPose(it);
     arrow.material.color.setHex(ITEM_ARROW_COLOR);
-    arrow.position.set(rawToWorld(it.x, 'x'), rawToWorld(it.y, 'y'), getItemWorldZ(it) + ITEM_ARROW_Z_OFFSET);
-    arrow.rotation.set(0, 0, getItemArrowHeadingRadians(it.heading));
+    arrow.position.set(preview?.x ?? rawToWorld(it.x,'x'), preview?.y ?? rawToWorld(it.y,'y'), (preview?.z ?? getItemWorldZ(it)) + ITEM_ARROW_Z_OFFSET);
+    arrow.rotation.set(0, 0, getItemArrowHeadingRadians(preview?.heading ?? it.heading));
     arrow.scale.set(lengthMeters, lengthMeters, 1);
     arrow.visible = lengthMeters > 0 && isItemVisibilityFilterMatch(it);
   }
@@ -15153,12 +16006,13 @@ end group
 
   function updateItemCircle(circle, it){
     const radiusMeters = getItemCircleRadius(it);
+    const preview = getVehiclePreviewPose(it);
     const isKothCenter = isKothCenterItem(it);
     const groundRawZ = isKothCenter ? getItemTerrainRawZ(it.x, it.y) : 0;
-    const baseZ = isKothCenter ? rawToWorld(groundRawZ) : getItemWorldZ(it);
+    const baseZ = preview?.z ?? (isKothCenter ? rawToWorld(groundRawZ) : getItemWorldZ(it));
     circle.material.color.setHex(ITEM_CIRCLE_COLOR);
-    circle.position.set(rawToWorld(it.x, "x"), rawToWorld(it.y, "y"), baseZ + ITEM_CIRCLE_Z_OFFSET);
-    circle.rotation.set(0, 0, getItemArrowHeadingRadians(it.heading));
+    circle.position.set(preview?.x ?? rawToWorld(it.x,'x'), preview?.y ?? rawToWorld(it.y,'y'), baseZ + ITEM_CIRCLE_Z_OFFSET);
+    circle.rotation.set(0, 0, getItemArrowHeadingRadians(preview?.heading ?? it.heading));
     circle.scale.set(radiusMeters, radiusMeters, 1);
     circle.visible = radiusMeters > 0 && isItemVisibilityFilterMatch(it);
 
@@ -15297,7 +16151,8 @@ end group
     helper.material.color.set(tint || EDITOR_HELPER_FALLBACK_COLOR);
     helper.material.opacity = opacity;
     helper.material.transparent = opacity < 1;
-    helper.position.set(rawToWorld(it.x, "x"), rawToWorld(it.y, "y"), getItemWorldZ(it));
+    const preview = getVehiclePreviewPose(it);
+    helper.position.set(preview?.x ?? rawToWorld(it.x,'x'), preview?.y ?? rawToWorld(it.y,'y'), preview?.z ?? getItemWorldZ(it));
     helper.rotation.set(0, 0, 0);
     helper.scale.set(size, size, size);
     helper.visible = showEditorHeldersEl?.checked !== false
@@ -15478,6 +16333,23 @@ end group
     }
   }
 
+  function updateVehiclePreviewModels(){
+    for (const id of vehiclePreviewDirtyIds){
+      const item = getItemByIdFast(id);
+      if (!item) continue;
+      applyItemPoseTransform(state.glb.itemInstances.get(id),item);
+      const batch = state.glb.batchedItemLookup.get(id);
+      if (!batch) continue;
+      for (const mesh of batch.group.children){
+        mesh.setMatrixAt(batch.index,composeGlbItemInstanceMatrix(item,mesh.userData.baseMatrix));
+        mesh.instanceMatrix.needsUpdate = true;
+        mesh.frustumCulled = !mesh.userData.instanceItemIds.some(itemId => vehicleSimulation?.moved.has(itemId));
+        mesh.boundingSphere = null;
+      }
+    }
+    vehiclePreviewDirtyIds.clear();
+  }
+
 
   function drawGlbItems(P, V, fog){
     if (!state.glb.ready){
@@ -15489,6 +16361,7 @@ end group
     maybeRefreshTransparentGlbBatches();
     const samples={},measure=(name,callback)=>{const started=performance.now();callback();samples[name]=performance.now()-started;};
     measure('transforms',updateGlbTransformsFromState);
+    updateVehiclePreviewModels();
     measure('arrows',syncItemArrows);
     measure('circles',syncItemCircles);
     measure('helpers',syncEditorHelpers);
@@ -15855,7 +16728,7 @@ end group
     drawSelectedMapTileOutlines();
     if(!ensureThreeGizmo()){state.gizmoVisual=null;return;}
     const group=state.glb.gizmoGroup,it=state.referenceGlb?.selected ? state.referenceGlb.item : getSelected(),items=selectedTransformItems(),center=gizmoPivot(items);
-    if(!it||!center||state.modalOpen||(!state.referenceGlb?.selected&&!isTilOnlyMapTile(it)&&!isItemVisibilityFilterMatch(it))){group.visible=false;state.gizmoVisual=null;return;}
+    if(!it||!center||state.modalOpen||items.some(getVehiclePreviewPose)||(!state.referenceGlb?.selected&&!isTilOnlyMapTile(it)&&!isItemVisibilityFilterMatch(it))){group.visible=false;state.gizmoVisual=null;return;}
     group.visible=true;group.position.set(center.x,center.y,center.z);
     const basis=state.gizmoDrag?.handle?.kind==='ring'?state.gizmoDrag.basis:itemTransformBasis(it),THREE=state.glb.THREE,m=new THREE.Matrix4().makeBasis(new THREE.Vector3(basis.x.x,basis.x.y,basis.x.z),new THREE.Vector3(basis.y.x,basis.y.y,basis.y.z),new THREE.Vector3(basis.z.x,basis.z.y,basis.z.z));group.quaternion.setFromRotationMatrix(m);
     const {tanHalfVerticalFov,orthographic,orthographicHalfHeight}=getCameraProjection();
@@ -15903,7 +16776,37 @@ end group
     }
   }
 
-  function pickItemAt(sx,sy){ const world=screenToWorld(sx,sy,0); const size=Math.max(64, Number(state.spatialIndex.cellSize)||2048); const candidates=getSpatialCandidatesByWorldRect(world.x-size,world.y-size,world.x+size,world.y+size); const filteredSet=new Set(getFilteredItems().map(it=>it.id)); let best=null,bestD2=Infinity; for(const it of candidates){ if(!filteredSet.has(it.id)) continue; if(!isItemVisibilityFilterMatch(it)) continue; const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it)); if(!p.visible) continue; const dx=p.sx-sx,dy=p.sy-sy,d2=dx*dx+dy*dy; if(d2<bestD2){bestD2=d2;best=it;} } return (best&&bestD2<14*14)?best:null; }
+  function getPreviewSelectionCandidates(minX,minY,maxX,maxY){
+    const candidates = getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY);
+    if (!vehicleSimulation?.moved.size) return candidates;
+    const items = new Set(candidates);
+    for (const id of vehicleSimulation.moved){
+      const item = getItemByIdFast(id);
+      if (item) items.add(item);
+    }
+    return items;
+  }
+
+  function projectItemForSelection(item,PV,viewport){
+    const preview = getVehiclePreviewPose(item);
+    return worldToScreen(preview?.x ?? rawToWorld(item.x),preview?.y ?? rawToWorld(item.y),preview?.z ?? getItemWorldZ(item),PV,viewport);
+  }
+
+  function pickItemAt(sx,sy){
+    const world = screenToWorld(sx,sy,0), size = Math.max(64,Number(state.spatialIndex.cellSize)||2048);
+    const candidates = getPreviewSelectionCandidates(world.x-size,world.y-size,world.x+size,world.y+size);
+    const filtered = new Set(getFilteredItems().map(item=>item.id));
+    const {PV} = currentPV(), viewport = cv.getBoundingClientRect();
+    let best = null, bestDistance = 14*14;
+    for (const item of candidates){
+      if (!filtered.has(item.id) || !isItemVisibilityFilterMatch(item)) continue;
+      const point = projectItemForSelection(item,PV,viewport);
+      if (!point.visible) continue;
+      const distance = (point.sx-sx)**2 + (point.sy-sy)**2;
+      if (distance < bestDistance){ bestDistance=distance; best=item; }
+    }
+    return best;
+  }
 
   function extractTerrainNameFromMis(){ const gi=state.sectionBlocks.find(s=>s.kind==='general_information'); return gi&&gi.kv&&gi.kv.terrain?String(gi.kv.terrain).trim():''; }
   function getRenderWaterHeightRaw(){
@@ -15967,6 +16870,7 @@ end group
   const AI_TEXTFILE_FILE_INDEX={"boat.aip": ["boat.aip"], "G_Aveng2.AIP": ["G_Aveng2.AIP"], "G_Avengr.AIP": ["G_Avengr.AIP"], "G_BMP.AIP": ["G_BMP.AIP"], "G_bmpG.AIP": ["G_bmpG.AIP"], "G_Bradly.AIP": ["G_Bradly.AIP"], "G_BRDM.AIP": ["G_BRDM.AIP"], "G_Buggy.AIP": ["G_Buggy.AIP"], "G_buggyS.AIP": ["G_buggyS.AIP"], "G_Jeep.AIP": ["G_Jeep.AIP"], "G_JeepS.AIP": ["G_JeepS.AIP"], "G_MIM23.AIP": ["G_MIM23.AIP"], "G_MIM23R.AIP": ["G_MIM23R.AIP"], "G_SA6.AIP": ["G_SA6.AIP"], "G_sa6R.AIP": ["G_sa6R.AIP"], "G_SA8.AIP": ["G_SA8.AIP"], "G_SA8R.AIP": ["G_SA8R.AIP"], "G_Snow.AIP": ["G_Snow.AIP"], "G_SnowR.AIP": ["G_SnowR.AIP"], "G_SnowS.AIP": ["G_SnowS.AIP"], "G_tngska.AIP": ["G_tngska.AIP"], "G_tngskR.AIP": ["G_tngskR.AIP"], "GMG.AIP": ["GMG.AIP"], "GMG_F.AIP": ["GMG_F.AIP"], "GMG_P.AIP": ["GMG_P.AIP"], "GMGF_P.AIP": ["GMGF_P.AIP"], "ground1.AIP": ["ground1.AIP"], "GS.AIP": ["GS.AIP"], "GS_F.AIP": ["GS_F.AIP"], "GS_P.AIP": ["GS_P.AIP"], "GT.AIP": ["GT.AIP"], "GT_F.AIP": ["GT_F.AIP"], "GTR.AIP": ["GTR.AIP"], "GU.AIP": ["GU.AIP"], "GU_F.AIP": ["GU_F.AIP"], "GU_S.AIP": ["GU_S.AIP"], "H_AH6.AIP": ["H_AH6.AIP"], "h_ah6b_z.aip": ["h_ah6b_z.aip"], "h_ah6z.aip": ["h_ah6z.aip"], "H_Apach2.AIP": ["H_Apach2.AIP"], "H_Apache.AIP": ["H_Apache.AIP"], "H_BHawk.AIP": ["H_BHawk.AIP"], "h_bhawkf.aip": ["h_bhawkf.aip"], "H_BHawkN.AIP": ["H_BHawkN.AIP"], "H_BHawkZ.AIP": ["H_BHawkZ.AIP"], "h_bhawmp.aip": ["h_bhawmp.aip"], "H_ComanZ.AIP": ["H_ComanZ.AIP"], "H_Havoc.aip": ["H_Havoc.aip"], "H_HavocR.AIP": ["H_HavocR.AIP"], "H_Helix.AIP": ["H_Helix.AIP"], "H_Hind.aip": ["H_Hind.aip"], "H_Hokum.AIP": ["H_Hokum.AIP"], "H_Hokum2.AIP": ["H_Hokum2.AIP"], "H_Hokum3.AIP": ["H_Hokum3.AIP"], "H_MGNF.AIP": ["H_MGNF.AIP"], "HELO1.AIP": ["HELO1.AIP"], "HMG.AIP": ["HMG.AIP"], "HS_F.AIP": ["HS_F.AIP"], "HU.AIP": ["HU.AIP"], "P_AF1.AIP": ["P_AF1.AIP"], "P_cessna.aip": ["P_cessna.aip"], "P_drone.aip": ["P_drone.aip"], "P_Drone2.AIP": ["P_Drone2.AIP"], "plane.AIP": ["plane.AIP"], "planesit.AIP": ["planesit.AIP"], "PR_F.AIP": ["PR_F.AIP"], "PR_S.AIP": ["PR_S.AIP"], "PRETTY.AIP": ["PRETTY.AIP"], "PRF_F.AIP": ["PRF_F.AIP"], "PRF_S.AIP": ["PRF_S.AIP"], "PS_F.AIP": ["PS_F.AIP"], "PS_FZ.AIP": ["PS_FZ.AIP"], "PSE_F.AIP": ["PSE_F.AIP"], "PSE_FZ.AIP": ["PSE_FZ.AIP"], "Pu_s.aip": ["Pu_s.aip"], "sitboat.aip": ["sitboat.aip"], "sitgrnd1.AIP": ["sitgrnd1.AIP"], "T_Cannon.AIP": ["T_Cannon.AIP"], "T_Gun.AIP": ["T_Gun.AIP"], "T_Rocket.AIP": ["T_Rocket.AIP"], "T_SAM.AIP": ["T_SAM.AIP"], "W_big.AIP": ["W_big.AIP"], "W_Cargo.AIP": ["W_Cargo.AIP"], "W_Frig.AIP": ["W_Frig.AIP"], "W_LCAC.AIP": ["W_LCAC.AIP"], "W_Zode.AIP": ["W_Zode.AIP"], "Wingman.AIP": ["Wingman.AIP"], "WMG_F.AIP": ["WMG_F.AIP"], "WMG_VF.AIP": ["WMG_VF.AIP"], "WMP.AIP": ["WMP.AIP"], "WU.AIP": ["WU.AIP"], "WU_F.AIP": ["WU_F.AIP"]};
   const TERRAIN_FILE_INDEX={"CINE": ["CINE.TRN"], "DVD1": ["DVD1.TRN"], "dvd2": ["dvd2.trn"], "dvd3": ["dvd3.trn"], "DVD4": ["DVD4.TRN"], "dvd5": ["dvd5.trn"], "dvdg1": ["dvdg1.trn"], "DVDG2": ["DVDG2.TRN"], "dvg1": ["dvg1.trn"], "dvt1": ["dvt1.trn"], "Flat": ["Flat.TRN"], "MIS1": ["MIS1.TRN"], "mis10": ["mis10.trn"], "MIS11": ["MIS11.TRN"], "MIS13": ["MIS13.TRN"], "Mis14": ["Mis14.trn"], "MIS15": ["MIS15.TRN"], "MIS16": ["MIS16.TRN"], "MIS17": ["MIS17.TRN"], "MIS18": ["MIS18.TRN"], "MIS19B": ["MIS19B.TRN"], "MIS2": ["MIS2.TRN"], "MIS3": ["MIS3.TRN"], "MIS4": ["MIS4.TRN"], "MIS5": ["MIS5.TRN"], "MIS6": ["MIS6.TRN"], "MIS7": ["MIS7.TRN"], "MIS8": ["MIS8.TRN"], "MIS9": ["MIS9.TRN"], "MIST1": ["MIST1.TRN"], "MIST2": ["MIST2.TRN"], "rmp02b": ["rmp02b.trn"], "rmp03p": ["rmp03p.trn"], "rmp03r": ["rmp03r.trn"], "TKHR_04": ["TKHR_04.trn"], "ts_01": ["ts_01.trn"], "ts_02": ["ts_02.trn"], "TS_05": ["TS_05.trn"], "TS_09": ["TS_09.trn"], "ts_11": ["ts_11.trn"], "TSBHD_04": ["TSBHD_04.trn"], "TSBHD_06": ["TSBHD_06.trn"], "zoo": ["zoo.trn"]};
   async function loadTerrainFromMis(terrainOverride = null){
+    stopVehicleSimulation();
     const generation = ++state.terrainLoad.generation;
     const isCurrentLoad = () => generation === state.terrainLoad.generation;
     const terrainRaw = terrainOverride ?? extractTerrainNameFromMis();
@@ -16233,7 +17137,8 @@ end group
   }
 
   function renderFrame(){
-    const frameStarted=performance.now(),now=frameStarted, dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
+    const frameStarted=performance.now(),now=frameStarted, elapsed=(now-lastT)/1000, dt=Math.min(0.05,elapsed); lastT=now;
+    tickVehicleSimulation(Math.min(0.25,elapsed));
     const {forwardXY,right,forward}=cameraBasis(); const canMoveWithKeys=(document.pointerLockElement===cv && state.cameraLookActive); let dir=vec3(0,0,0); if(canMoveWithKeys&&move.w) dir=vec3Add(dir,forwardXY); if(canMoveWithKeys&&move.s) dir=vec3Sub(dir,forwardXY); if(canMoveWithKeys&&move.d) dir=vec3Add(dir,right); if(canMoveWithKeys&&move.a) dir=vec3Sub(dir,right); if(canMoveWithKeys&&move.e) dir=vec3Add(dir,vec3(0,0,1)); if(canMoveWithKeys&&move.q) dir=vec3Sub(dir,vec3(0,0,1)); const dlen=vec3Len(dir); const speedTable=[12.5,25,50,100,200,300,450,600]; const lvl=Math.max(1,Math.min(8,renderUiState.speedLevel|0)); const scalar=Math.max(0.1,renderUiState.speedScalar||1); const base=speedTable[lvl-1]*scalar; const spd=base; state.camera.speed=spd; const targetVel=dlen>0?vec3Scale(dir,spd/dlen):vec3(0,0,0); const smoothBoost=1.3; const accel=12.0/smoothBoost, decel=10.0/smoothBoost; const blend=Math.min(1, (dlen>0?accel:decel)*dt); camVel=vec3Add(camVel, vec3Scale(vec3Sub(targetVel,camVel), blend)); cam.pos=vec3Add(cam.pos,vec3Scale(camVel,dt));
     if(renderUiState.groundClamp && lastDepth){ const h=heightAtWorld(cam.pos.x,cam.pos.y,1.0); if(h>-1e8){ const clearance=renderUiState.clearance; if(cam.pos.z < h+clearance) cam.pos.z = h+clearance; } }
     updateKothZoneStatus();
@@ -16675,10 +17580,11 @@ PointerLock: ${document.pointerLockElement===cv?'on':'off'}`;
   });
   function boxSelectionIds(x0,y0,x1,y1){
     const worldA=screenToWorld(x0,y0,0),worldB=screenToWorld(x1,y1,0),minX=Math.min(worldA.x,worldB.x),maxX=Math.max(worldA.x,worldB.x),minY=Math.min(worldA.y,worldB.y),maxY=Math.max(worldA.y,worldB.y);
-    const candidates=getSpatialCandidatesByWorldRect(minX,minY,maxX,maxY),filteredSet=new Set(getFilteredItems().map(it=>it.id)),ids=[];
+    const candidates=getPreviewSelectionCandidates(minX,minY,maxX,maxY),filteredSet=new Set(getFilteredItems().map(it=>it.id)),ids=[];
+    const {PV}=currentPV(),viewport=cv.getBoundingClientRect();
     for(const it of candidates){
       if(!filteredSet.has(it.id)||!isItemVisibilityFilterMatch(it)||(state.tileEditModeActive&&(!isMapTileItem(it)||isMapTileLocked(it)||isMapTileHidden(it))))continue;
-      const p=worldToScreen(rawToWorld(it.x,'x'),rawToWorld(it.y,'y'),getItemWorldZ(it));
+      const p=projectItemForSelection(it,PV,viewport);
       if(p.visible&&p.sx>=x0&&p.sx<=x1&&p.sy>=y0&&p.sy<=y1)ids.push(it.id);
     }
     for(const it of state.tilOnlyItems){
